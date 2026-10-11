@@ -180,12 +180,14 @@ stdenv.mkDerivation {
     EOF
 
     # Call the shell's IPC, e.g. `hecate-shell-ipc shortcut press searchToggleRelease`.
+    # One shell per user: don't filter by display, so it works from a TTY or ssh (no
+    # WAYLAND_DISPLAY) as well as from hecate's binds.
     cat > $out/bin/hecate-shell-ipc <<EOF
     #!${stdenv.shell}
     if [ -e "\''${XDG_CONFIG_HOME:-\$HOME/.config}/quickshell/end4-pC/shell.qml" ]; then
-      exec $out/bin/qs -c end4-pC ipc call "\$@"
+      exec $out/bin/qs -c end4-pC ipc --any-display call "\$@"
     fi
-    exec $out/bin/qs -p $config ipc call "\$@"
+    exec $out/bin/qs -p $config ipc --any-display call "\$@"
     EOF
     chmod +x $out/bin/hecate-shell $out/bin/hecate-shell-ipc
 
