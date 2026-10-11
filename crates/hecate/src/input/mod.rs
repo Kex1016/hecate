@@ -531,6 +531,12 @@ impl State {
             return;
         }
 
+        if state == ButtonState::Pressed && self.hecate.focus_grab_state.is_active() {
+            let under = self.contents_under(pointer.current_location());
+            let root = under.surface.as_ref().map(|(s, _)| crate::utils::root_surface(s));
+            self.focus_grab_on_press(root.as_ref());
+        }
+
         if state == ButtonState::Pressed && !pointer.is_grabbed() {
             let pos = pointer.current_location();
             let under = self.contents_under(pos);

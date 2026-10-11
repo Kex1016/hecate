@@ -127,6 +127,7 @@ pub struct Hecate {
     pub output_management_state: crate::protocols::output_management::OutputManagementState,
     pub output_power_state: crate::protocols::output_power::OutputPowerState,
     pub screencopy_state: crate::protocols::screencopy::ScreencopyManagerState,
+    pub focus_grab_state: crate::protocols::focus_grab::FocusGrabState,
     pub image_capture_source_state: smithay::wayland::image_capture_source::ImageCaptureSourceState,
     pub output_capture_source_state: smithay::wayland::image_capture_source::OutputCaptureSourceState,
     pub image_copy_capture_state: smithay::wayland::image_copy_capture::ImageCopyCaptureState,
@@ -252,6 +253,7 @@ impl State {
         crate::protocols::ext_workspace::refresh(self);
         crate::protocols::output_management::refresh(self);
         self.refresh_image_copy_capture();
+        self.refresh_focus_grab();
         self.ipc_refresh();
         self.ipc_flush();
         if let Err(err) = self.hecate.display_handle.flush_clients() {
@@ -334,6 +336,7 @@ impl Hecate {
             crate::protocols::output_power::OutputPowerState::new(&dh, client_is_unrestricted);
         let screencopy_state =
             crate::protocols::screencopy::ScreencopyManagerState::new(&dh, client_is_unrestricted);
+        let focus_grab_state = crate::protocols::focus_grab::FocusGrabState::new(&dh, client_is_unrestricted);
         let image_capture_source_state =
             smithay::wayland::image_capture_source::ImageCaptureSourceState::new();
         let output_capture_source_state =
@@ -486,6 +489,7 @@ impl Hecate {
             output_management_state,
             output_power_state,
             screencopy_state,
+            focus_grab_state,
             image_capture_source_state,
             output_capture_source_state,
             image_copy_capture_state,
@@ -675,6 +679,7 @@ pub fn advertised_globals() -> Vec<String> {
         "ext_image_copy_capture_manager_v1",
         "ext_output_image_capture_source_manager_v1",
         "ext_foreign_toplevel_image_capture_source_manager_v1",
+        "hyprland_focus_grab_manager_v1",
     ]
     .iter()
     .map(|s| s.to_string())

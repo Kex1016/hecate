@@ -6,6 +6,7 @@ mod client;
 mod decorations;
 mod ext_workspace;
 mod fixture;
+mod focus_grab;
 mod foreign_toplevel;
 mod gamma;
 mod image_copy_capture;

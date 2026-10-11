@@ -653,6 +653,7 @@ dependencies = [
  "tracing-subscriber",
  "wayland-backend",
  "wayland-client",
+ "wayland-scanner",
  "xcursor",
  "xkbcommon 0.8.0",
 ]

@@ -32,6 +32,8 @@ use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_lay
 };
 use smithay::reexports::wayland_protocols::ext::foreign_toplevel_list::v1::client::ext_foreign_toplevel_handle_v1::{self, ExtForeignToplevelHandleV1};
 use smithay::reexports::wayland_protocols::ext::foreign_toplevel_list::v1::client::ext_foreign_toplevel_list_v1::{self, ExtForeignToplevelListV1};
+use crate::protocols::focus_grab::client::hyprland_focus_grab_manager_v1::HyprlandFocusGrabManagerV1;
+use crate::protocols::focus_grab::client::hyprland_focus_grab_v1::{self, HyprlandFocusGrabV1};
 use smithay::reexports::wayland_protocols::ext::image_capture_source::v1::client::ext_foreign_toplevel_image_capture_source_manager_v1::ExtForeignToplevelImageCaptureSourceManagerV1;
 use smithay::reexports::wayland_protocols::ext::image_capture_source::v1::client::ext_image_capture_source_v1::ExtImageCaptureSourceV1;
 use smithay::reexports::wayland_protocols::ext::image_capture_source::v1::client::ext_output_image_capture_source_manager_v1::ExtOutputImageCaptureSourceManagerV1;
@@ -113,6 +115,9 @@ pub struct State {
     pub output_manager: Option<ZwlrOutputManagerV1>,
     pub power_manager: Option<ZwlrOutputPowerManagerV1>,
     pub screencopy_manager: Option<ZwlrScreencopyManagerV1>,
+    pub focus_grab_manager: Option<HyprlandFocusGrabManagerV1>,
+    /// Grabs that received `cleared`, once per event.
+    pub focus_grabs_cleared: Vec<HyprlandFocusGrabV1>,
     pub output_source_manager: Option<ExtOutputImageCaptureSourceManagerV1>,
     pub toplevel_source_manager: Option<ExtForeignToplevelImageCaptureSourceManagerV1>,
     pub copy_capture_manager: Option<ExtImageCopyCaptureManagerV1>,
@@ -505,6 +510,8 @@ impl Client {
             output_manager: None,
             power_manager: None,
             screencopy_manager: None,
+            focus_grab_manager: None,
+            focus_grabs_cleared: Vec::new(),
             output_source_manager: None,
             toplevel_source_manager: None,
             copy_capture_manager: None,
@@ -943,6 +950,8 @@ impl Dispatch<WlRegistry, ()> for State {
                     state.toplevel_source_manager = Some(registry.bind(name, 1, qh, ()));
                 } else if interface == ExtImageCopyCaptureManagerV1::interface().name {
                     state.copy_capture_manager = Some(registry.bind(name, 1, qh, ()));
+                } else if interface == HyprlandFocusGrabManagerV1::interface().name {
+                    state.focus_grab_manager = Some(registry.bind(name, 1, qh, ()));
                 } else if interface == ZwlrScreencopyManagerV1::interface().name {
                     let version = min(version, ZwlrScreencopyManagerV1::interface().version);
                     state.screencopy_manager = Some(registry.bind(name, version, qh, ()));
@@ -2076,6 +2085,39 @@ impl Dispatch<ExtImageCopyCaptureFrameV1, ()> for State {
             ext_image_copy_capture_frame_v1::Event::Ready => f.ready = true,
             ext_image_copy_capture_frame_v1::Event::Failed { .. } => f.failed = true,
             _ => (),
+        }
+    }
+}
+
+impl State {
+    /// A focus grab whitelisting `surfaces`, committed.
+    pub fn focus_grab(&self, surfaces: &[&WlSurface]) -> HyprlandFocusGrabV1 {
+        let grab = self
+            .focus_grab_manager
+            .as_ref()
+            .unwrap()
+            .create_grab(&self.qh, ());
+        for s in surfaces {
+            grab.add_surface(s);
+        }
+        grab.commit();
+        grab
+    }
+}
+
+wayland_client::delegate_noop!(State: ignore HyprlandFocusGrabManagerV1);
+
+impl Dispatch<HyprlandFocusGrabV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        proxy: &HyprlandFocusGrabV1,
+        event: hyprland_focus_grab_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        match event {
+            hyprland_focus_grab_v1::Event::Cleared => state.focus_grabs_cleared.push(proxy.clone()),
         }
     }
 }
