@@ -20,6 +20,8 @@ pub struct BindValue {
     pub on_release: Option<Action>,
     pub tap: Option<Action>,
     pub flags: BindFlags,
+    /// Shown in keybind cheat sheets (`hecate msg binds`).
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize, JsonSchema)]
@@ -63,8 +65,14 @@ impl TryFrom<Value> for BindValue {
                 let mut flags = Map::new();
                 let mut slots = Map::new();
                 let mut rest = Map::new();
+                let mut description = None;
                 for (k, v) in map {
-                    if FLAG_KEYS.contains(&k.as_str()) {
+                    if k == "description" {
+                        match v {
+                            Value::String(d) => description = Some(d),
+                            other => return Err(format!("bind description must be a string, got {other}")),
+                        }
+                    } else if FLAG_KEYS.contains(&k.as_str()) {
                         flags.insert(k, v);
                     } else if SLOT_KEYS.contains(&k.as_str()) {
                         slots.insert(k, v);
@@ -77,6 +85,7 @@ impl TryFrom<Value> for BindValue {
 
                 let mut out = BindValue {
                     flags,
+                    description,
                     ..Default::default()
                 };
                 match rest.len() {
@@ -138,6 +147,7 @@ impl Serialize for BindValue {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         use serde::ser::Error;
         let simple = self.flags == BindFlags::default()
+            && self.description.is_none()
             && self.on_press.is_none()
             && self.on_release.is_none()
             && self.tap.is_none();
@@ -155,6 +165,9 @@ impl Serialize for BindValue {
         put("on_press", &self.on_press).map_err(S::Error::custom)?;
         put("on_release", &self.on_release).map_err(S::Error::custom)?;
         put("tap", &self.tap).map_err(S::Error::custom)?;
+        if let Some(d) = &self.description {
+            map.insert("description".into(), Value::String(d.clone()));
+        }
         if let Value::Object(flags) = serde_json::to_value(self.flags).map_err(S::Error::custom)? {
             let defaults = serde_json::to_value(BindFlags::default()).map_err(S::Error::custom)?;
             for (k, v) in flags {
@@ -184,6 +197,7 @@ impl JsonSchema for BindValue {
                         "on_press": action,
                         "on_release": action,
                         "tap": action,
+                        "description": { "type": "string" },
                         "allow_when_locked": { "type": "boolean" },
                         "allow_when_inhibited": { "type": "boolean" },
                         "transparent": { "type": "boolean" },
@@ -260,6 +274,12 @@ mod tests {
 
         let b = parse(r#"b = { tap = { spawn_sh = "x" } }"#).unwrap();
         assert_eq!(b.tap, Some(Action::SpawnSh("x".into())));
+
+        let b = parse(r#"b = { spawn = ["foot"], description = "Terminal" }"#).unwrap();
+        assert_eq!(b.description.as_deref(), Some("Terminal"));
+        assert_eq!(b.action, Some(Action::Spawn(vec!["foot".into()])));
+        let b = parse(r#"b = { action = "close", description = "Close" }"#).unwrap();
+        assert_eq!(b.action, Some(Action::Close));
     }
 
     #[test]
@@ -268,13 +288,20 @@ mod tests {
         assert!(parse(r#"b = { close = 1, focus = 2 }"#).is_err());
         assert!(parse(r#"b = { allow_when_locked = true }"#).is_err());
         assert!(parse(r#"b = { action = "close", on_press = "focus" }"#).is_err());
+        assert!(parse(r#"b = { description = "nothing" }"#).is_err());
+        assert!(parse(r#"b = { close = 1, description = 2 }"#).is_err());
     }
 
     #[test]
     fn roundtrip() {
-        let b = parse(r#"b = { spawn = ["wpctl"], allow_when_locked = true }"#).unwrap();
-        let v = serde_json::to_value(&b).unwrap();
-        let back = BindValue::try_from(v).unwrap();
-        assert_eq!(back, b);
+        for src in [
+            r#"b = { spawn = ["wpctl"], allow_when_locked = true }"#,
+            r#"b = { action = "close", description = "Close the window" }"#,
+        ] {
+            let b = parse(src).unwrap();
+            let v = serde_json::to_value(&b).unwrap();
+            let back = BindValue::try_from(v).unwrap();
+            assert_eq!(back, b);
+        }
     }
 }

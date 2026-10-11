@@ -222,6 +222,7 @@ impl State {
                 key: b.combo.to_string(),
                 source: b.source.clone(),
                 action: serde_json::to_value(&b.value).unwrap_or_default(),
+                description: b.value.description.clone(),
             })
             .collect()
     }

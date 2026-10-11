@@ -284,6 +284,8 @@ pub struct Bind {
     /// "base", "shell" or "config".
     pub source: String,
     pub action: serde_json::Value,
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
