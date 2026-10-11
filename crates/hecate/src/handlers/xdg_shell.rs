@@ -159,6 +159,7 @@ impl XdgShellHandler for State {
     fn toplevel_destroyed(&mut self, surface: ToplevelSurface) {
         if let Some(window) = self.hecate.window_for_surface(surface.wl_surface()) {
             let output = self.hecate.wm.output_for_window(&window).cloned();
+            self.snapshot_closing_window(&window);
             self.hecate.wm.remove_window(&window);
             self.on_window_closed(&window);
             if let Some(o) = output {

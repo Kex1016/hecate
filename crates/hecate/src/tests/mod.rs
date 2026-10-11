@@ -2,6 +2,7 @@
 //! to it over a socket pair. Render tests use a surfaceless EGL renderer (Mesa llvmpipe in the
 //! Nix devShell) and check pixels.
 
+mod animations;
 mod client;
 mod decorations;
 mod ext_workspace;

@@ -146,6 +146,7 @@ pub fn start_move(state: &mut State, window: &Window, serial: Option<Serial>) {
         return;
     };
     let initial = state.hecate.wm.window_rect(window);
+    window.data().moving = true;
     let grab = MoveGrab {
         start_data,
         window: window.clone(),
@@ -317,6 +318,7 @@ impl PointerGrab<State> for MoveGrab {
 
     fn unset(&mut self, data: &mut State) {
         data.hecate.cursor_status = CursorImageStatus::default_named();
+        self.window.data().moving = false;
         if !self.window.alive() {
             return;
         }

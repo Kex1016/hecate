@@ -9,17 +9,20 @@ use smithay::backend::renderer::element::solid::{SolidColorBuffer, SolidColorRen
 use smithay::backend::renderer::element::surface::{
     WaylandSurfaceRenderElement, render_elements_from_surface_tree,
 };
+use smithay::backend::renderer::element::texture::TextureRenderElement;
+use smithay::backend::renderer::element::utils::RescaleRenderElement;
 use smithay::backend::renderer::element::{AsRenderElements, Kind};
-use smithay::backend::renderer::gles::GlesRenderer;
+use smithay::backend::renderer::gles::{GlesRenderer, GlesTexture};
 use smithay::desktop::layer_map_for_output;
 use smithay::input::pointer::{CursorImageStatus, CursorImageSurfaceData};
 use smithay::output::Output;
 use smithay::render_elements;
-use smithay::utils::{Logical, Physical, Point, Scale};
+use smithay::utils::{Logical, Physical, Point, Rectangle, Scale, Transform};
 use smithay::wayland::compositor::with_states;
 use smithay::wayland::shell::wlr_layer::Layer;
 
-use crate::config::{Config, LayerRule};
+use crate::anim::Animation;
+use crate::config::{Color, Config, LayerRule};
 use crate::cursor::XCursor;
 use crate::state::Hecate;
 use crate::wm::{WindowExt, Wm};
@@ -29,8 +32,45 @@ render_elements! {
     Surface = WaylandSurfaceRenderElement<GlesRenderer>,
     Solid = SolidColorRenderElement,
     Memory = MemoryRenderBufferRenderElement<GlesRenderer>,
+    Window = WindowElement,
+    Scaled = RescaleRenderElement<WindowElement>,
+}
+
+render_elements! {
+    /// What a window (or its snapshot) is drawn with; scaled as a whole by animations.
+    pub WindowElement<=GlesRenderer>;
+    Surface = WaylandSurfaceRenderElement<GlesRenderer>,
     Border = border::BorderElement,
     Clipped = border::ClippedSurfaceElement,
+    Texture = TextureRenderElement<GlesTexture>,
+}
+
+/// Push window elements, scaled around `origin` unless the scale is 1.
+fn push_scaled(
+    out: &mut Vec<HecateElement>,
+    elems: Vec<WindowElement>,
+    origin: Point<i32, Physical>,
+    scale: f64,
+) {
+    if (scale - 1.).abs() < 1e-4 {
+        out.extend(elems.into_iter().map(HecateElement::Window));
+    } else {
+        out.extend(
+            elems
+                .into_iter()
+                .map(|e| HecateElement::Scaled(RescaleRenderElement::from_element(e, origin, scale))),
+        );
+    }
+}
+
+fn lerp_color(a: Color, b: Color, t: f32) -> Color {
+    let t = t.clamp(0., 1.);
+    Color {
+        r: a.r + (b.r - a.r) * t,
+        g: a.g + (b.g - a.g) * t,
+        b: a.b + (b.b - a.b) * t,
+        a: a.a + (b.a - a.a) * t,
+    }
 }
 
 /// Effective layer rule properties for a namespace (later rules win).
@@ -142,27 +182,48 @@ impl Hecate {
             .get_keyboard()
             .and_then(|k| k.current_focus())
             .map(|s| crate::utils::root_surface(&s));
+        let now = self.wm.clock.now();
+        self.push_closing(&mut out, output, now);
+        // A workspace switch slides the new workspace in over the old one's way out.
+        let width = output_geo.size.w as f64;
+        let switch = self.wm.switch_for(output).cloned();
+        let (in_offset, out_offset) = match &switch {
+            Some(s) => {
+                let v = s.anim.value(now);
+                let d = s.direction as f64;
+                (d * width * (1. - v), -d * width * v)
+            }
+            None => (0., 0.),
+        };
         for window in windows.iter().rev() {
-            let render_loc = to_local(Wm::render_location(window));
             let is_focused = focused.as_ref() == Some(window.toplevel_surface().wl_surface());
-            let alpha = window.data().rules.opacity.unwrap_or(1.0).clamp(0., 1.);
-            let style = if self.identify_until.is_some() {
-                border::style_for_identify(&self.config, window, is_focused)
-            } else {
-                border::style_for(&self.config, window, is_focused)
-            };
-            let geo_rect = self.wm.window_rect(window);
-            let _ = render_loc;
-            border::push_window(
+            self.push_window(
                 renderer,
                 &mut out,
                 window,
-                geo_rect,
-                output_geo.loc,
-                scale,
-                alpha,
-                &style,
+                is_focused,
+                (in_offset, 0.).into(),
+                output,
+                now,
             );
+        }
+        if let Some(s) = &switch
+            && let Some(ws) = self.wm.workspace(s.from)
+        {
+            for window in ws.windows.iter().rev() {
+                if !self.wm.window_rect(window).overlaps(output_geo) {
+                    continue;
+                }
+                self.push_window(
+                    renderer,
+                    &mut out,
+                    window,
+                    false,
+                    (out_offset, 0.).into(),
+                    output,
+                    now,
+                );
+            }
         }
 
         if fullscreen {
@@ -183,6 +244,135 @@ impl Hecate {
         }
         let _ = to_local;
         out
+    }
+
+    /// One window with its animations applied, shifted by `offset` (workspace switch).
+    #[allow(clippy::too_many_arguments)]
+    fn push_window(
+        &self,
+        renderer: &mut GlesRenderer,
+        out: &mut Vec<HecateElement>,
+        window: &smithay::desktop::Window,
+        is_focused: bool,
+        offset: Point<f64, Logical>,
+        output: &Output,
+        now: std::time::Duration,
+    ) {
+        let output_geo = Wm::output_geometry(output);
+        let scale = Scale::from(output.current_scale().fractional_scale());
+        let mut style = if self.identify_until.is_some() {
+            border::style_for_identify(&self.config, window, is_focused)
+        } else {
+            border::style_for(&self.config, window, is_focused)
+        };
+        let geo_rect = self.wm.window_rect(window);
+        let (anim_scale, anim_alpha, move_offset) = {
+            let mut d = window.data();
+            let animate = !d.rules.no_animations;
+            let target = d.loc;
+            let ws = d.workspace;
+            let interactive = d.moving || d.resizing;
+            let a = &mut d.anims;
+            let current_move = |a: &crate::wm::window::WindowAnims| {
+                a.moving
+                    .as_ref()
+                    .map(|(m, off)| {
+                        let k = 1. - m.value(now);
+                        Point::<f64, Logical>::from((off.x * k, off.y * k))
+                    })
+                    .unwrap_or_default()
+            };
+            // A programmatic move (snap, maximize, centre, …) slides from where it was shown.
+            if let Some((last, last_ws)) = a.last_target
+                && last != target
+                && last_ws == ws
+            {
+                let shown = last.to_f64() + current_move(a);
+                a.moving = if animate && !interactive {
+                    Animation::start(&self.wm.clock, &self.wm.anim, &self.wm.anim.window_move)
+                        .map(|m| (m, shown - target.to_f64()))
+                } else {
+                    None
+                };
+            }
+            a.last_target = Some((target, ws));
+            // Border colour changes (focus, urgency) fade.
+            if let Some(last) = a.last_border_color
+                && last != style.color
+            {
+                let shown = match &a.border {
+                    Some((b, from)) => lerp_color(*from, last, b.value(now) as f32),
+                    None => last,
+                };
+                a.border = if animate {
+                    Animation::start(&self.wm.clock, &self.wm.anim, &self.wm.anim.border).map(|b| (b, shown))
+                } else {
+                    None
+                };
+            }
+            a.last_border_color = Some(style.color);
+            if let Some((b, from)) = &a.border {
+                style.color = lerp_color(*from, style.color, b.value(now) as f32);
+            }
+            let (s, al) = a
+                .open
+                .as_ref()
+                .map(|o| o.scale_alpha(now, false))
+                .unwrap_or((1., 1.));
+            (s, al, current_move(a))
+        };
+        let alpha = window.data().rules.opacity.unwrap_or(1.0).clamp(0., 1.) * anim_alpha;
+        let shift = offset + move_offset;
+        let rect = Rectangle::new((geo_rect.loc.to_f64() + shift).to_i32_round(), geo_rect.size);
+        let mut elems = Vec::new();
+        border::push_window(
+            renderer,
+            &mut elems,
+            window,
+            rect,
+            output_geo.loc,
+            scale,
+            alpha,
+            &style,
+        );
+        let center = (rect.loc - output_geo.loc).to_f64() + rect.size.to_f64().downscale(2.);
+        push_scaled(out, elems, center.to_physical_precise_round(scale), anim_scale);
+    }
+
+    /// Closed windows' snapshots playing their close animation.
+    fn push_closing(&self, out: &mut Vec<HecateElement>, output: &Output, now: std::time::Duration) {
+        let output_geo = Wm::output_geometry(output);
+        let scale = Scale::from(output.current_scale().fractional_scale());
+        for c in self.wm.closing.iter().rev() {
+            if !c.rect.overlaps(output_geo) || !self.wm.is_workspace_active(c.workspace) {
+                continue;
+            }
+            let (s, alpha) = c.anim.scale_alpha(now, true);
+            let loc: Point<i32, Physical> = (c.rect.loc - output_geo.loc).to_physical_precise_round(scale);
+            // The texture is in physical pixels; show all of it over the logical rect.
+            let tex_size = smithay::backend::renderer::Texture::size(&c.texture);
+            let src = Rectangle::from_size((tex_size.w as f64, tex_size.h as f64).into());
+            let elem = TextureRenderElement::from_static_texture(
+                c.id.clone(),
+                c.context.clone(),
+                loc.to_f64(),
+                c.texture.clone(),
+                1,
+                Transform::Normal,
+                Some(alpha),
+                Some(src),
+                Some(c.rect.size),
+                None,
+                Kind::Unspecified,
+            );
+            let center = (c.rect.loc - output_geo.loc).to_f64() + c.rect.size.to_f64().downscale(2.);
+            push_scaled(
+                out,
+                vec![WindowElement::Texture(elem)],
+                center.to_physical_precise_round(scale),
+                s,
+            );
+        }
     }
 
     fn push_cursor(&self, renderer: &mut GlesRenderer, output: &Output, out: &mut Vec<HecateElement>) {
@@ -336,5 +526,92 @@ impl Hecate {
             });
         }
         feedback
+    }
+}
+
+impl crate::state::State {
+    /// Keep a snapshot of a window about to go away, for its close animation.
+    pub fn snapshot_closing_window(&mut self, window: &smithay::desktop::Window) {
+        let hecate = &mut self.hecate;
+        if window.data().rules.no_animations {
+            return;
+        }
+        let Some(anim) = Animation::start(&hecate.wm.clock, &hecate.wm.anim, &hecate.wm.anim.window_close)
+        else {
+            return;
+        };
+        let workspace = window.data().workspace;
+        if !hecate.wm.is_workspace_active(workspace) || window.data().minimized {
+            return;
+        }
+        let Some(output) = hecate.wm.output_for_window(window).cloned() else {
+            return;
+        };
+        let scale = Scale::from(output.current_scale().fractional_scale());
+        let style = border::style_for(&hecate.config, window, false);
+        let geo = hecate.wm.window_rect(window);
+        let bw = style.width.ceil() as i32;
+        let rect = Rectangle::new(
+            (geo.loc.x - bw, geo.loc.y - bw).into(),
+            (geo.size.w + 2 * bw, geo.size.h + 2 * bw).into(),
+        );
+        if rect.size.w <= 0 || rect.size.h <= 0 {
+            return;
+        }
+        let alpha = window.data().rules.opacity.unwrap_or(1.0).clamp(0., 1.);
+        let texture = self.backend.with_renderer(|renderer| {
+            let mut elems = Vec::new();
+            // Lay the window out relative to the snapshot's top-left corner.
+            border::push_window(renderer, &mut elems, window, geo, rect.loc, scale, alpha, &style);
+            snapshot::render_to_texture(
+                renderer,
+                rect.size.to_f64().to_physical(scale).to_i32_round(),
+                scale,
+                &elems,
+            )
+            .map(|t| (t, smithay::backend::renderer::Renderer::context_id(renderer)))
+        });
+        let Some(Ok((texture, context))) = texture else {
+            return;
+        };
+        hecate.wm.closing.push(crate::wm::Closing {
+            texture,
+            id: smithay::backend::renderer::element::Id::new(),
+            context,
+            rect,
+            workspace,
+            anim,
+        });
+        hecate.queue_redraw(&output);
+    }
+}
+
+pub mod snapshot {
+    use anyhow::Context as _;
+    use smithay::backend::allocator::Fourcc;
+    use smithay::backend::renderer::damage::OutputDamageTracker;
+    use smithay::backend::renderer::element::RenderElement;
+    use smithay::backend::renderer::gles::{GlesRenderer, GlesTexture};
+    use smithay::backend::renderer::{Bind, Color32F, Offscreen};
+    use smithay::utils::{Physical, Scale, Size, Transform};
+
+    /// Render elements into a new transparent texture of `size`.
+    pub fn render_to_texture(
+        renderer: &mut GlesRenderer,
+        size: Size<i32, Physical>,
+        scale: Scale<f64>,
+        elements: &[impl RenderElement<GlesRenderer>],
+    ) -> anyhow::Result<GlesTexture> {
+        let mut texture: GlesTexture = renderer
+            .create_buffer(Fourcc::Abgr8888, (size.w, size.h).into())
+            .context("error creating texture")?;
+        {
+            let mut target = renderer.bind(&mut texture).context("error binding texture")?;
+            let mut tracker = OutputDamageTracker::new(size, scale, Transform::Normal);
+            tracker
+                .render_output(renderer, &mut target, 0, elements, Color32F::TRANSPARENT)
+                .context("error rendering snapshot")?;
+        }
+        Ok(texture)
     }
 }

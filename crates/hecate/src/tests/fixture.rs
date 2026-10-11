@@ -38,6 +38,9 @@ impl Server {
             false,
         )
         .unwrap();
+        let mut state = state;
+        // Animations finish at once unless a test drives the clock (`manual_clock`).
+        state.hecate.wm.clock.instant = true;
         Server { event_loop, state }
     }
 
@@ -101,6 +104,19 @@ impl Fixture {
         self.event_loop.dispatch(Duration::ZERO, &mut self.state).unwrap();
         // The server's own idle work (refresh, redraws) runs every iteration.
         self.state.server.dispatch();
+    }
+
+    /// Freeze the animation clock so a test can step through animations.
+    pub fn manual_clock(&mut self) {
+        self.hecate()
+            .hecate
+            .wm
+            .clock
+            .set_manual(Duration::from_secs(1000));
+    }
+
+    pub fn advance_clock(&mut self, ms: u64) {
+        self.hecate().hecate.wm.clock.advance(Duration::from_millis(ms));
     }
 
     pub fn hecate(&mut self) -> &mut HecateState {

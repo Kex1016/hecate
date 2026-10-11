@@ -13,7 +13,12 @@ use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::utils::{IsAlive, Logical, Point, Rectangle};
 use smithay::wayland::session_lock::LockSurface;
 
-use crate::config::{Config, MAX_WORKSPACES, WorkspaceKind, WorkspaceScope};
+use smithay::backend::renderer::ContextId;
+use smithay::backend::renderer::element::Id;
+use smithay::backend::renderer::gles::GlesTexture;
+
+use crate::anim::{Animation, Clock};
+use crate::config::{Animations, Config, MAX_WORKSPACES, WorkspaceKind, WorkspaceScope};
 pub use window::{Maximized, WindowExt};
 
 static NEXT_WORKSPACE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
@@ -79,6 +84,33 @@ pub struct Wm {
     pub workspaces_dirty: bool,
     /// Windows by workspace index, waiting to be re-added after a scope change.
     pending_migration: Vec<Vec<Window>>,
+    pub clock: Clock,
+    pub anim: Animations,
+    /// Workspace switch animations, by the same key as `active`.
+    switches: HashMap<String, WorkspaceSwitch>,
+    /// Snapshots of closed windows, fading out.
+    pub closing: Vec<Closing>,
+}
+
+/// A workspace switch in progress: the old workspace slides out, the new one in.
+#[derive(Debug, Clone)]
+pub struct WorkspaceSwitch {
+    pub anim: Animation,
+    pub from: u64,
+    /// +1 when the new workspace comes from the right (higher index), -1 from the left.
+    pub direction: i32,
+}
+
+/// The last frame of a closed window, played out by its close animation.
+#[derive(Debug)]
+pub struct Closing {
+    pub texture: GlesTexture,
+    pub id: Id,
+    pub context: ContextId<GlesTexture>,
+    /// Area the snapshot covers (window plus border), global logical coordinates.
+    pub rect: Rectangle<i32, Logical>,
+    pub workspace: u64,
+    pub anim: Animation,
 }
 
 impl Default for Wm {
@@ -108,6 +140,10 @@ impl Wm {
             focused_output: None,
             workspaces_dirty: true,
             pending_migration: Vec::new(),
+            clock: Clock::default(),
+            anim: Animations::default(),
+            switches: HashMap::new(),
+            closing: Vec::new(),
         }
     }
 
@@ -292,6 +328,7 @@ impl Wm {
         self.min = ws.min.clamp(1, MAX_WORKSPACES);
         self.names = ws.names.clone();
         self.auto_back_and_forth = ws.auto_back_and_forth;
+        self.anim = config.animations.clone();
 
         if scope_changed {
             self.migrate_scope();
@@ -522,6 +559,7 @@ impl Wm {
         }
         // Omnipresent windows follow.
         if let Some(cur) = cur {
+            self.start_switch(&key, cur, id);
             let sticky: Vec<Window> = self
                 .workspace(cur)
                 .map(|w| {
@@ -892,7 +930,70 @@ impl Wm {
         }
     }
 
-    pub fn advance_animations(&mut self, _output: &Output) {}
+    fn start_switch(&mut self, key: &str, from: u64, to: u64) {
+        // Windows on the workspace being hidden start from scratch when it's shown again.
+        if let Some(ws) = self.workspace(from) {
+            for w in &ws.windows {
+                w.data().anims.last_target = None;
+            }
+        }
+        let (Some(fi), Some(ti)) = (self.workspace_index(from), self.workspace_index(to)) else {
+            return;
+        };
+        match Animation::start(&self.clock, &self.anim, &self.anim.workspace_switch) {
+            Some(anim) => {
+                let direction = if ti >= fi { 1 } else { -1 };
+                self.switches.insert(
+                    key.to_string(),
+                    WorkspaceSwitch {
+                        anim,
+                        from,
+                        direction,
+                    },
+                );
+            }
+            None => {
+                self.switches.remove(key);
+            }
+        }
+    }
+
+    /// The workspace switch animating on an output, if any.
+    pub fn switch_for(&self, output: &Output) -> Option<&WorkspaceSwitch> {
+        self.switches.get(&self.key(output))
+    }
+
+    /// Drop finished animations. Returns whether anything is still animating on the output.
+    pub fn advance_animations(&mut self, output: &Output) -> bool {
+        let now = self.clock.now();
+        let mut running = false;
+        let key = self.key(output);
+        if let Some(s) = self.switches.get(&key) {
+            if s.anim.is_done(now) || self.workspace(s.from).is_none() {
+                self.switches.remove(&key);
+            } else {
+                running = true;
+            }
+        }
+        self.closing.retain(|c| !c.anim.is_done(now));
+        let geo = Self::output_geometry(output);
+        running |= self.closing.iter().any(|c| c.rect.overlaps(geo));
+        for w in self.windows_on_output(output) {
+            let mut d = w.data();
+            let a = &mut d.anims;
+            if a.open.as_ref().is_some_and(|x| x.is_done(now)) {
+                a.open = None;
+            }
+            if a.moving.as_ref().is_some_and(|(x, _)| x.is_done(now)) {
+                a.moving = None;
+            }
+            if a.border.as_ref().is_some_and(|(x, _)| x.is_done(now)) {
+                a.border = None;
+            }
+            running |= a.open.is_some() || a.moving.is_some() || a.border.is_some();
+        }
+        running
+    }
 
     // -------------------------------------------------------------- lock
 

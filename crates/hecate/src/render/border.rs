@@ -22,7 +22,7 @@ use smithay::desktop::{PopupManager, Window};
 use smithay::utils::user_data::UserDataMap;
 use smithay::utils::{Buffer, Logical, Physical, Point, Rectangle, Scale, Size, Transform};
 
-use super::HecateElement;
+use super::WindowElement;
 use crate::config::{Color, Config, Corners};
 use crate::wm::{Maximized, WindowExt};
 
@@ -258,7 +258,7 @@ struct BorderSlot(RefCell<Option<PixelShaderElement>>);
 #[allow(clippy::too_many_arguments)]
 pub fn push_window(
     renderer: &mut GlesRenderer,
-    out: &mut Vec<HecateElement>,
+    out: &mut Vec<WindowElement>,
     window: &Window,
     geo: Rectangle<i32, Logical>,
     output_loc: Point<i32, Logical>,
@@ -282,7 +282,7 @@ pub fn push_window(
             alpha,
             Kind::Unspecified,
         );
-        out.extend(elems.into_iter().map(HecateElement::Surface));
+        out.extend(elems.into_iter().map(WindowElement::Surface));
     }
 
     let elems: Vec<WaylandSurfaceRenderElement<GlesRenderer>> = render_elements_from_surface_tree(
@@ -304,7 +304,7 @@ pub fn push_window(
             Some(program)
                 if ClippedSurfaceElement::will_clip(&e, scale, local_geo.to_f64(), inner_radius) =>
             {
-                out.push(HecateElement::Clipped(ClippedSurfaceElement::new(
+                out.push(WindowElement::Clipped(ClippedSurfaceElement::new(
                     e,
                     scale,
                     local_geo.to_f64(),
@@ -312,7 +312,7 @@ pub fn push_window(
                     inner_radius,
                 )));
             }
-            _ => out.push(HecateElement::Surface(e)),
+            _ => out.push(WindowElement::Surface(e)),
         }
     }
 
@@ -338,7 +338,8 @@ pub fn push_window(
             outer
         };
         let uniforms = vec![
-            Uniform::new("color", style.color.premultiplied()),
+            // The element's own alpha is fixed when it's created; fade through the colour.
+            Uniform::new("color", style.color.premultiplied().map(|c| c * alpha)),
             Uniform::new("outer_radius", outer.as_array()),
             Uniform::new("inner_radius", style.radius.as_array()),
             Uniform::new("border_width", wi as f32),
@@ -355,12 +356,12 @@ pub fn push_window(
                 e.clone()
             }
             None => {
-                let e = PixelShaderElement::new(program, area, None, alpha, uniforms, Kind::Unspecified);
+                let e = PixelShaderElement::new(program, area, None, 1.0, uniforms, Kind::Unspecified);
                 *slot = Some(e.clone());
                 e
             }
         };
-        out.push(HecateElement::Border(elem));
+        out.push(WindowElement::Border(elem));
     }
 }
 

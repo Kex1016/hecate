@@ -589,9 +589,13 @@ impl Hecate {
         if let Some(state) = self.output_state.get_mut(output) {
             state.redraw_queued = false;
         }
-        self.wm.advance_animations(output);
         let started = crate::utils::monotonic_time();
         let submitted = backend.render(self, output);
+        // After rendering: drawing a frame can start animations (moves, border fades).
+        let running = self.wm.advance_animations(output);
+        if let Some(state) = self.output_state.get_mut(output) {
+            state.animations_running = running;
+        }
         let now = crate::utils::monotonic_time();
         if submitted && let Some(st) = self.output_state.get_mut(output) {
             st.frame_stats.submitted(now, now.saturating_sub(started));

@@ -4,6 +4,7 @@
 #![allow(clippy::mutable_key_type)]
 
 mod actions;
+mod anim;
 mod backend;
 mod check;
 mod cli;

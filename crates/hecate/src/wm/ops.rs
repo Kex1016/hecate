@@ -9,6 +9,7 @@ use smithay::utils::{Logical, Point, Rectangle, SERIAL_COUNTER, Size};
 use super::geometry::{self, centered, clamp_into, snap_rect};
 use super::window::{Maximized, ResizeEdge, ResolvedRules, Snap, clamp_size};
 use super::{WindowExt, Wm};
+use crate::anim::Animation;
 use crate::config::action::Edge;
 use crate::config::{PlacementPolicy, WindowRule};
 use crate::state::State;
@@ -217,6 +218,10 @@ impl State {
             self.place(&output, size, ws_id)
         };
         window.data().loc = loc;
+        if !window.data().rules.no_animations {
+            let wm = &self.hecate.wm;
+            window.data().anims.open = Animation::start(&wm.clock, &wm.anim, &wm.anim.window_open);
+        }
 
         self.hecate.wm.insert_window(window.clone(), ws_id);
         if fullscreen {

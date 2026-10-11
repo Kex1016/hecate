@@ -9,7 +9,8 @@ use smithay::utils::{Logical, Point, Rectangle, Size};
 use smithay::wayland::compositor::with_states;
 use smithay::wayland::shell::xdg::{ToplevelSurface, XdgToplevelSurfaceData};
 
-use crate::config::{BorderOverride, DecorationMode};
+use crate::anim::Animation;
+use crate::config::{BorderOverride, Color, DecorationMode};
 
 static NEXT_WINDOW_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -128,6 +129,23 @@ pub struct WindowData {
     pub border_hidden: bool,
     /// Last focus time, for MRU ordering.
     pub focus_serial: u64,
+    /// An interactive move grab is active (moves follow the pointer, unanimated).
+    pub moving: bool,
+    /// Animations: see `WindowAnims`.
+    pub anims: WindowAnims,
+}
+
+/// Running animations of a window, and what was last shown (to animate changes from).
+#[derive(Debug, Default)]
+pub struct WindowAnims {
+    pub open: Option<Animation>,
+    /// Slide from an offset (visual position minus target, at the start) to zero.
+    pub moving: Option<(Animation, Point<f64, Logical>)>,
+    /// Position and workspace the last frame showed, to notice programmatic moves.
+    pub last_target: Option<(Point<i32, Logical>, u64)>,
+    /// Border colour fade from a colour.
+    pub border: Option<(Animation, Color)>,
+    pub last_border_color: Option<Color>,
 }
 
 /// What window rules decided for this window.
@@ -169,6 +187,8 @@ impl WindowData {
             rules: ResolvedRules::default(),
             border_hidden: false,
             focus_serial: 0,
+            moving: false,
+            anims: WindowAnims::default(),
         }
     }
 }
