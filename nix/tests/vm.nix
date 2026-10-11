@@ -12,7 +12,21 @@ pkgs.testers.runNixOSTest {
         isNormalUser = true;
         uid = 1000;
       };
-      environment.systemPackages = [ pkgs.wayland-utils ];
+      environment.systemPackages = [
+        pkgs.wayland-utils
+        pkgs.quickshell
+      ];
+      # A plain QuickShell bar: one layer-shell PanelWindow with an exclusive zone.
+      environment.etc."qs-test/shell.qml".text = ''
+        import Quickshell
+        import QtQuick
+
+        PanelWindow {
+          anchors { top: true; left: true; right: true }
+          implicitHeight: 30
+          Text { text: "hecate" }
+        }
+      '';
       systemd.user.services.hecate-headless = {
         description = "hecate (headless, for testing)";
         environment = {
@@ -61,6 +75,17 @@ pkgs.testers.runNixOSTest {
         "hyprland_focus_grab_manager_v1",
     ]:
         assert wanted in info, f"missing global {wanted}"
+
+    # QuickShell maps its bar as a layer surface.
+    sock = "$(ls /run/user/1000/hecate.*.sock | head -1)"
+    disp = "$(basename $(ls /run/user/1000/wayland-? | head -1))"
+    machine.succeed(as_alice(
+        f"WAYLAND_DISPLAY={disp} QT_QPA_PLATFORM=wayland QT_QUICK_BACKEND=software "
+        "systemd-run --user --unit qs-test quickshell -p /etc/qs-test/shell.qml"
+    ))
+    machine.wait_until_succeeds(
+        as_alice(f"HECATE_SOCKET={sock} hecate msg --json layers | grep -q quickshell"), timeout=90
+    )
 
     machine.succeed("hecate validate /dev/null || true")
     machine.succeed("echo '[workspaces]\ncount = 4' > /tmp/ok.toml && hecate validate /tmp/ok.toml")
