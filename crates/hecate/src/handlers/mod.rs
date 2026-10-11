@@ -174,6 +174,7 @@ impl ShmHandler for State {
 impl OutputHandler for State {
     fn output_bound(&mut self, output: Output, wl_output: WlOutput) {
         crate::protocols::foreign_toplevel::on_output_bound(self, &output, &wl_output);
+        crate::protocols::ext_workspace::on_output_bound(self, &output, &wl_output);
     }
 }
 

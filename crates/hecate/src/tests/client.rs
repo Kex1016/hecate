@@ -32,6 +32,9 @@ use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_lay
 };
 use smithay::reexports::wayland_protocols::ext::foreign_toplevel_list::v1::client::ext_foreign_toplevel_handle_v1::{self, ExtForeignToplevelHandleV1};
 use smithay::reexports::wayland_protocols::ext::foreign_toplevel_list::v1::client::ext_foreign_toplevel_list_v1::{self, ExtForeignToplevelListV1};
+use smithay::reexports::wayland_protocols::ext::workspace::v1::client::ext_workspace_group_handle_v1::{self, ExtWorkspaceGroupHandleV1};
+use smithay::reexports::wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1::{self, ExtWorkspaceHandleV1};
+use smithay::reexports::wayland_protocols::ext::workspace::v1::client::ext_workspace_manager_v1::{self, ExtWorkspaceManagerV1};
 use smithay::reexports::wayland_protocols_wlr::foreign_toplevel::v1::client::zwlr_foreign_toplevel_handle_v1::{self, ZwlrForeignToplevelHandleV1};
 use smithay::reexports::wayland_protocols_wlr::foreign_toplevel::v1::client::zwlr_foreign_toplevel_manager_v1::{self, ZwlrForeignToplevelManagerV1};
 use smithay::reexports::wayland_protocols_wlr::virtual_pointer::v1::client::zwlr_virtual_pointer_manager_v1::ZwlrVirtualPointerManagerV1;
@@ -85,6 +88,10 @@ pub struct State {
     pub wlr_toplevels: Vec<(ZwlrForeignToplevelHandleV1, ForeignToplevel)>,
     /// Toplevels announced over ext-foreign-toplevel-list, in announcement order.
     pub ext_toplevels: Vec<(ExtForeignToplevelHandleV1, ForeignToplevel)>,
+    pub workspace_manager: Option<ExtWorkspaceManagerV1>,
+    pub ws_groups: Vec<(ExtWorkspaceGroupHandleV1, WsGroup)>,
+    pub ws_handles: Vec<(ExtWorkspaceHandleV1, WsHandle)>,
+    pub ws_done_count: usize,
 
     pub windows: Vec<Window>,
     pub layers: Vec<LayerSurface>,
@@ -159,6 +166,33 @@ impl ForeignToplevel {
 
     pub fn has_state(&self, st: zwlr_foreign_toplevel_handle_v1::State) -> bool {
         self.states.contains(&(st as u32))
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct WsGroup {
+    pub outputs: Vec<WlOutput>,
+    pub workspaces: Vec<ExtWorkspaceHandleV1>,
+    pub removed: bool,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct WsHandle {
+    pub id: Option<String>,
+    pub name: String,
+    pub coordinates: Vec<u32>,
+    pub state: u32,
+    pub capabilities: u32,
+    pub removed: bool,
+}
+
+impl WsHandle {
+    pub fn active(&self) -> bool {
+        self.state & ext_workspace_handle_v1::State::Active.bits() != 0
+    }
+
+    pub fn urgent(&self) -> bool {
+        self.state & ext_workspace_handle_v1::State::Urgent.bits() != 0
     }
 }
 
@@ -336,6 +370,10 @@ impl Client {
             ext_toplevel_list: None,
             wlr_toplevels: Vec::new(),
             ext_toplevels: Vec::new(),
+            workspace_manager: None,
+            ws_groups: Vec::new(),
+            ws_handles: Vec::new(),
+            ws_done_count: 0,
             windows: Vec::new(),
             layers: Vec::new(),
         };
@@ -756,6 +794,9 @@ impl Dispatch<WlRegistry, ()> for State {
                 } else if interface == ZwlrForeignToplevelManagerV1::interface().name {
                     let version = min(version, ZwlrForeignToplevelManagerV1::interface().version);
                     state.wlr_toplevel_manager = Some(registry.bind(name, version, qh, ()));
+                } else if interface == ExtWorkspaceManagerV1::interface().name {
+                    let version = min(version, ExtWorkspaceManagerV1::interface().version);
+                    state.workspace_manager = Some(registry.bind(name, version, qh, ()));
                 } else if interface == ExtForeignToplevelListV1::interface().name {
                     let version = min(version, ExtForeignToplevelListV1::interface().version);
                     state.ext_toplevel_list = Some(registry.bind(name, version, qh, ()));
@@ -1331,6 +1372,120 @@ impl Dispatch<ExtForeignToplevelHandleV1, ()> for State {
             ext_foreign_toplevel_handle_v1::Event::AppId { app_id } => t.pending().app_id = app_id,
             ext_foreign_toplevel_handle_v1::Event::Done => t.done(),
             ext_foreign_toplevel_handle_v1::Event::Closed => t.closed = true,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl State {
+    /// Live (not removed) workspaces as (handle, state), in announcement order.
+    pub fn live_workspaces(&self) -> Vec<(ExtWorkspaceHandleV1, WsHandle)> {
+        self.ws_handles
+            .iter()
+            .filter(|(_, w)| !w.removed)
+            .cloned()
+            .collect()
+    }
+
+    pub fn live_ws_groups(&self) -> Vec<(ExtWorkspaceGroupHandleV1, WsGroup)> {
+        self.ws_groups
+            .iter()
+            .filter(|(_, g)| !g.removed)
+            .cloned()
+            .collect()
+    }
+
+    pub fn workspace_named(&self, name: &str) -> Option<(ExtWorkspaceHandleV1, WsHandle)> {
+        self.live_workspaces().into_iter().find(|(_, w)| w.name == name)
+    }
+}
+
+impl Dispatch<ExtWorkspaceManagerV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        _proxy: &ExtWorkspaceManagerV1,
+        event: ext_workspace_manager_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        match event {
+            ext_workspace_manager_v1::Event::WorkspaceGroup { workspace_group } => {
+                state.ws_groups.push((workspace_group, WsGroup::default()));
+            }
+            ext_workspace_manager_v1::Event::Workspace { workspace } => {
+                state.ws_handles.push((workspace, WsHandle::default()));
+            }
+            ext_workspace_manager_v1::Event::Done => state.ws_done_count += 1,
+            ext_workspace_manager_v1::Event::Finished => (),
+            _ => unreachable!(),
+        }
+    }
+
+    wayland_client::event_created_child!(State, ExtWorkspaceManagerV1, [
+        ext_workspace_manager_v1::EVT_WORKSPACE_GROUP_OPCODE => (ExtWorkspaceGroupHandleV1, ()),
+        ext_workspace_manager_v1::EVT_WORKSPACE_OPCODE => (ExtWorkspaceHandleV1, ()),
+    ]);
+}
+
+impl Dispatch<ExtWorkspaceGroupHandleV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        proxy: &ExtWorkspaceGroupHandleV1,
+        event: ext_workspace_group_handle_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        let Some((_, g)) = state.ws_groups.iter_mut().find(|(h, _)| h == proxy) else {
+            return;
+        };
+        match event {
+            ext_workspace_group_handle_v1::Event::Capabilities { .. } => (),
+            ext_workspace_group_handle_v1::Event::OutputEnter { output } => g.outputs.push(output),
+            ext_workspace_group_handle_v1::Event::OutputLeave { output } => {
+                g.outputs.retain(|o| *o != output)
+            }
+            ext_workspace_group_handle_v1::Event::WorkspaceEnter { workspace } => {
+                g.workspaces.push(workspace)
+            }
+            ext_workspace_group_handle_v1::Event::WorkspaceLeave { workspace } => {
+                g.workspaces.retain(|w| *w != workspace)
+            }
+            ext_workspace_group_handle_v1::Event::Removed => g.removed = true,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl Dispatch<ExtWorkspaceHandleV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        proxy: &ExtWorkspaceHandleV1,
+        event: ext_workspace_handle_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        let Some((_, w)) = state.ws_handles.iter_mut().find(|(h, _)| h == proxy) else {
+            return;
+        };
+        match event {
+            ext_workspace_handle_v1::Event::Id { id } => w.id = Some(id),
+            ext_workspace_handle_v1::Event::Name { name } => w.name = name,
+            ext_workspace_handle_v1::Event::Coordinates { coordinates } => {
+                w.coordinates = coordinates
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|c| u32::from_ne_bytes(*c))
+                    .collect();
+            }
+            ext_workspace_handle_v1::Event::State { state } => w.state = state.into(),
+            ext_workspace_handle_v1::Event::Capabilities { capabilities } => {
+                w.capabilities = capabilities.into()
+            }
+            ext_workspace_handle_v1::Event::Removed => w.removed = true,
             _ => unreachable!(),
         }
     }

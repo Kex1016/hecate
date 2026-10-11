@@ -4,6 +4,7 @@
 
 mod client;
 mod decorations;
+mod ext_workspace;
 mod fixture;
 mod foreign_toplevel;
 mod ipc;

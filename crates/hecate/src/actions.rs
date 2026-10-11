@@ -231,12 +231,8 @@ impl State {
                 let Some(output) = self.current_output() else {
                     return;
                 };
-                if let Some(id) = self.hecate.wm.resolve_workspace(&output, &r)
-                    && self.hecate.wm.activate_workspace(&output, id)
-                {
-                    self.focus_topmost();
-                    self.refresh_idle_inhibit();
-                    self.hecate.queue_redraw_all();
+                if let Some(id) = self.hecate.wm.resolve_workspace(&output, &r) {
+                    self.switch_workspace(&output, id);
                 }
             }
             Action::MoveToWorkspace(r) => {
@@ -342,6 +338,32 @@ impl State {
             .clone()
             .or_else(|| self.hecate.wm.output_at(self.hecate.pointer_location).cloned())
             .or_else(|| self.hecate.wm.outputs().next().cloned())
+    }
+
+    /// Show workspace `id` on `output` and refocus.
+    pub fn switch_workspace(&mut self, output: &smithay::output::Output, id: u64) {
+        if self.hecate.wm.activate_workspace(output, id) {
+            self.focus_topmost();
+            self.refresh_idle_inhibit();
+            self.hecate.queue_redraw_all();
+        }
+    }
+
+    /// Activate a workspace on the output it belongs to (ext-workspace, IPC). No back-and-forth.
+    pub fn activate_workspace_by_id(&mut self, id: u64) {
+        if self.hecate.wm.is_workspace_active(id) {
+            return;
+        }
+        let Some(ws) = self.hecate.wm.workspace(id) else {
+            return;
+        };
+        let output = match &ws.output {
+            Some(name) => self.hecate.wm.output_by_name(name).cloned(),
+            None => self.current_output(),
+        };
+        if let Some(output) = output {
+            self.switch_workspace(&output, id);
+        }
     }
 
     fn focus_direction(&mut self, dir: Direction) {
