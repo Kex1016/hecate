@@ -13,17 +13,17 @@ overlays.default                 pkgs.hecate, pkgs.hecate-shell
 nixosModules.default             programs.hecate
 homeManagerModules.default       wayland.windowManager.hecate
 devShells.<system>.default       rust toolchain, rust-analyzer, deps, wayland-info, foot, xwayland-satellite
-checks.<system>.*                build, clippy, fmt, tests, example-config validation, nixos VM test
-formatter.<system>               nixfmt-rfc-style
+checks.<system>.*                hecate, hecate-shell, clippy, fmt, test, hm (Home Manager build
+                                 with the shell, config validated), keybind-docs, vm, vm-shell
+formatter.<system>               nixfmt
 ```
 
 Systems: `x86_64-linux`, `aarch64-linux`.
 
-Inputs: `nixpkgs` (unstable), `crane` (incremental Rust builds, cached
-deps) and `quickshell` (the shell tracks quickshell-git, so we pin the
-flake input rather than nixpkgs' release). The shell sources aren't
-inputs: they're vendored under `shell/` (see [shell.md](shell.md#repo-layout)). `rust-overlay` only if we need a newer toolchain than nixpkgs ships.
-No flake-utils; a small `forAllSystems` helper is enough.
+Inputs: `nixpkgs` (unstable; QuickShell comes from there), `crane` (incremental Rust
+builds, cached deps) and `home-manager` (only for the `hm` and `vm-shell` checks; it follows
+`nixpkgs`). The shell sources aren't inputs: they're vendored under `shell/` (see
+[shell.md](shell.md#repo-layout)). No flake-utils; a small `forAllSystems` helper is enough.
 
 ## Package
 
@@ -34,10 +34,10 @@ No flake-utils; a small `forAllSystems` helper is enough.
   itself brings `xwayland`). EGL/GBM drivers come from
   `/run/opengl-driver` via `hardware.graphics`.
 - Installs `share/wayland-sessions/hecate.desktop`,
-  `share/xdg-desktop-portal/hecate-portals.conf` and the JSON Schema;
+  `share/xdg-desktop-portal/hecate-portals.conf`, `share/systemd/user/hecate-session.target`
+  and the config's JSON Schema at `share/hecate/config.schema.json`;
   `passthru.providedSessions = [ "hecate" ]`.
-- Installs shell completions (bash, zsh, fish) and man pages generated at
-  build time (`hecate completions`, clap_mangen).
+- Installs shell completions (bash, zsh, fish) generated at build time (`hecate completions`).
 - `meta.mainProgram = "hecate"`, `meta.license = lib.licenses.gpl3Plus`.
 
 ## NixOS module: `programs.hecate`
