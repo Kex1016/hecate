@@ -21,5 +21,9 @@ git = "https://github.com/Smithay/smithay"
 rev = "19c16d3e34172fcc8fb3d293bcae563b0a19ea70"
 default-features = false
 
+[workspace.dependencies.smithay-drm-extras]
+git = "https://github.com/Smithay/smithay"
+rev = "19c16d3e34172fcc8fb3d293bcae563b0a19ea70"
+
 [profile.release]
 debug = "line-tables-only"

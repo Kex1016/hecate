@@ -14,7 +14,7 @@
   seatd,
   wayland,
   pixman,
-  libdisplay-info,
+  libdisplay-info_0_3,
 }:
 rec {
   src = lib.fileset.toSource {
@@ -24,6 +24,7 @@ rec {
       ../Cargo.lock
       ../rustfmt.toml
       ../crates
+      ../resources
     ];
   };
 
@@ -46,7 +47,7 @@ rec {
       seatd
       wayland
       pixman
-      libdisplay-info
+      libdisplay-info_0_3
     ];
     HECATE_GIT_REV = rev;
   };

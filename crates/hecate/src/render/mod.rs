@@ -246,3 +246,77 @@ impl Hecate {
 pub fn new_output_buffers() -> (SolidColorBuffer, SolidColorBuffer) {
     (SolidColorBuffer::default(), SolidColorBuffer::default())
 }
+
+impl Hecate {
+    /// Record which output each surface is primarily shown on (for frame callbacks and
+    /// dmabuf feedback).
+    pub fn update_primary_scanout_output(
+        &self,
+        output: &Output,
+        states: &smithay::backend::renderer::element::RenderElementStates,
+    ) {
+        use smithay::backend::renderer::element::default_primary_scanout_output_compare;
+        use smithay::desktop::utils::{update_surface_primary_scanout_output, with_surfaces_surface_tree};
+        for window in self.wm.windows_on_output(output) {
+            window.with_surfaces(|surface, data| {
+                update_surface_primary_scanout_output(
+                    surface,
+                    output,
+                    data,
+                    None,
+                    states,
+                    default_primary_scanout_output_compare,
+                );
+            });
+        }
+        let map = layer_map_for_output(output);
+        for layer in map.layers() {
+            layer.with_surfaces(|surface, data| {
+                update_surface_primary_scanout_output(
+                    surface,
+                    output,
+                    data,
+                    None,
+                    states,
+                    default_primary_scanout_output_compare,
+                );
+            });
+        }
+        if let CursorImageStatus::Surface(surface) = &self.cursor_status {
+            with_surfaces_surface_tree(surface, |surface, data| {
+                update_surface_primary_scanout_output(
+                    surface,
+                    output,
+                    data,
+                    None,
+                    states,
+                    default_primary_scanout_output_compare,
+                );
+            });
+        }
+    }
+
+    pub fn take_presentation_feedback(
+        &self,
+        output: &Output,
+        states: &smithay::backend::renderer::element::RenderElementStates,
+    ) -> smithay::desktop::utils::OutputPresentationFeedback {
+        use smithay::desktop::utils::{
+            OutputPresentationFeedback, surface_presentation_feedback_flags_from_states,
+            surface_primary_scanout_output,
+        };
+        let mut feedback = OutputPresentationFeedback::new(output);
+        for window in self.wm.windows_on_output(output) {
+            window.take_presentation_feedback(&mut feedback, surface_primary_scanout_output, |s, _| {
+                surface_presentation_feedback_flags_from_states(s, None, states)
+            });
+        }
+        let map = layer_map_for_output(output);
+        for layer in map.layers() {
+            layer.take_presentation_feedback(&mut feedback, surface_primary_scanout_output, |s, _| {
+                surface_presentation_feedback_flags_from_states(s, None, states)
+            });
+        }
+        feedback
+    }
+}

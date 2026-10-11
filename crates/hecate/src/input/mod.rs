@@ -33,6 +33,8 @@ pub struct PointContents {
 enum KeyResult {
     Bind(BindValue, bool),
     Swallow,
+    /// Ctrl+Alt+Fn: switch virtual terminal.
+    Vt(i32),
 }
 
 impl State {
@@ -117,6 +119,15 @@ impl State {
                 return FilterResult::Forward;
             }
 
+            let modified = handle.modified_sym().raw();
+            if (smithay::input::keyboard::keysyms::KEY_XF86Switch_VT_1
+                ..=smithay::input::keyboard::keysyms::KEY_XF86Switch_VT_12)
+                .contains(&modified)
+            {
+                let vt = (modified - smithay::input::keyboard::keysyms::KEY_XF86Switch_VT_1 + 1) as i32;
+                return FilterResult::Intercept(KeyResult::Vt(vt));
+            }
+
             for b in &binds {
                 if b.combo.trigger != Trigger::Keysym(sym) {
                     continue;
@@ -180,6 +191,12 @@ impl State {
             }
             Some(KeyResult::Swallow) => {
                 self.hecate.suppressed_keys.retain(|k| *k != raw_code);
+            }
+            Some(KeyResult::Vt(vt)) => {
+                self.hecate.suppressed_keys.push(raw_code);
+                if let crate::backend::Backend::Tty(tty) = &mut self.backend {
+                    tty.change_vt(vt);
+                }
             }
             None => {}
         }
