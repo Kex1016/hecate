@@ -35,6 +35,9 @@
         default = hecate;
       });
 
+      nixosModules.default = import ./nix/nixos-module.nix self;
+      homeManagerModules.default = import ./nix/hm-module.nix self;
+
       overlays.default = final: _prev: {
         hecate = self.packages.${final.stdenv.hostPlatform.system}.hecate;
       };
@@ -72,9 +75,18 @@
         {
           hecate = self.packages.${pkgs.stdenv.hostPlatform.system}.hecate;
         }
-        // pkgs.callPackage ./nix/checks.nix {
-          craneLib = crane.mkLib pkgs;
-          common = common pkgs;
+        //
+          removeAttrs
+            (pkgs.callPackage ./nix/checks.nix {
+              craneLib = crane.mkLib pkgs;
+              common = common pkgs;
+            })
+            [
+              "override"
+              "overrideDerivation"
+            ]
+        // lib.optionalAttrs (pkgs.stdenv.hostPlatform.system == "x86_64-linux") {
+          vm = import ./nix/tests/vm.nix { inherit self pkgs; };
         }
       );
 
