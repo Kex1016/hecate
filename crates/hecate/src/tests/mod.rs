@@ -8,6 +8,7 @@ mod ext_workspace;
 mod fixture;
 mod foreign_toplevel;
 mod gamma;
+mod image_copy_capture;
 mod ipc;
 mod layers;
 mod output_management;

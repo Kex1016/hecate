@@ -566,6 +566,10 @@ impl Tty {
         self.devices.get_mut(&id.node)?.surfaces.get_mut(&id.crtc)
     }
 
+    pub fn render_node(&self) -> DrmNode {
+        self.primary_render_node
+    }
+
     pub fn gamma_size(&self, output: &Output) -> Option<u32> {
         let id = *output.user_data().get::<TtyOutputId>()?;
         let surface = self.devices.get(&id.node)?.surfaces.get(&id.crtc)?;

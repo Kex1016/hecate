@@ -75,6 +75,16 @@ impl ForeignToplevelManagerState {
     }
 }
 
+impl ForeignToplevelManagerState {
+    /// Window id behind an ext-foreign-toplevel handle.
+    pub fn window_id_for_ext_handle(&self, handle: &ExtForeignToplevelHandleV1) -> Option<u64> {
+        self.toplevels
+            .values()
+            .find(|d| d.ext_list_instances.contains(handle))
+            .map(|d| d.identifier)
+    }
+}
+
 /// Identifier for ext-foreign-toplevel-list; window ids are never reused.
 fn protocol_identifier(id: u64) -> String {
     format!("hecate-{id:016x}")

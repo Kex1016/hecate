@@ -32,6 +32,12 @@ use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_lay
 };
 use smithay::reexports::wayland_protocols::ext::foreign_toplevel_list::v1::client::ext_foreign_toplevel_handle_v1::{self, ExtForeignToplevelHandleV1};
 use smithay::reexports::wayland_protocols::ext::foreign_toplevel_list::v1::client::ext_foreign_toplevel_list_v1::{self, ExtForeignToplevelListV1};
+use smithay::reexports::wayland_protocols::ext::image_capture_source::v1::client::ext_foreign_toplevel_image_capture_source_manager_v1::ExtForeignToplevelImageCaptureSourceManagerV1;
+use smithay::reexports::wayland_protocols::ext::image_capture_source::v1::client::ext_image_capture_source_v1::ExtImageCaptureSourceV1;
+use smithay::reexports::wayland_protocols::ext::image_capture_source::v1::client::ext_output_image_capture_source_manager_v1::ExtOutputImageCaptureSourceManagerV1;
+use smithay::reexports::wayland_protocols::ext::image_copy_capture::v1::client::ext_image_copy_capture_frame_v1::{self, ExtImageCopyCaptureFrameV1};
+use smithay::reexports::wayland_protocols::ext::image_copy_capture::v1::client::ext_image_copy_capture_manager_v1::{self, ExtImageCopyCaptureManagerV1};
+use smithay::reexports::wayland_protocols::ext::image_copy_capture::v1::client::ext_image_copy_capture_session_v1::{self, ExtImageCopyCaptureSessionV1};
 use smithay::reexports::wayland_protocols::ext::workspace::v1::client::ext_workspace_group_handle_v1::{self, ExtWorkspaceGroupHandleV1};
 use smithay::reexports::wayland_protocols::ext::workspace::v1::client::ext_workspace_handle_v1::{self, ExtWorkspaceHandleV1};
 use smithay::reexports::wayland_protocols::ext::workspace::v1::client::ext_workspace_manager_v1::{self, ExtWorkspaceManagerV1};
@@ -107,6 +113,11 @@ pub struct State {
     pub output_manager: Option<ZwlrOutputManagerV1>,
     pub power_manager: Option<ZwlrOutputPowerManagerV1>,
     pub screencopy_manager: Option<ZwlrScreencopyManagerV1>,
+    pub output_source_manager: Option<ExtOutputImageCaptureSourceManagerV1>,
+    pub toplevel_source_manager: Option<ExtForeignToplevelImageCaptureSourceManagerV1>,
+    pub copy_capture_manager: Option<ExtImageCopyCaptureManagerV1>,
+    pub capture_sessions: Vec<(ExtImageCopyCaptureSessionV1, CaptureSession)>,
+    pub capture_frames: Vec<(ExtImageCopyCaptureFrameV1, CopyFrame)>,
     pub screencopy_frames: Vec<(ZwlrScreencopyFrameV1, CopyFrame)>,
     /// Per power control: modes received in order, and whether it failed.
     pub power_controls: Vec<(ZwlrOutputPowerV1, Vec<zwlr_output_power_v1::Mode>, bool)>,
@@ -204,6 +215,15 @@ pub struct CopyFrame {
     pub failed: bool,
 }
 
+/// Events received on an ext-image-copy-capture session.
+#[derive(Debug, Default, Clone)]
+pub struct CaptureSession {
+    pub buffer_size: Option<(u32, u32)>,
+    pub shm_formats: Vec<u32>,
+    pub done: usize,
+    pub stopped: bool,
+}
+
 /// A client-side shm buffer we can read back.
 pub struct CaptureBuffer {
     pub buffer: WlBuffer,
@@ -215,6 +235,28 @@ pub struct CaptureBuffer {
 
 impl CaptureBuffer {
     /// RGB at (x, y) of an XRGB8888 buffer.
+    pub fn new(shm: &WlShm, qh: &QueueHandle<State>, w: i32, h: i32) -> Self {
+        use std::os::fd::{AsFd, FromRawFd, OwnedFd};
+        let stride = w * 4;
+        let size = stride * h;
+        // SAFETY: memfd_create with a valid NUL-terminated name.
+        let fd = unsafe { libc::memfd_create(c"hecate-capture".as_ptr(), libc::MFD_CLOEXEC) };
+        assert!(fd >= 0, "memfd_create failed");
+        // SAFETY: fd is a fresh, owned descriptor.
+        let file = std::fs::File::from(unsafe { OwnedFd::from_raw_fd(fd) });
+        file.set_len(size as u64).unwrap();
+        let pool: WlShmPool = shm.create_pool(file.as_fd(), size, qh, ());
+        let buffer = pool.create_buffer(0, w, h, stride, wl_shm::Format::Xrgb8888, qh, ());
+        pool.destroy();
+        CaptureBuffer {
+            buffer,
+            file,
+            width: w,
+            height: h,
+            stride,
+        }
+    }
+
     pub fn rgb(&self, x: i32, y: i32) -> [u8; 3] {
         use std::os::unix::fs::FileExt;
         let mut px = [0u8; 4];
@@ -463,6 +505,11 @@ impl Client {
             output_manager: None,
             power_manager: None,
             screencopy_manager: None,
+            output_source_manager: None,
+            toplevel_source_manager: None,
+            copy_capture_manager: None,
+            capture_sessions: Vec::new(),
+            capture_frames: Vec::new(),
             screencopy_frames: Vec::new(),
             power_controls: Vec::new(),
             output_serial: None,
@@ -890,6 +937,12 @@ impl Dispatch<WlRegistry, ()> for State {
                 } else if interface == ZwlrForeignToplevelManagerV1::interface().name {
                     let version = min(version, ZwlrForeignToplevelManagerV1::interface().version);
                     state.wlr_toplevel_manager = Some(registry.bind(name, version, qh, ()));
+                } else if interface == ExtOutputImageCaptureSourceManagerV1::interface().name {
+                    state.output_source_manager = Some(registry.bind(name, 1, qh, ()));
+                } else if interface == ExtForeignToplevelImageCaptureSourceManagerV1::interface().name {
+                    state.toplevel_source_manager = Some(registry.bind(name, 1, qh, ()));
+                } else if interface == ExtImageCopyCaptureManagerV1::interface().name {
+                    state.copy_capture_manager = Some(registry.bind(name, 1, qh, ()));
                 } else if interface == ZwlrScreencopyManagerV1::interface().name {
                     let version = min(version, ZwlrScreencopyManagerV1::interface().version);
                     state.screencopy_manager = Some(registry.bind(name, version, qh, ()));
@@ -1866,30 +1919,9 @@ impl State {
 
     /// An XRGB8888 shm buffer matching what the compositor asked for.
     pub fn capture_buffer(&self, frame: &ZwlrScreencopyFrameV1) -> CaptureBuffer {
-        use std::os::fd::{AsFd, FromRawFd, OwnedFd};
         let (_, w, h, stride) = self.copy_frame(frame).shm.expect("no buffer event");
-        let (w, h, stride) = (w as i32, h as i32, stride as i32);
-        let size = stride * h;
-        // SAFETY: memfd_create with a valid NUL-terminated name.
-        let fd = unsafe { libc::memfd_create(c"hecate-capture".as_ptr(), libc::MFD_CLOEXEC) };
-        assert!(fd >= 0, "memfd_create failed");
-        // SAFETY: fd is a fresh, owned descriptor.
-        let file = std::fs::File::from(unsafe { OwnedFd::from_raw_fd(fd) });
-        file.set_len(size as u64).unwrap();
-        let pool: WlShmPool = self
-            .shm
-            .as_ref()
-            .unwrap()
-            .create_pool(file.as_fd(), size, &self.qh, ());
-        let buffer = pool.create_buffer(0, w, h, stride, wl_shm::Format::Xrgb8888, &self.qh, ());
-        pool.destroy();
-        CaptureBuffer {
-            buffer,
-            file,
-            width: w,
-            height: h,
-            stride,
-        }
+        assert_eq!(stride, w * 4);
+        CaptureBuffer::new(self.shm.as_ref().unwrap(), &self.qh, w as i32, h as i32)
     }
 }
 
@@ -1920,6 +1952,129 @@ impl Dispatch<ZwlrScreencopyFrameV1, ()> for State {
             }
             zwlr_screencopy_frame_v1::Event::Ready { .. } => f.ready = true,
             zwlr_screencopy_frame_v1::Event::Failed => f.failed = true,
+            _ => (),
+        }
+    }
+}
+
+impl State {
+    /// Start an ext-image-copy-capture session on an output.
+    pub fn capture_session_output(&mut self, output: &WlOutput) -> ExtImageCopyCaptureSessionV1 {
+        let source = self
+            .output_source_manager
+            .as_ref()
+            .unwrap()
+            .create_source(output, &self.qh, ());
+        self.capture_session(&source)
+    }
+
+    /// Start an ext-image-copy-capture session on a toplevel from the ext list.
+    pub fn capture_session_toplevel(
+        &mut self,
+        handle: &ExtForeignToplevelHandleV1,
+    ) -> ExtImageCopyCaptureSessionV1 {
+        let source = self
+            .toplevel_source_manager
+            .as_ref()
+            .unwrap()
+            .create_source(handle, &self.qh, ());
+        self.capture_session(&source)
+    }
+
+    fn capture_session(&mut self, source: &ExtImageCaptureSourceV1) -> ExtImageCopyCaptureSessionV1 {
+        let session = self.copy_capture_manager.as_ref().unwrap().create_session(
+            source,
+            ext_image_copy_capture_manager_v1::Options::empty(),
+            &self.qh,
+            (),
+        );
+        self.capture_sessions
+            .push((session.clone(), CaptureSession::default()));
+        session
+    }
+
+    pub fn capture_session_state(&self, s: &ExtImageCopyCaptureSessionV1) -> CaptureSession {
+        self.capture_sessions
+            .iter()
+            .find(|(x, _)| x == s)
+            .unwrap()
+            .1
+            .clone()
+    }
+
+    /// Create a frame into `buffer` and request capture.
+    pub fn capture_frame(
+        &mut self,
+        s: &ExtImageCopyCaptureSessionV1,
+        buffer: &CaptureBuffer,
+    ) -> ExtImageCopyCaptureFrameV1 {
+        let frame = s.create_frame(&self.qh, ());
+        frame.attach_buffer(&buffer.buffer);
+        frame.damage_buffer(0, 0, buffer.width, buffer.height);
+        frame.capture();
+        self.capture_frames.push((frame.clone(), CopyFrame::default()));
+        frame
+    }
+
+    pub fn capture_frame_state(&self, f: &ExtImageCopyCaptureFrameV1) -> CopyFrame {
+        self.capture_frames
+            .iter()
+            .find(|(x, _)| x == f)
+            .unwrap()
+            .1
+            .clone()
+    }
+}
+
+wayland_client::delegate_noop!(State: ignore ExtOutputImageCaptureSourceManagerV1);
+wayland_client::delegate_noop!(State: ignore ExtForeignToplevelImageCaptureSourceManagerV1);
+wayland_client::delegate_noop!(State: ignore ExtImageCaptureSourceV1);
+wayland_client::delegate_noop!(State: ignore ExtImageCopyCaptureManagerV1);
+
+impl Dispatch<ExtImageCopyCaptureSessionV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        proxy: &ExtImageCopyCaptureSessionV1,
+        event: ext_image_copy_capture_session_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        let Some((_, s)) = state.capture_sessions.iter_mut().find(|(p, _)| p == proxy) else {
+            return;
+        };
+        match event {
+            ext_image_copy_capture_session_v1::Event::BufferSize { width, height } => {
+                s.buffer_size = Some((width, height))
+            }
+            ext_image_copy_capture_session_v1::Event::ShmFormat { format } => {
+                s.shm_formats.push(format.into())
+            }
+            ext_image_copy_capture_session_v1::Event::Done => s.done += 1,
+            ext_image_copy_capture_session_v1::Event::Stopped => s.stopped = true,
+            _ => (),
+        }
+    }
+}
+
+impl Dispatch<ExtImageCopyCaptureFrameV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        proxy: &ExtImageCopyCaptureFrameV1,
+        event: ext_image_copy_capture_frame_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        let Some((_, f)) = state.capture_frames.iter_mut().find(|(p, _)| p == proxy) else {
+            return;
+        };
+        match event {
+            ext_image_copy_capture_frame_v1::Event::Damage { x, y, width, height } => {
+                f.damage.push((x as u32, y as u32, width as u32, height as u32))
+            }
+            ext_image_copy_capture_frame_v1::Event::Ready => f.ready = true,
+            ext_image_copy_capture_frame_v1::Event::Failed { .. } => f.failed = true,
             _ => (),
         }
     }

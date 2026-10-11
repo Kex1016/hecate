@@ -241,6 +241,14 @@ impl Backend {
         }
     }
 
+    /// Render node of the primary GPU, for dmabuf capture constraints.
+    pub fn render_node(&self) -> Option<smithay::backend::drm::DrmNode> {
+        match self {
+            Backend::Tty(b) => Some(b.render_node()),
+            _ => None,
+        }
+    }
+
     /// All connected monitors, including disabled ones.
     pub fn heads(&self, hecate: &Hecate) -> Vec<HeadInfo> {
         match self {

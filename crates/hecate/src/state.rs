@@ -127,6 +127,10 @@ pub struct Hecate {
     pub output_management_state: crate::protocols::output_management::OutputManagementState,
     pub output_power_state: crate::protocols::output_power::OutputPowerState,
     pub screencopy_state: crate::protocols::screencopy::ScreencopyManagerState,
+    pub image_capture_source_state: smithay::wayland::image_capture_source::ImageCaptureSourceState,
+    pub output_capture_source_state: smithay::wayland::image_capture_source::OutputCaptureSourceState,
+    pub image_copy_capture_state: smithay::wayland::image_copy_capture::ImageCopyCaptureState,
+    pub image_copy_sessions: Vec<crate::handlers::image_copy_capture::ImageCopySession>,
     pub cursor_shape_state: CursorShapeManagerState,
     pub single_pixel_buffer_state: SinglePixelBufferState,
     pub idle_notifier_state: IdleNotifierState<State>,
@@ -247,6 +251,7 @@ impl State {
         crate::protocols::foreign_toplevel::refresh(self);
         crate::protocols::ext_workspace::refresh(self);
         crate::protocols::output_management::refresh(self);
+        self.refresh_image_copy_capture();
         self.ipc_refresh();
         self.ipc_flush();
         if let Err(err) = self.hecate.display_handle.flush_clients() {
@@ -329,6 +334,24 @@ impl Hecate {
             crate::protocols::output_power::OutputPowerState::new(&dh, client_is_unrestricted);
         let screencopy_state =
             crate::protocols::screencopy::ScreencopyManagerState::new(&dh, client_is_unrestricted);
+        let image_capture_source_state =
+            smithay::wayland::image_capture_source::ImageCaptureSourceState::new();
+        let output_capture_source_state =
+            smithay::wayland::image_capture_source::OutputCaptureSourceState::new_with_filter::<State, _>(
+                &dh,
+                client_is_unrestricted,
+            );
+        let image_copy_capture_state =
+            smithay::wayland::image_copy_capture::ImageCopyCaptureState::new_with_filter::<State, _>(
+                &dh,
+                client_is_unrestricted,
+            );
+        dh.create_global::<State, smithay::reexports::wayland_protocols::ext::image_capture_source::v1::server::ext_foreign_toplevel_image_capture_source_manager_v1::ExtForeignToplevelImageCaptureSourceManagerV1, _>(
+            1,
+            crate::handlers::image_copy_capture::ToplevelCaptureSourceGlobalData {
+                filter: Box::new(client_is_unrestricted),
+            },
+        );
         let cursor_shape_state = CursorShapeManagerState::new::<State>(&dh);
         let single_pixel_buffer_state = SinglePixelBufferState::new::<State>(&dh);
         let idle_notifier_state = IdleNotifierState::new(&dh, event_loop.clone());
@@ -463,6 +486,10 @@ impl Hecate {
             output_management_state,
             output_power_state,
             screencopy_state,
+            image_capture_source_state,
+            output_capture_source_state,
+            image_copy_capture_state,
+            image_copy_sessions: Vec::new(),
             cursor_shape_state,
             single_pixel_buffer_state,
             idle_notifier_state,
@@ -645,6 +672,9 @@ pub fn advertised_globals() -> Vec<String> {
         "zwlr_output_manager_v1",
         "zwlr_output_power_manager_v1",
         "zwlr_screencopy_manager_v1",
+        "ext_image_copy_capture_manager_v1",
+        "ext_output_image_capture_source_manager_v1",
+        "ext_foreign_toplevel_image_capture_source_manager_v1",
     ]
     .iter()
     .map(|s| s.to_string())
