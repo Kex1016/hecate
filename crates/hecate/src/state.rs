@@ -142,6 +142,9 @@ pub struct Hecate {
     pub suppressed_buttons: Vec<u32>,
     /// A modifier went down alone; fire tap binds on release unless something else happens.
     pub pending_mod_tap: Option<Modifiers>,
+    /// A config reload is scheduled (debounce).
+    pub reload_pending: bool,
+    pub config_watcher: Option<crate::config::watch::ConfigWatcher>,
 }
 
 #[derive(Default)]
@@ -429,6 +432,8 @@ impl Hecate {
             suppressed_keys: Vec::new(),
             suppressed_buttons: Vec::new(),
             pending_mod_tap: None,
+            reload_pending: false,
+            config_watcher: None,
         })
     }
 

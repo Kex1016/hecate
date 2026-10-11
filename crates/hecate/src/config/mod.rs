@@ -7,6 +7,7 @@ pub mod binds;
 pub mod defaults;
 pub mod keys;
 pub mod load;
+pub mod watch;
 
 use std::collections::BTreeMap;
 
