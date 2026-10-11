@@ -172,6 +172,7 @@ impl Shaders {
         });
         let cell = data.get::<RefCell<Shaders>>().unwrap();
         *cell.borrow_mut() = Shaders { border, clip };
+        super::blur::BlurShaders::init(renderer);
     }
 
     pub fn border(renderer: &GlesRenderer) -> Option<GlesPixelProgram> {

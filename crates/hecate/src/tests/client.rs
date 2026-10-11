@@ -169,6 +169,7 @@ pub struct Window {
 pub struct LayerSurface {
     pub qh: QueueHandle<State>,
     pub spbm: WpSinglePixelBufferManagerV1,
+    pub shm: WlShm,
 
     pub surface: WlSurface,
     pub layer_surface: ZwlrLayerSurfaceV1,
@@ -667,6 +668,7 @@ impl State {
         let layer_surface = LayerSurface {
             qh: self.qh.clone(),
             spbm: self.spbm.clone().unwrap(),
+            shm: self.shm.clone().unwrap(),
 
             surface,
             layer_surface,
@@ -800,6 +802,14 @@ impl Window {
 }
 
 impl LayerSurface {
+    /// Attach a solid-colour shm buffer of `w`×`h` (the texture path, unlike `attach_color`).
+    pub fn attach_shm(&self, w: i32, h: i32, rgba: [u8; 4]) {
+        let buffer = shm_buffer(&self.shm, &self.qh, w, h, rgba);
+        self.viewport.set_destination(-1, -1);
+        self.surface.attach(Some(&buffer), 0, 0);
+        self.surface.damage_buffer(0, 0, w, h);
+    }
+
     pub fn attach_color(&self, rgba: [u8; 4]) {
         let [r, g, b, a] = spb_channels(rgba);
         let buffer = self.spbm.create_u32_rgba_buffer(r, g, b, a, &self.qh, ());

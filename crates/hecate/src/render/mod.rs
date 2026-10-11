@@ -1,5 +1,6 @@
 //! Building the list of render elements for an output.
 
+pub mod blur;
 pub mod border;
 pub mod capture;
 pub mod screencopy;
@@ -34,7 +35,22 @@ render_elements! {
     Memory = MemoryRenderBufferRenderElement<GlesRenderer>,
     Window = WindowElement,
     Scaled = RescaleRenderElement<WindowElement>,
+    Blur = blur::BlurElement,
 }
+
+/// A layer surface that wants blur behind it, found while building the element list.
+struct BlurMarker {
+    /// Index in the element list just below the surface's elements.
+    index: usize,
+    surface: smithay::desktop::LayerSurface,
+    geometry: Rectangle<i32, Physical>,
+    alpha: f32,
+    xray: bool,
+    ignore_alpha: Option<f32>,
+}
+
+/// Stable element id for a layer surface's blur.
+struct BlurId(smithay::backend::renderer::element::Id);
 
 render_elements! {
     /// What a window (or its snapshot) is drawn with; scaled as a whole by animations.
@@ -156,7 +172,11 @@ impl Hecate {
 
         let map = layer_map_for_output(output);
         let now = self.wm.clock.now();
-        let push_layer = |out: &mut Vec<HecateElement>, renderer: &mut GlesRenderer, layer: Layer| {
+        let mut markers: Vec<BlurMarker> = Vec::new();
+        let push_layer = |out: &mut Vec<HecateElement>,
+                          markers: &mut Vec<BlurMarker>,
+                          renderer: &mut GlesRenderer,
+                          layer: Layer| {
             self.push_closing(out, output, Some(layer), now);
             for surface in map.layers_on(layer).rev() {
                 let Some(geo) = map.layer_geometry(surface) else {
@@ -186,15 +206,25 @@ impl Hecate {
                     center.to_physical_precise_round(scale),
                     anim_scale,
                 );
+                if self.config.blur.enable && rules.blur == Some(true) {
+                    markers.push(BlurMarker {
+                        index: out.len(),
+                        surface: surface.clone(),
+                        geometry: Rectangle::new(geo_loc, geo.size).to_physical_precise_round(scale),
+                        alpha,
+                        xray: rules.xray.unwrap_or(false),
+                        ignore_alpha: rules.ignore_alpha,
+                    });
+                }
             }
         };
 
-        push_layer(&mut out, renderer, Layer::Overlay);
+        push_layer(&mut out, &mut markers, renderer, Layer::Overlay);
 
         let windows = self.wm.windows_on_output(output);
         let fullscreen = windows.iter().any(|w| w.data().fullscreen);
         if !fullscreen {
-            push_layer(&mut out, renderer, Layer::Top);
+            push_layer(&mut out, &mut markers, renderer, Layer::Top);
         }
 
         let focused = self
@@ -246,10 +276,11 @@ impl Hecate {
         }
 
         if fullscreen {
-            push_layer(&mut out, renderer, Layer::Top);
+            push_layer(&mut out, &mut markers, renderer, Layer::Top);
         }
-        push_layer(&mut out, renderer, Layer::Bottom);
-        push_layer(&mut out, renderer, Layer::Background);
+        let xray_start = out.len();
+        push_layer(&mut out, &mut markers, renderer, Layer::Bottom);
+        push_layer(&mut out, &mut markers, renderer, Layer::Background);
         drop(map);
 
         if let Some(s) = state {
@@ -262,7 +293,83 @@ impl Hecate {
             )));
         }
         let _ = to_local;
+        self.insert_blur(renderer, output, &mut out, markers, xray_start);
         out
+    }
+
+    /// Put the blurred scene below each surface that asked for it.
+    fn insert_blur(
+        &self,
+        renderer: &mut GlesRenderer,
+        output: &Output,
+        out: &mut Vec<HecateElement>,
+        markers: Vec<BlurMarker>,
+        mut xray_start: usize,
+    ) {
+        use smithay::backend::renderer::utils::with_renderer_surface_state;
+        let cache = output
+            .user_data()
+            .get_or_insert(|| std::cell::RefCell::new(blur::BlurCache::default()));
+        let mut cache = cache.borrow_mut();
+        let scale = Scale::from(output.current_scale().fractional_scale());
+        let size = Wm::output_geometry(output).size.to_physical_precise_round(scale);
+        let config = &self.config.blur;
+        let Some(programs) = blur::BlurShaders::composite(renderer) else {
+            return;
+        };
+        // Bottom-most first, so a lower surface's blur is part of the scene above it.
+        for m in markers.into_iter().rev() {
+            let start = if m.xray { m.index.max(xray_start) } else { m.index };
+            let below = &out[start.min(out.len())..];
+            let key = blur::scene_key(below, scale, size, config);
+            let Some((texture, commit)) = cache.get(renderer, key, size, scale, below, config) else {
+                continue;
+            };
+            let context = smithay::backend::renderer::Renderer::context_id(renderer);
+            let mut mask = None;
+            if let Some(threshold) = m.ignore_alpha {
+                let (texture, single_pixel_alpha) =
+                    with_renderer_surface_state(m.surface.wl_surface(), |s| {
+                        let texture = s.texture::<GlesTexture>(context.clone()).cloned();
+                        // Single-pixel buffers are drawn without a texture: their alpha decides.
+                        let alpha = s.buffer().and_then(|b| {
+                            smithay::wayland::single_pixel_buffer::get_single_pixel_buffer(b)
+                                .ok()
+                                .map(|d| d.a as f64 / u32::MAX as f64)
+                        });
+                        (texture, alpha)
+                    })
+                    .unwrap_or_default();
+                match single_pixel_alpha {
+                    Some(a) if a <= threshold as f64 => continue,
+                    Some(_) => {}
+                    None => mask = texture.map(|t| (t, threshold)),
+                }
+            }
+            let id = m
+                .surface
+                .user_data()
+                .get_or_insert(|| BlurId(smithay::backend::renderer::element::Id::new()))
+                .0
+                .clone();
+            out.insert(
+                m.index,
+                HecateElement::Blur(blur::BlurElement::new(
+                    programs.clone(),
+                    id,
+                    commit,
+                    texture,
+                    m.geometry,
+                    mask,
+                    config.noise,
+                    m.alpha,
+                )),
+            );
+            if m.index <= xray_start {
+                xray_start += 1;
+            }
+        }
+        cache.end_frame();
     }
 
     /// One window with its animations applied, shifted by `offset` (workspace switch).

@@ -171,10 +171,11 @@ QT_QPA_PLATFORM = "wayland"
 # layer rules (the shell profile adds end-4's set; these are a sample)
 [[layer_rules]]
 match = { namespace = "quickshell:.*" }
-blur = true
+blur = true                    # blur what's behind the surface (dual Kawase, see [blur])
 blur_popups = true
-ignore_alpha = 0.79
-xray = true
+ignore_alpha = 0.79            # only behind pixels more opaque than this (else the whole rect)
+xray = true                    # blur only the wallpaper (background/bottom layers), not windows;
+                               # cheaper, and cached until the wallpaper changes
 
 [[layer_rules]]
 match = { namespace = "quickshell:background" }
