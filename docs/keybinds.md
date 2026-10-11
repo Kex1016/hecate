@@ -131,7 +131,7 @@ Resolution in the last column, **agreed in round 3**.
 | bind | niri / base | end-4 shell | your niri personal | decision |
 | ---- | ----------- | ----------- | ------------------ | -------- |
 | `Mod+J/K/L/M` | focus left/down/up/right | bar / OSK / lock / media | | **shell**; directional focus stays on the arrow keys |
-| `Mod+Shift+J/K/L/M` | focus output | `Shift+L` suspend, `Shift+M` mute | | **shell**; arrows only for output focus |
+| `Mod+Shift+J/K/L/M` | niri: focus output (base: arrows only, plus `Shift+L` suspend) | `Shift+L` suspend, `Shift+M` mute | | base keeps `Shift+L` suspend (same as end-4); **shell** adds `Shift+M` mute |
 | `Mod+F` | maximize | fullscreen (`Mod+D` = maximize) | | **shell**: `F` fullscreen, `D` maximize. `Mod+Shift+F` stays fullscreen too |
 | `Mod+D` | | maximize | launcher | **shell** (launcher is `Super` tap now) |
 | `Mod+G` / `Mod+Shift+G` | always-on-top / omnipresent | widget overlay | | **shell**; those moved to `Mod+Alt+Space` / `Mod+P` |
