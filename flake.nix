@@ -117,6 +117,7 @@
             ]
         // lib.optionalAttrs (pkgs.stdenv.hostPlatform.system == "x86_64-linux") {
           vm = import ./nix/tests/vm.nix { inherit self pkgs; };
+          vm-shell = import ./nix/tests/vm-shell.nix { inherit self pkgs home-manager; };
         }
       );
 
