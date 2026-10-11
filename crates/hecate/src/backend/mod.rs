@@ -372,7 +372,15 @@ impl Hecate {
             });
         }
         self.output_heads_dirty = true;
-        smithay::desktop::layer_map_for_output(output).cleanup();
+        // Layer surfaces belong to one output; clients recreate them elsewhere.
+        let layers: Vec<_> = smithay::desktop::layer_map_for_output(output)
+            .layers()
+            .cloned()
+            .collect();
+        for layer in layers {
+            layer.layer_surface().send_close();
+            smithay::desktop::layer_map_for_output(output).unmap_layer(&layer);
+        }
         self.queue_redraw_all();
     }
 

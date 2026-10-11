@@ -123,3 +123,75 @@ blur = false
     let other = crate::render::layer_rules_for(&config, "waybar");
     assert_eq!(other.blur, None);
 }
+
+fn launcher(f: &mut Fixture, id: super::client::ClientId) -> wayland_client::protocol::wl_surface::WlSurface {
+    let layer = f.client(id).create_layer(None, Layer::Overlay, "launcher");
+    let surface = layer.surface.clone();
+    layer.set_configure_props(LayerConfigureProps {
+        size: Some((600, 400)),
+        kb_interactivity: Some(KeyboardInteractivity::Exclusive),
+        ..Default::default()
+    });
+    layer.commit();
+    f.double_roundtrip(id);
+    let layer = f.client(id).layer(&surface);
+    layer.attach_color(BLUE);
+    layer.set_size(600, 400);
+    layer.ack_last_and_commit();
+    f.double_roundtrip(id);
+    surface
+}
+
+#[test]
+fn exclusive_layer_keeps_focus_against_window_clicks_and_returns_it_on_unmap() {
+    let mut f = Fixture::new();
+    f.add_output("headless-1", (1920, 1080));
+    let id = f.add_client();
+    f.map_window(id, (400, 300), RED, None);
+    let w = f.windows()[0].clone();
+    let surface = launcher(&mut f, id);
+    assert!(f.focused().is_none());
+
+    // Clicking the window (focus_window) doesn't take the keyboard from the launcher.
+    f.hecate().focus_window(&w);
+    assert!(f.focused().is_none(), "exclusive layer keeps focus");
+
+    // The launcher hides by attaching a null buffer: focus returns to the window.
+    let layer = f.client(id).layer(&surface);
+    layer.attach_null();
+    layer.commit();
+    f.double_roundtrip(id);
+    assert_eq!(f.focused(), Some(w.clone()), "focus back on the window");
+
+    // And an unmapped exclusive layer no longer captures focus.
+    f.hecate().focus_window(&w);
+    assert_eq!(f.focused(), Some(w));
+}
+
+#[test]
+fn layers_close_when_their_output_goes_away() {
+    let mut f = Fixture::new();
+    f.add_output("headless-1", (1920, 1080));
+    f.add_output("headless-2", (1920, 1080));
+    let id = f.add_client();
+    f.double_roundtrip(id);
+    let o2 = f.client(id).output("headless-2");
+    let layer = f.client(id).create_layer(Some(&o2), Layer::Top, "bar");
+    let surface = layer.surface.clone();
+    layer.set_configure_props(LayerConfigureProps {
+        size: Some((0, 30)),
+        anchor: Some(Anchor::Top | Anchor::Left | Anchor::Right),
+        exclusive_zone: Some(30),
+        ..Default::default()
+    });
+    layer.commit();
+    f.double_roundtrip(id);
+    f.hecate()
+        .set_override("outputs.headless-2.enable", serde_json::json!(false))
+        .unwrap();
+    f.double_roundtrip(id);
+    assert!(
+        f.client(id).layer(&surface).close_requested,
+        "closed with its output"
+    );
+}

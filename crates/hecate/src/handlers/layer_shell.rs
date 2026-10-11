@@ -88,6 +88,11 @@ impl State {
                     .map(|d| d.lock().unwrap().initial_configure_sent)
                     .unwrap_or(true)
             });
+            let keyboard = self.hecate.seat.get_keyboard().unwrap();
+            if !crate::utils::is_mapped(root) && keyboard.current_focus().as_ref() == Some(root) {
+                // Unmapped with a null buffer: give the keyboard back.
+                self.focus_topmost();
+            }
             if !initial_sent {
                 let scale = output.current_scale();
                 let transform = output.current_transform();

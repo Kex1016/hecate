@@ -326,6 +326,12 @@ impl State {
         if self.hecate.wm.is_locked() {
             return;
         }
+        // An exclusive layer surface on top keeps the keyboard.
+        if let Some(layer) = self.exclusive_layer_focus() {
+            let keyboard = self.hecate.seat.get_keyboard().unwrap();
+            keyboard.set_focus(self, Some(layer), SERIAL_COUNTER.next_serial());
+            return;
+        }
         let surface = window.toplevel_surface().wl_surface().clone();
         let previous = self.focused_window();
         if let Some(prev) = &previous
@@ -413,11 +419,10 @@ impl State {
         for output in self.hecate.wm.outputs() {
             let map = smithay::desktop::layer_map_for_output(output);
             for layer in [Layer::Overlay, Layer::Top] {
-                if let Some(l) = map
-                    .layers_on(layer)
-                    .rev()
-                    .find(|l| l.cached_state().keyboard_interactivity == KeyboardInteractivity::Exclusive)
-                {
+                if let Some(l) = map.layers_on(layer).rev().find(|l| {
+                    l.cached_state().keyboard_interactivity == KeyboardInteractivity::Exclusive
+                        && crate::utils::is_mapped(l.wl_surface())
+                }) {
                     return Some(l.wl_surface().clone());
                 }
             }
