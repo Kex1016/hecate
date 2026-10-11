@@ -62,7 +62,8 @@ Singleton {
     HyprlandFocusGrab {
         id: grab
         windows: root.dismissable.every(w => !w?.focusable) || root.dismissable.some(w => root.hasActive(w?.contentItem)) ? [...root.dismissable, ...root.persistent] : [...root.dismissable]
-        active: WM.compositor === "hyprland" && root.dismissable.length > 0
+        // hecate implements hyprland-focus-grab-v1 too.
+        active: (WM.compositor === "hyprland" || WM.compositor === "hecate") && root.dismissable.length > 0
         onCleared: () => {
             root.dismiss();
         }
