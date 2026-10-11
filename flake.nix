@@ -4,6 +4,11 @@
   inputs = {
     nixpkgs.url = "https://channels.nixos.org/nixpkgs-unstable/nixexprs.tar.xz";
     crane.url = "git+https://github.com/ipetkov/crane?shallow=1";
+    # Only used by the Home Manager module check.
+    home-manager = {
+      url = "git+https://github.com/nix-community/home-manager?shallow=1";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -11,6 +16,7 @@
       self,
       nixpkgs,
       crane,
+      home-manager,
     }:
     let
       inherit (nixpkgs) lib;
@@ -77,6 +83,27 @@
         {
           hecate = self.packages.${pkgs.stdenv.hostPlatform.system}.hecate;
           hecate-shell = self.packages.${pkgs.stdenv.hostPlatform.system}.hecate-shell;
+          # The Home Manager module with the shell: builds the home and validates the generated
+          # config (shell binds included) with `hecate validate`.
+          hm =
+            (home-manager.lib.homeManagerConfiguration {
+              inherit pkgs;
+              modules = [
+                self.homeManagerModules.default
+                {
+                  home = {
+                    username = "alice";
+                    homeDirectory = "/home/alice";
+                    stateVersion = "25.11";
+                  };
+                  wayland.windowManager.hecate = {
+                    enable = true;
+                    shell.enable = true;
+                    settings.binds."Mod+T".spawn = [ "foot" ];
+                  };
+                }
+              ];
+            }).activationPackage;
         }
         //
           removeAttrs

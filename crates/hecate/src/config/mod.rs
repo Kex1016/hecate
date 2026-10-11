@@ -45,6 +45,9 @@ pub struct Config {
     /// libinput settings per device: `"*"`, `"type:touchpad"`, `"type:pointer"` or a device name.
     pub input: BTreeMap<String, InputDevice>,
     pub environment: BTreeMap<String, String>,
+    /// Extra variables (from hecate's environment) to import into the systemd and D-Bus
+    /// activation environment at startup, besides WAYLAND_DISPLAY, DISPLAY and friends.
+    pub session_variables: Vec<String>,
     pub binds: BTreeMap<String, BindValue>,
     /// Binds of the bundled shell, between the base binds and yours. Set by the Home Manager
     /// module when `shell.enable = true`; leave it to that.
@@ -80,6 +83,7 @@ impl Default for Config {
             cursor: Cursor::default(),
             input: BTreeMap::new(),
             environment: BTreeMap::new(),
+            session_variables: Vec::new(),
             binds: BTreeMap::new(),
             shell_binds: BTreeMap::new(),
             mouse_binds: BTreeMap::new(),

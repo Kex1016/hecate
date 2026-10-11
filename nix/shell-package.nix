@@ -11,6 +11,8 @@
   python3,
   gsettings-desktop-schemas,
   pkgs,
+  # More commands for the shell's PATH (the Home Manager module adds hecate itself).
+  extraPackages ? [ ],
 }:
 let
   rev = "26fe30f";
@@ -51,62 +53,65 @@ let
 
   # Commands the QML and scripts run (see shell/dots-hyprland/sdata/deps-info.md), minus the
   # Hyprland-only ones (hyprshot, hyprsunset, hypridle); night light uses wlsunset.
-  runtimeTools = with pkgs; [
-    bash
-    coreutils
-    findutils
-    gnugrep
-    gnused
-    gawk
-    procps
-    psmisc
-    util-linux
-    bc
-    jq
-    curl
-    wget
-    ripgrep
-    file
-    libnotify
-    glib
-    xdg-user-dirs
-    dbus
-    # audio
-    cava
-    lxqt.pavucontrol-qt
-    wireplumber
-    playerctl
-    # backlight
-    brightnessctl
-    ddcutil
-    # theming
-    matugen
-    imagemagick
-    kdePackages.kconfig
-    # capture
-    grim
-    slurp
-    swappy
-    wf-recorder
-    tesseract
-    hyprpicker
-    wl-clipboard
-    cliphist
-    ffmpeg
-    # widgets and tools
-    fuzzel
-    translate-shell
-    libqalculate
-    songrec
-    upower
-    wtype
-    ydotool
-    networkmanager
-    bluez
-    wlsunset
-    mpvpaper
-    quickshell
-  ];
+  runtimeTools =
+    with pkgs;
+    [
+      bash
+      coreutils
+      findutils
+      gnugrep
+      gnused
+      gawk
+      procps
+      psmisc
+      util-linux
+      bc
+      jq
+      curl
+      wget
+      ripgrep
+      file
+      libnotify
+      glib
+      xdg-user-dirs
+      dbus
+      # audio
+      cava
+      lxqt.pavucontrol-qt
+      wireplumber
+      playerctl
+      # backlight
+      brightnessctl
+      ddcutil
+      # theming
+      matugen
+      imagemagick
+      kdePackages.kconfig
+      # capture
+      grim
+      slurp
+      swappy
+      wf-recorder
+      tesseract
+      hyprpicker
+      wl-clipboard
+      cliphist
+      ffmpeg
+      # widgets and tools
+      fuzzel
+      translate-shell
+      libqalculate
+      songrec
+      upower
+      wtype
+      ydotool
+      networkmanager
+      bluez
+      wlsunset
+      mpvpaper
+      quickshell
+    ]
+    ++ extraPackages;
 
   qtModules = [
     qt6.qtbase

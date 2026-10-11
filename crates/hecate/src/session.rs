@@ -32,6 +32,7 @@ impl State {
         }
         let mut vars: Vec<String> = IMPORTED_VARS.iter().map(|s| s.to_string()).collect();
         vars.extend(self.hecate.config.environment.keys().cloned());
+        vars.extend(self.hecate.config.session_variables.iter().cloned());
         let env = crate::utils::child_env();
         std::thread::spawn(move || {
             let assignments: Vec<String> = vars

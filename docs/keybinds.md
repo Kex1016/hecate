@@ -81,10 +81,12 @@ nearest stacking equivalent or dropped.
 ## shell (end-4 illogical-impulse)
 
 end-4 uses Hyprland `global` shortcuts (`quickshell:<name>`). On hecate
-each becomes a spawn of
-`qs -c end4-pC ipc call shortcut press|release <name>` through the generic
-`shortcut` IPC target we add to the shell ([shell.md](shell.md)). Written
-below as `shell:<name>`.
+each becomes a spawn of `hecate-shell-ipc shortcut trigger|press|release <name>`
+through the generic `shortcut` IPC target we add to the shell
+([shell.md](shell.md)); `hecate-shell-ipc shortcut list` prints every name.
+Written below as `shell:<name>`. The profile lives in `nix/shell-binds.nix`
+and lands in the config as `shell_binds` (between the base binds and yours),
+so `hecate msg binds` shows each bind's layer.
 
 | bind                         | action                                  |
 | ---------------------------- | --------------------------------------- |
@@ -118,6 +120,11 @@ below as `shell:<name>`.
 
 end-4's app launchers (`Mod+T`, `Mod+E`, `Mod+W`, `Mod+X`, `Mod+I`, ...)
 are left out of the shell profile; apps are personal.
+
+Not bound because end4-pC has no such shortcut: `Mod+Tab` (the workspace
+overview is off on hecate for now), `Mod+Slash` (end4-pC dropped ii's cheat
+sheet; the keybind list in its settings reads `hecate msg -j binds`),
+`Mod+Ctrl+Shift+D` and `Mod+Ctrl+P`.
 
 ## Conflicts
 

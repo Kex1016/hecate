@@ -118,18 +118,23 @@ so `nixos-option` and editor completion work in Nix too.
   wayland.windowManager.hecate.shell = {
     enable = true;                 # default false
     package = pkgs.hecate-shell;   # from the overlay
-    keybinds = true;               # add the end-4 profile (keybinds.md)
-    dotfiles = true;               # matugen, Kvantum, kde-material-you-colors, fontconfig, kitty/foot/fuzzel/fish from dots-hyprland
-    extraPackages = [ ];           # more tools on the shell's PATH
+    keybinds = true;               # add the end-4 profile as `shell_binds` (keybinds.md)
+    dotfiles = [ "matugen" "kde-material-you-colors" "Kvantum" "fuzzel" ];  # default; also fontconfig, kitty, foot, fish
+    extraPackages = [ ];           # more tools on the shell's PATH (hecate itself is always there)
   };
 }
 ```
 
-What `hecate-shell` is (`nix/shell.nix`):
+On the NixOS side, `programs.hecate.shell.enable = true` turns on what the shell needs from
+the system (see below).
+
+What `hecate-shell` is (`nix/shell-package.nix`):
 
 - `share/hecate-shell/end4-pC/`: the patched QML tree from `shell/end4-pC`,
   read-only in the store. The Nix build disables the self-updater.
-- `bin/hecate-shell`: runs `qs -p <store path>` through a wrapper built from
+- `bin/hecate-shell`: runs `qs -c end4-pC` (the HM module links the config into
+  `~/.config/quickshell`) or `qs -p <store path>`; `bin/hecate-shell-ipc` calls into
+  the running shell. Both go through a wrapper built from
   dots-hyprland's `sdata/dist-nix/home-manager/quickshell.nix`:
   `wrapQtAppsHook` with qt5compat, qtdeclarative, qtimageformats,
   qtmultimedia, qtpositioning, qtquicktimeline, qtsensors, qtsvg,
@@ -139,11 +144,8 @@ What `hecate-shell` is (`nix/shell.nix`):
   brightnessctl, ddcutil, playerctl, cava, pavucontrol-qt, wlsunset,
   hyprpicker, fuzzel, ydotool, libnotify, xdg-user-dirs, geoclue2 demo
   agent, kde-material-you-colors, plus `hecate` itself for `hecate msg`.
-- Python env (`nix/python.nix`) from `sdata/uv/requirements.in`: pillow,
-  psutil, pywayland, numpy, opencv, pycairo, pygobject, loguru, click,
-  tqdm, requests, google-auth from nixpkgs; `materialyoucolor`,
-  `material-color-utilities` and `kde-material-you-colors` packaged
-  ourselves if nixpkgs lacks them.
+- Python env from `sdata/uv/requirements.in`, all from nixpkgs, behind a small
+  `bin/activate` so the shell's `$ILLOGICAL_IMPULSE_VIRTUAL_ENV` scripts work unchanged.
 - Fonts (`fonts.packages` hint in the NixOS module, `home.packages` in HM):
   Material Symbols, Space Grotesk, Rubik, JetBrains Mono Nerd, Readex Pro,
   and the rest from the `illogical-impulse-fonts-themes` list.
@@ -164,12 +166,11 @@ What the HM module does with it:
 - Leaves mutable shell state alone: `~/.config/illogical-impulse/`
   (`config.json`, written by the settings UI), `~/.local/state/quickshell`,
   `~/.cache/quickshell`.
-- Needs from the NixOS side (asserted, with a clear message): PAM entry for
-  the QuickShell lock screen (`security.pam.services.quickshell`),
-  `services.geoclue2`, `hardware.i2c` for ddcutil, `services.upower`,
-  `networking.networkmanager`, `hardware.bluetooth` (optional), and the
-  ydotool daemon. The NixOS module's `programs.hecate.shell.enable` turns
-  these on.
+- Needs from the NixOS side: PAM entry for the QuickShell lock screen
+  (`security.pam.services.quickshell`), `services.geoclue2`, `hardware.i2c` for
+  ddcutil, `services.upower`, `networking.networkmanager`, `hardware.bluetooth`,
+  ydotool and gnome-keyring. The NixOS module's `programs.hecate.shell.enable` turns
+  these on (as defaults you can override).
 
 ## Other shells
 
