@@ -10,6 +10,7 @@ Log of review decisions on the plan. Newest first.
 | Workspaces     | `scope` = `global` / `per_output`, `kind` = `fixed` / `auto` | Fixed takes `count` (default 9, max 32); auto keeps one empty workspace at the end, max 32 |
 | Shell          | **bundle end4-pC + illogical-impulse** in a monorepo, patched for hecate, packaged for NixOS | git subtrees under `shell/`. Both GPL-3.0. See [shell.md](shell.md) |
 | Noctalia       | supported through protocols, not bundled         | Native backend after v1 if wanted |
+| Layer rules    | added (follows from the shell choice)            | end-4's frosted panels come from Hyprland layer rules (blur, ignore_alpha, xray), so hecate needs the same |
 
 ## Round 1
 
