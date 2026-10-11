@@ -9,9 +9,12 @@ import qs.services
 /**
  * Exposes the active Niri Xkb keyboard layout name and code for indicators.
  * Mirrors HyprlandXkb.qml's shape so widgets can bind to either transparently.
+ * Also serves hecate, whose IPC has the same shape (`hecate msg -j keyboard-layouts`).
  */
 Singleton {
     id: root
+    readonly property bool enabled: WM.compositor === "niri" || WM.compositor === "hecate"
+    readonly property string msgCommand: WM.compositor === "hecate" ? "hecate" : "niri"
     property list<string> layoutNames: []
     property int currentIdx: 0
     property var cachedLayoutCodes: ({})
@@ -21,7 +24,7 @@ Singleton {
 
     onCurrentLayoutNameChanged: root.updateLayoutCode()
     function updateLayoutCode() {
-        if (WM.compositor !== "niri") return;
+        if (!root.enabled) return;
         if (!root.currentLayoutName) return;
         if (cachedLayoutCodes.hasOwnProperty(currentLayoutName)) {
             root.currentLayoutCode = cachedLayoutCodes[currentLayoutName];
@@ -66,13 +69,13 @@ Singleton {
     }
 
     function refresh() {
-        if (WM.compositor !== "niri") return;
+        if (!root.enabled) return;
         fetchLayoutsProc.running = true;
     }
 
     Process {
         id: fetchLayoutsProc
-        command: ["niri", "msg", "-j", "keyboard-layouts"]
+        command: [root.msgCommand, "msg", "-j", "keyboard-layouts"]
 
         stdout: StdioCollector {
             id: layoutsCollector
@@ -90,7 +93,7 @@ Singleton {
     }
 
     Component.onCompleted: {
-        if (WM.compositor === "niri") {
+        if (root.enabled) {
             refresh();
             eventStream.running = true;
         }
@@ -99,7 +102,7 @@ Singleton {
     Process {
         id: eventStream
         running: false
-        command: ["niri", "msg", "-j", "event-stream"]
+        command: [root.msgCommand, "msg", "-j", "event-stream"]
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: (line) => {
@@ -108,6 +111,6 @@ Singleton {
         }
         onExited: restartTimer.restart()
     }
-    Timer { id: restartTimer; interval: 1000; onTriggered: { if (WM.compositor === "niri") eventStream.running = true; } }
+    Timer { id: restartTimer; interval: 1000; onTriggered: { if (root.enabled) eventStream.running = true; } }
     Timer { id: refreshDebounce; interval: 80; onTriggered: root.refresh() }
 }

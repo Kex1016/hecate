@@ -9,6 +9,7 @@ Singleton {
     id: root
 
     readonly property string compositor: detectCompositor()
+    readonly property bool isHyprland: compositor === "hyprland"
     property QtObject backend: null
 
     function switchWorkspaceRelative(direction) { backend?.switchWorkspaceRelative(direction) }
@@ -18,6 +19,7 @@ Singleton {
         const session = (Quickshell.env("XDG_SESSION_DESKTOP") ?? "").toLowerCase();
         const combined = desktop + " " + session;
 
+        if (combined.includes("hecate") || (Quickshell.env("HECATE_SOCKET") ?? "") !== "") return "hecate";
         if (combined.includes("hyprland")) return "hyprland";
         if (combined.includes("niri")) return "niri";
         if (combined.includes("sway")) return "sway";
@@ -27,6 +29,7 @@ Singleton {
 
     Component { id: hyprlandComp; HyprlandBackend {} }
     Component { id: niriComp; NiriBackend {} }
+    Component { id: hecateComp; HecateBackend {} }
     // Component { id: swayComp; SwayBackend {} }
     // Component { id: mangoComp; MangoBackend {} }
 
@@ -34,6 +37,7 @@ Singleton {
         switch (root.compositor) {
         case "hyprland": backend = hyprlandComp.createObject(root); break;
         case "niri":     backend = niriComp.createObject(root); break;
+        case "hecate":   backend = hecateComp.createObject(root); break;
         // case "sway":  backend = swayComp.createObject(root); break;
         // case "mango": backend = mangoComp.createObject(root); break;
         default:
