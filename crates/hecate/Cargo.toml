@@ -1,0 +1,54 @@
+[package]
+name = "hecate"
+description = "A stacking Wayland compositor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap = { version = "4", features = ["derive", "string"] }
+hecate-ipc = { path = "../hecate-ipc" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+xkbcommon = "0.8"
+toml = "0.9"
+schemars = "1"
+calloop = { version = "0.14", features = ["executor", "signals"] }
+glob = "0.3"
+regex = "1"
+libc = "0.2"
+input = { version = "0.10", features = ["libinput_1_21"] }
+xcursor = "0.3"
+directories = "6"
+bitflags = "2"
+clap_complete = "4"
+notify = { version = "8", default-features = false }
+glam = "0.33"
+
+[dependencies.smithay]
+workspace = true
+features = [
+  "desktop",
+  "wayland_frontend",
+  "use_system_lib",
+  "backend_egl",
+  "backend_winit",
+  "backend_drm",
+  "backend_gbm",
+  "backend_libinput",
+  "backend_udev",
+  "backend_session_libseat",
+  "renderer_gl",
+  "renderer_multi",
+]
+
+[dev-dependencies]
+wayland-client = "0.31"
+wayland-backend = "0.3"
+calloop-wayland-source = "0.4"
