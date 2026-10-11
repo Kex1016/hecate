@@ -31,7 +31,8 @@ rec {
   commonArgs = {
     inherit src;
     pname = "hecate";
-    version = "0.1.0";
+    # From the workspace, so there is one place to bump it.
+    version = (lib.importTOML ../Cargo.toml).workspace.package.version;
     strictDeps = true;
     nativeBuildInputs = [
       pkg-config
