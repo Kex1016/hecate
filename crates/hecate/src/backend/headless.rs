@@ -25,6 +25,8 @@ pub struct Headless {
     pub capture: bool,
     /// Gamma ramp set per output (tests).
     pub gamma: HashMap<String, Vec<u16>>,
+    /// Every output ever added (name, native size), enabled or not, in order.
+    known: Vec<(String, (i32, i32))>,
 }
 
 impl Default for Headless {
@@ -41,6 +43,7 @@ impl Headless {
             frames: HashMap::new(),
             capture: false,
             gamma: HashMap::new(),
+            known: Vec::new(),
         }
     }
 
@@ -63,7 +66,29 @@ impl Headless {
         self.renderer.is_some()
     }
 
-    pub fn add_output(&mut self, hecate: &mut Hecate, name: &str, size: (i32, i32)) -> Output {
+    /// Modes a headless output offers: its native size at 60 Hz (preferred) and 144 Hz, and
+    /// 1280x720 at 60 Hz.
+    fn modes_for(size: (i32, i32)) -> Vec<Mode> {
+        let mut modes = vec![
+            Mode {
+                size: size.into(),
+                refresh: 60_000,
+            },
+            Mode {
+                size: size.into(),
+                refresh: 144_000,
+            },
+        ];
+        if size != (1280, 720) {
+            modes.push(Mode {
+                size: (1280, 720).into(),
+                refresh: 60_000,
+            });
+        }
+        modes
+    }
+
+    fn make_output(name: &str, size: (i32, i32)) -> Output {
         let output = Output::new(
             name.to_string(),
             PhysicalProperties {
@@ -74,14 +99,79 @@ impl Headless {
                 serial_number: name.into(),
             },
         );
-        let mode = Mode {
-            size: size.into(),
-            refresh: 60_000,
-        };
-        output.change_current_state(Some(mode), None, None, None);
-        output.set_preferred(mode);
+        let modes = Self::modes_for(size);
+        for m in &modes {
+            output.add_mode(*m);
+        }
+        output.set_preferred(modes[0]);
+        output
+    }
+
+    fn pick(size: (i32, i32), wanted: Option<&str>) -> Mode {
+        let modes = Self::modes_for(size);
+        let triples: Vec<(i32, i32, i32)> = modes.iter().map(|m| (m.size.w, m.size.h, m.refresh)).collect();
+        modes[super::pick_mode_index(&triples, 0, wanted)]
+    }
+
+    pub fn add_output(&mut self, hecate: &mut Hecate, name: &str, size: (i32, i32)) -> Output {
+        if !self.known.iter().any(|(n, _)| n == name) {
+            self.known.push((name.to_string(), size));
+        }
+        let output = Self::make_output(name, size);
+        let wanted = hecate.config.outputs.get(name).and_then(|c| c.mode.clone());
+        output.change_current_state(Some(Self::pick(size, wanted.as_deref())), None, None, None);
+        if hecate.config.outputs.get(name).and_then(|c| c.enable) == Some(false) {
+            return output;
+        }
         hecate.add_output(output.clone());
         output
+    }
+
+    pub fn heads(&self, hecate: &Hecate) -> Vec<super::HeadInfo> {
+        self.known
+            .iter()
+            .map(|(name, size)| match hecate.wm.output_by_name(name) {
+                Some(o) => super::HeadInfo::from_output(o, &hecate.config, true),
+                None => {
+                    let mut head =
+                        super::HeadInfo::from_output(&Self::make_output(name, *size), &hecate.config, true);
+                    head.current = None;
+                    head
+                }
+            })
+            .collect()
+    }
+
+    /// Enable/disable outputs and switch modes per the config.
+    pub fn apply_output_config(&mut self, hecate: &mut Hecate) {
+        for (name, size) in self.known.clone() {
+            let cfg = hecate.config.outputs.get(&name).cloned().unwrap_or_default();
+            let existing = hecate.wm.output_by_name(&name).cloned();
+            match (existing, cfg.enable != Some(false)) {
+                (Some(o), false) => {
+                    hecate.remove_output(&o);
+                    self.targets.remove(&name);
+                    self.frames.remove(&name);
+                }
+                (None, true) => {
+                    self.add_output(hecate, &name, size);
+                }
+                (Some(o), true) => {
+                    let mode = Self::pick(size, cfg.mode.as_deref());
+                    if o.current_mode() != Some(mode) {
+                        o.change_current_state(Some(mode), None, None, None);
+                        hecate.update_output_buffers(&o);
+                        smithay::desktop::layer_map_for_output(&o).arrange();
+                    }
+                }
+                (None, false) => (),
+            }
+        }
+        let outputs: Vec<Output> = hecate.wm.outputs().cloned().collect();
+        for o in outputs {
+            hecate.apply_output_props(&o);
+        }
+        hecate.queue_redraw_all();
     }
 
     pub fn render(&mut self, hecate: &mut Hecate, output: &Output) -> bool {

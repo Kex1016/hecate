@@ -430,7 +430,7 @@ impl Tty {
         let Some(renderer) = self.renderer.as_mut() else {
             return;
         };
-        let name = format!("{}-{}", connector.interface().as_str(), connector.interface_id());
+        let name = connector_name(&connector);
         let config = hecate.config.outputs.get(&name).cloned().unwrap_or_default();
         if config.enable == Some(false) {
             tracing::info!("output {name} disabled in config");
@@ -747,7 +747,88 @@ impl Tty {
     }
 
     /// Re-apply modes, scale, transform and position from the config.
+    pub fn heads(&self, hecate: &Hecate) -> Vec<super::HeadInfo> {
+        let mut heads = Vec::new();
+        for device in self.devices.values() {
+            for (conn, crtc) in device.scanner.crtcs() {
+                if conn.state() != connector::State::Connected {
+                    continue;
+                }
+                if let Some(surface) = device.surfaces.get(&crtc) {
+                    heads.push(super::HeadInfo::from_output(
+                        &surface.output,
+                        &hecate.config,
+                        surface.vrr_supported,
+                    ));
+                    continue;
+                }
+                let info = display_info::for_connector(device.manager.device(), conn.handle());
+                let field = |f: Option<String>| f.unwrap_or_else(|| "Unknown".into());
+                let (pw, ph) = conn.size().unwrap_or((0, 0));
+                heads.push(super::HeadInfo {
+                    name: connector_name(conn),
+                    make: field(info.as_ref().and_then(|i| i.make())),
+                    model: field(info.as_ref().and_then(|i| i.model())),
+                    serial: field(info.as_ref().and_then(|i| i.serial())),
+                    physical_size: (pw as i32, ph as i32),
+                    modes: conn
+                        .modes()
+                        .iter()
+                        .map(|m| {
+                            let wl = WlMode::from(*m);
+                            super::HeadMode {
+                                width: wl.size.w,
+                                height: wl.size.h,
+                                refresh: wl.refresh,
+                                preferred: m.mode_type().contains(ModeTypeFlags::PREFERRED),
+                            }
+                        })
+                        .collect(),
+                    current: None,
+                    vrr_supported: false,
+                });
+            }
+        }
+        heads.sort_by(|a, b| a.name.cmp(&b.name));
+        heads
+    }
+
+    /// Turn outputs off and on per `enable`, then apply modes and the rest.
+    fn apply_output_enablement(&mut self, hecate: &mut Hecate) {
+        let mut to_disable = Vec::new();
+        let mut to_enable = Vec::new();
+        for (node, device) in &self.devices {
+            for (conn, crtc) in device.scanner.crtcs() {
+                if conn.state() != connector::State::Connected {
+                    continue;
+                }
+                let enable = hecate
+                    .config
+                    .outputs
+                    .get(&connector_name(conn))
+                    .and_then(|c| c.enable)
+                    != Some(false);
+                match (device.surfaces.contains_key(&crtc), enable) {
+                    (true, false) => to_disable.push((*node, crtc)),
+                    (false, true) => to_enable.push((*node, conn.clone(), crtc)),
+                    _ => (),
+                }
+            }
+        }
+        for (node, crtc) in to_disable {
+            if let Some(surface) = self.devices.get_mut(&node).and_then(|d| d.surfaces.remove(&crtc)) {
+                tracing::info!("disabling output {}", surface.output.name());
+                hecate.remove_output(&surface.output);
+                // Dropping the DrmOutput turns the CRTC off.
+            }
+        }
+        for (node, conn, crtc) in to_enable {
+            self.connector_connected(hecate, node, conn, crtc);
+        }
+    }
+
     pub fn apply_output_config(&mut self, hecate: &mut Hecate) {
+        self.apply_output_enablement(hecate);
         let Some(renderer) = self.renderer.as_mut() else {
             return;
         };
@@ -814,28 +895,26 @@ impl Tty {
 }
 
 /// Pick the DRM mode for a `WxH[@Hz]` string, else the preferred mode.
+fn connector_name(connector: &connector::Info) -> String {
+    format!("{}-{}", connector.interface().as_str(), connector.interface_id())
+}
+
 fn pick_mode(
     modes: &[smithay::reexports::drm::control::Mode],
     wanted: Option<&str>,
 ) -> smithay::reexports::drm::control::Mode {
-    let preferred = *modes
+    let preferred = modes
         .iter()
-        .find(|m| m.mode_type().contains(ModeTypeFlags::PREFERRED))
-        .unwrap_or(&modes[0]);
-    let Some((w, h, refresh)) = wanted.and_then(crate::config::load::parse_mode) else {
-        return preferred;
-    };
-    let candidates = modes.iter().filter(|m| m.size() == (w as u16, h as u16));
-    match refresh {
-        Some(hz) => candidates
-            .min_by_key(|m| ((WlMode::from(**m).refresh as f64 / 1000.0 - hz).abs() * 1000.0) as i64)
-            .copied()
-            .unwrap_or(preferred),
-        None => candidates
-            .max_by_key(|m| WlMode::from(**m).refresh)
-            .copied()
-            .unwrap_or(preferred),
-    }
+        .position(|m| m.mode_type().contains(ModeTypeFlags::PREFERRED))
+        .unwrap_or(0);
+    let triples: Vec<(i32, i32, i32)> = modes
+        .iter()
+        .map(|m| {
+            let wl = WlMode::from(*m);
+            (wl.size.w, wl.size.h, wl.refresh)
+        })
+        .collect();
+    modes[super::pick_mode_index(&triples, preferred, wanted)]
 }
 
 /// Apply `[input]` settings to a libinput device. Order: `"*"`, `"type:..."`, then the name.

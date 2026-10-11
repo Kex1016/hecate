@@ -38,6 +38,11 @@ use smithay::reexports::wayland_protocols::ext::workspace::v1::client::ext_works
 use smithay::reexports::wayland_protocols_wlr::foreign_toplevel::v1::client::zwlr_foreign_toplevel_handle_v1::{self, ZwlrForeignToplevelHandleV1};
 use smithay::reexports::wayland_protocols_wlr::foreign_toplevel::v1::client::zwlr_foreign_toplevel_manager_v1::{self, ZwlrForeignToplevelManagerV1};
 use smithay::reexports::wayland_protocols_wlr::gamma_control::v1::client::zwlr_gamma_control_manager_v1::ZwlrGammaControlManagerV1;
+use smithay::reexports::wayland_protocols_wlr::output_management::v1::client::zwlr_output_configuration_head_v1::ZwlrOutputConfigurationHeadV1;
+use smithay::reexports::wayland_protocols_wlr::output_management::v1::client::zwlr_output_configuration_v1::{self, ZwlrOutputConfigurationV1};
+use smithay::reexports::wayland_protocols_wlr::output_management::v1::client::zwlr_output_head_v1::{self, ZwlrOutputHeadV1};
+use smithay::reexports::wayland_protocols_wlr::output_management::v1::client::zwlr_output_manager_v1::{self, ZwlrOutputManagerV1};
+use smithay::reexports::wayland_protocols_wlr::output_management::v1::client::zwlr_output_mode_v1::{self, ZwlrOutputModeV1};
 use smithay::reexports::wayland_protocols_wlr::gamma_control::v1::client::zwlr_gamma_control_v1::{self, ZwlrGammaControlV1};
 use smithay::reexports::wayland_protocols_wlr::virtual_pointer::v1::client::zwlr_virtual_pointer_manager_v1::ZwlrVirtualPointerManagerV1;
 use smithay::reexports::wayland_protocols_wlr::virtual_pointer::v1::client::zwlr_virtual_pointer_v1::ZwlrVirtualPointerV1;
@@ -95,6 +100,11 @@ pub struct State {
     pub ws_handles: Vec<(ExtWorkspaceHandleV1, WsHandle)>,
     pub ws_done_count: usize,
     pub gamma_manager: Option<ZwlrGammaControlManagerV1>,
+    pub output_manager: Option<ZwlrOutputManagerV1>,
+    pub output_serial: Option<u32>,
+    pub heads: Vec<(ZwlrOutputHeadV1, Head)>,
+    pub head_modes: HashMap<ZwlrOutputModeV1, HeadMode>,
+    pub output_confs: HashMap<ZwlrOutputConfigurationV1, ConfResult>,
     /// Per gamma control: received size and whether it failed.
     pub gamma_controls: Vec<(ZwlrGammaControlV1, Option<u32>, bool)>,
 
@@ -172,6 +182,34 @@ impl ForeignToplevel {
     pub fn has_state(&self, st: zwlr_foreign_toplevel_handle_v1::State) -> bool {
         self.states.contains(&(st as u32))
     }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct Head {
+    pub name: String,
+    pub enabled: bool,
+    pub modes: Vec<ZwlrOutputModeV1>,
+    pub current_mode: Option<ZwlrOutputModeV1>,
+    pub position: (i32, i32),
+    pub scale: f64,
+    pub transform: i32,
+    pub adaptive_sync: bool,
+    pub finished: bool,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct HeadMode {
+    pub size: (i32, i32),
+    pub refresh: i32,
+    pub preferred: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfResult {
+    Pending,
+    Succeeded,
+    Failed,
+    Cancelled,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -380,6 +418,11 @@ impl Client {
             ws_handles: Vec::new(),
             ws_done_count: 0,
             gamma_manager: None,
+            output_manager: None,
+            output_serial: None,
+            heads: Vec::new(),
+            head_modes: HashMap::new(),
+            output_confs: HashMap::new(),
             gamma_controls: Vec::new(),
             windows: Vec::new(),
             layers: Vec::new(),
@@ -801,6 +844,9 @@ impl Dispatch<WlRegistry, ()> for State {
                 } else if interface == ZwlrForeignToplevelManagerV1::interface().name {
                     let version = min(version, ZwlrForeignToplevelManagerV1::interface().version);
                     state.wlr_toplevel_manager = Some(registry.bind(name, version, qh, ()));
+                } else if interface == ZwlrOutputManagerV1::interface().name {
+                    let version = min(version, ZwlrOutputManagerV1::interface().version);
+                    state.output_manager = Some(registry.bind(name, version, qh, ()));
                 } else if interface == ZwlrGammaControlManagerV1::interface().name {
                     let version = min(version, ZwlrGammaControlManagerV1::interface().version);
                     state.gamma_manager = Some(registry.bind(name, version, qh, ()));
@@ -1554,3 +1600,132 @@ impl Dispatch<ZwlrGammaControlV1, ()> for State {
         }
     }
 }
+
+impl State {
+    pub fn head(&self, name: &str) -> (ZwlrOutputHeadV1, Head) {
+        self.heads
+            .iter()
+            .find(|(_, h)| !h.finished && h.name == name)
+            .cloned()
+            .unwrap_or_else(|| panic!("no head {name}"))
+    }
+
+    pub fn head_mode(&self, mode: &ZwlrOutputModeV1) -> HeadMode {
+        self.head_modes[mode]
+    }
+
+    /// Start a configuration at the last received serial.
+    pub fn create_output_configuration(&mut self) -> ZwlrOutputConfigurationV1 {
+        let serial = self.output_serial.expect("no output-management serial yet");
+        let conf = self
+            .output_manager
+            .as_ref()
+            .unwrap()
+            .create_configuration(serial, &self.qh, ());
+        self.output_confs.insert(conf.clone(), ConfResult::Pending);
+        conf
+    }
+}
+
+impl Dispatch<ZwlrOutputManagerV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        _proxy: &ZwlrOutputManagerV1,
+        event: zwlr_output_manager_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        match event {
+            zwlr_output_manager_v1::Event::Head { head } => state.heads.push((head, Head::default())),
+            zwlr_output_manager_v1::Event::Done { serial } => state.output_serial = Some(serial),
+            zwlr_output_manager_v1::Event::Finished => (),
+            _ => unreachable!(),
+        }
+    }
+
+    wayland_client::event_created_child!(State, ZwlrOutputManagerV1, [
+        zwlr_output_manager_v1::EVT_HEAD_OPCODE => (ZwlrOutputHeadV1, ()),
+    ]);
+}
+
+impl Dispatch<ZwlrOutputHeadV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        proxy: &ZwlrOutputHeadV1,
+        event: zwlr_output_head_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        if let zwlr_output_head_v1::Event::Mode { mode } = &event {
+            state.head_modes.insert(mode.clone(), HeadMode::default());
+        }
+        let Some((_, h)) = state.heads.iter_mut().find(|(p, _)| p == proxy) else {
+            return;
+        };
+        match event {
+            zwlr_output_head_v1::Event::Name { name } => h.name = name,
+            zwlr_output_head_v1::Event::Mode { mode } => h.modes.push(mode),
+            zwlr_output_head_v1::Event::Enabled { enabled } => h.enabled = enabled != 0,
+            zwlr_output_head_v1::Event::CurrentMode { mode } => h.current_mode = Some(mode),
+            zwlr_output_head_v1::Event::Position { x, y } => h.position = (x, y),
+            zwlr_output_head_v1::Event::Scale { scale } => h.scale = scale,
+            zwlr_output_head_v1::Event::Transform { transform } => {
+                h.transform = transform.into_result().map(|t| t as i32).unwrap_or(-1)
+            }
+            zwlr_output_head_v1::Event::AdaptiveSync { state } => {
+                h.adaptive_sync = state
+                    .into_result()
+                    .is_ok_and(|s| s == zwlr_output_head_v1::AdaptiveSyncState::Enabled)
+            }
+            zwlr_output_head_v1::Event::Finished => h.finished = true,
+            _ => (),
+        }
+    }
+
+    wayland_client::event_created_child!(State, ZwlrOutputHeadV1, [
+        zwlr_output_head_v1::EVT_MODE_OPCODE => (ZwlrOutputModeV1, ()),
+    ]);
+}
+
+impl Dispatch<ZwlrOutputModeV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        proxy: &ZwlrOutputModeV1,
+        event: zwlr_output_mode_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        let m = state.head_modes.entry(proxy.clone()).or_default();
+        match event {
+            zwlr_output_mode_v1::Event::Size { width, height } => m.size = (width, height),
+            zwlr_output_mode_v1::Event::Refresh { refresh } => m.refresh = refresh,
+            zwlr_output_mode_v1::Event::Preferred => m.preferred = true,
+            zwlr_output_mode_v1::Event::Finished => (),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl Dispatch<ZwlrOutputConfigurationV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        proxy: &ZwlrOutputConfigurationV1,
+        event: zwlr_output_configuration_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        let result = match event {
+            zwlr_output_configuration_v1::Event::Succeeded => ConfResult::Succeeded,
+            zwlr_output_configuration_v1::Event::Failed => ConfResult::Failed,
+            zwlr_output_configuration_v1::Event::Cancelled => ConfResult::Cancelled,
+            _ => unreachable!(),
+        };
+        state.output_confs.insert(proxy.clone(), result);
+    }
+}
+
+wayland_client::delegate_noop!(State: ignore ZwlrOutputConfigurationHeadV1);

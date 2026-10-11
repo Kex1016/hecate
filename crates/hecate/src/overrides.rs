@@ -55,6 +55,21 @@ impl State {
         Ok(())
     }
 
+    /// Set several overrides at once, or with `dry_run` only check that they would validate.
+    pub fn set_overrides(&mut self, entries: Vec<(String, Value)>, dry_run: bool) -> Result<(), String> {
+        let mut overrides = self.hecate.overrides.clone();
+        for (path, value) in entries {
+            overrides.retain(|(p, _)| *p != path);
+            overrides.push((path, value));
+        }
+        let config = self.config_with_overrides(&overrides)?;
+        if !dry_run {
+            self.hecate.overrides = overrides;
+            self.apply_config(config);
+        }
+        Ok(())
+    }
+
     pub fn unset_override(&mut self, which: ipc::Unset) -> Result<(), String> {
         let mut overrides = self.hecate.overrides.clone();
         match which {

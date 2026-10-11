@@ -10,6 +10,7 @@ mod foreign_toplevel;
 mod gamma;
 mod ipc;
 mod layers;
+mod output_management;
 mod render;
 mod windows;
 mod workspaces;

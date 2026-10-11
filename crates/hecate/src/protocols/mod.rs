@@ -3,6 +3,7 @@
 pub mod ext_workspace;
 pub mod foreign_toplevel;
 pub mod gamma_control;
+pub mod output_management;
 
 /// User data for resources that need none.
 pub struct EmptyData;
