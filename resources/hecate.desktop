@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=hecate
+Comment=A stacking Wayland compositor
+Exec=hecate
+Type=Application
+DesktopNames=hecate

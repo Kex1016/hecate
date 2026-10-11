@@ -1,0 +1,6 @@
+[Unit]
+Description=hecate compositor session
+Documentation=https://github.com/kex1016/wl-hex
+BindsTo=graphical-session.target
+Wants=graphical-session-pre.target
+After=graphical-session-pre.target

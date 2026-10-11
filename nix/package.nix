@@ -17,6 +17,10 @@ craneLib.buildPackage (
         --prefix PATH : ${lib.makeBinPath [ xwayland-satellite ]} \
         --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath [ libGL ]}
 
+      install -Dm644 resources/hecate.desktop $out/share/wayland-sessions/hecate.desktop
+      install -Dm644 resources/hecate-portals.conf $out/share/xdg-desktop-portal/hecate-portals.conf
+      install -Dm644 resources/hecate-session.target $out/share/systemd/user/hecate-session.target
+
       mkdir -p $out/share/bash-completion/completions $out/share/zsh/site-functions $out/share/fish/vendor_completions.d
       $out/bin/hecate completions bash > $out/share/bash-completion/completions/hecate
       $out/bin/hecate completions zsh > $out/share/zsh/site-functions/_hecate
