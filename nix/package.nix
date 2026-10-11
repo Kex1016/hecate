@@ -46,6 +46,10 @@ craneLib.buildPackage (
       $out/bin/hecate completions bash > $out/share/bash-completion/completions/hecate
       $out/bin/hecate completions zsh > $out/share/zsh/site-functions/_hecate
       $out/bin/hecate completions fish > $out/share/fish/vendor_completions.d/hecate.fish
+
+      # For editors (taplo, VS Code) validating ~/.config/hecate/config.toml.
+      mkdir -p $out/share/hecate
+      $out/bin/hecate schema > $out/share/hecate/config.schema.json
     '';
 
     passthru = {
