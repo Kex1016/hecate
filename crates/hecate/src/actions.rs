@@ -34,7 +34,11 @@ impl State {
                     }
                 );
             }
-            Action::PowerOffOutputs => self.backend.set_outputs_powered(&mut self.hecate, false),
+            Action::PowerOffOutputs => {
+                self.backend.set_outputs_powered(&mut self.hecate, false);
+                // Any input turns them back on.
+                self.hecate.wake_outputs_on_input = true;
+            }
             Action::PowerOnOutputs => {
                 self.backend.set_outputs_powered(&mut self.hecate, true);
                 self.hecate.queue_redraw_all();

@@ -41,6 +41,15 @@ enum KeyResult {
 impl State {
     pub fn process_input_event<I: InputBackend>(&mut self, event: InputEvent<I>) {
         self.hecate.idle_notifier_state.notify_activity(&self.hecate.seat);
+        if self.hecate.wake_outputs_on_input
+            && !matches!(
+                event,
+                InputEvent::DeviceAdded { .. } | InputEvent::DeviceRemoved { .. }
+            )
+        {
+            self.hecate.wake_outputs_on_input = false;
+            self.backend.set_outputs_powered(&mut self.hecate, true);
+        }
         match event {
             InputEvent::Keyboard { event } => self.on_keyboard::<I>(event),
             InputEvent::PointerMotion { event } => self.on_pointer_motion::<I>(event),

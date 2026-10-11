@@ -190,8 +190,27 @@ impl Backend {
     }
 
     pub fn set_outputs_powered(&mut self, hecate: &mut Hecate, on: bool) {
+        let outputs: Vec<Output> = hecate.wm.outputs().cloned().collect();
+        for o in outputs {
+            self.set_output_powered(hecate, &o, on);
+        }
+    }
+
+    /// Power an output off (DPMS) or on, and tell output-power clients.
+    pub fn set_output_powered(&mut self, hecate: &mut Hecate, output: &Output, on: bool) {
+        let Some(st) = hecate.output_state.get_mut(output) else {
+            return;
+        };
+        if st.powered_off == !on {
+            return;
+        }
+        st.powered_off = !on;
         if let Backend::Tty(b) = self {
-            b.set_outputs_powered(hecate, on);
+            b.set_output_powered(hecate, output, on);
+        }
+        hecate.output_power_state.mode_changed(output, on);
+        if on {
+            hecate.queue_redraw(output);
         }
     }
 
@@ -329,6 +348,7 @@ impl Hecate {
 
     pub fn remove_output(&mut self, output: &Output) {
         self.gamma_control_state.output_removed(output);
+        self.output_power_state.output_removed(output);
         self.wm.remove_output(output);
         if let Some(global) = self.output_state.remove(output).and_then(|s| s.global) {
             // Disable first so clients stop binding, remove once they had time to notice.

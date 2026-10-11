@@ -175,6 +175,9 @@ impl Headless {
     }
 
     pub fn render(&mut self, hecate: &mut Hecate, output: &Output) -> bool {
+        if hecate.output_state.get(output).is_some_and(|s| s.powered_off) {
+            return false;
+        }
         let Some(renderer) = self.renderer.as_mut() else {
             return true;
         };

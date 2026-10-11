@@ -73,6 +73,8 @@ pub struct OutputState {
     pub background: smithay::backend::renderer::element::solid::SolidColorBuffer,
     pub lock_background: smithay::backend::renderer::element::solid::SolidColorBuffer,
     pub global: Option<smithay::reexports::wayland_server::backend::GlobalId>,
+    /// Powered off via DPMS (action or wlr-output-power).
+    pub powered_off: bool,
 }
 
 pub struct Hecate {
@@ -123,6 +125,7 @@ pub struct Hecate {
     pub ext_workspace_state: crate::protocols::ext_workspace::ExtWorkspaceManagerState,
     pub gamma_control_state: crate::protocols::gamma_control::GammaControlManagerState,
     pub output_management_state: crate::protocols::output_management::OutputManagementState,
+    pub output_power_state: crate::protocols::output_power::OutputPowerState,
     pub cursor_shape_state: CursorShapeManagerState,
     pub single_pixel_buffer_state: SinglePixelBufferState,
     pub idle_notifier_state: IdleNotifierState<State>,
@@ -143,6 +146,8 @@ pub struct Hecate {
     pub output_state: HashMap<Output, OutputState>,
     /// Outputs changed; output-management needs to resend heads.
     pub output_heads_dirty: bool,
+    /// Outputs were powered off by the action; the next input powers them on.
+    pub wake_outputs_on_input: bool,
 
     pub pointer_location: Point<f64, Logical>,
     pub cursor_status: CursorImageStatus,
@@ -319,6 +324,8 @@ impl Hecate {
             crate::protocols::gamma_control::GammaControlManagerState::new(&dh, client_is_unrestricted);
         let output_management_state =
             crate::protocols::output_management::OutputManagementState::new(&dh, client_is_unrestricted);
+        let output_power_state =
+            crate::protocols::output_power::OutputPowerState::new(&dh, client_is_unrestricted);
         let cursor_shape_state = CursorShapeManagerState::new::<State>(&dh);
         let single_pixel_buffer_state = SinglePixelBufferState::new::<State>(&dh);
         let idle_notifier_state = IdleNotifierState::new(&dh, event_loop.clone());
@@ -451,6 +458,7 @@ impl Hecate {
             ext_workspace_state,
             gamma_control_state,
             output_management_state,
+            output_power_state,
             cursor_shape_state,
             single_pixel_buffer_state,
             idle_notifier_state,
@@ -468,6 +476,7 @@ impl Hecate {
             popups: PopupManager::default(),
             output_state: HashMap::new(),
             output_heads_dirty: true,
+            wake_outputs_on_input: false,
             pointer_location: (0., 0.).into(),
             cursor_status: CursorImageStatus::default_named(),
             cursor_manager,
@@ -627,6 +636,7 @@ pub fn advertised_globals() -> Vec<String> {
         "ext_workspace_manager_v1",
         "zwlr_gamma_control_manager_v1",
         "zwlr_output_manager_v1",
+        "zwlr_output_power_manager_v1",
     ]
     .iter()
     .map(|s| s.to_string())

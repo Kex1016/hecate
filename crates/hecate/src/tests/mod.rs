@@ -11,6 +11,7 @@ mod gamma;
 mod ipc;
 mod layers;
 mod output_management;
+mod output_power;
 mod render;
 mod windows;
 mod workspaces;

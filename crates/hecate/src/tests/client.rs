@@ -38,6 +38,8 @@ use smithay::reexports::wayland_protocols::ext::workspace::v1::client::ext_works
 use smithay::reexports::wayland_protocols_wlr::foreign_toplevel::v1::client::zwlr_foreign_toplevel_handle_v1::{self, ZwlrForeignToplevelHandleV1};
 use smithay::reexports::wayland_protocols_wlr::foreign_toplevel::v1::client::zwlr_foreign_toplevel_manager_v1::{self, ZwlrForeignToplevelManagerV1};
 use smithay::reexports::wayland_protocols_wlr::gamma_control::v1::client::zwlr_gamma_control_manager_v1::ZwlrGammaControlManagerV1;
+use smithay::reexports::wayland_protocols_wlr::output_power_management::v1::client::zwlr_output_power_manager_v1::ZwlrOutputPowerManagerV1;
+use smithay::reexports::wayland_protocols_wlr::output_power_management::v1::client::zwlr_output_power_v1::{self, ZwlrOutputPowerV1};
 use smithay::reexports::wayland_protocols_wlr::output_management::v1::client::zwlr_output_configuration_head_v1::ZwlrOutputConfigurationHeadV1;
 use smithay::reexports::wayland_protocols_wlr::output_management::v1::client::zwlr_output_configuration_v1::{self, ZwlrOutputConfigurationV1};
 use smithay::reexports::wayland_protocols_wlr::output_management::v1::client::zwlr_output_head_v1::{self, ZwlrOutputHeadV1};
@@ -101,6 +103,9 @@ pub struct State {
     pub ws_done_count: usize,
     pub gamma_manager: Option<ZwlrGammaControlManagerV1>,
     pub output_manager: Option<ZwlrOutputManagerV1>,
+    pub power_manager: Option<ZwlrOutputPowerManagerV1>,
+    /// Per power control: modes received in order, and whether it failed.
+    pub power_controls: Vec<(ZwlrOutputPowerV1, Vec<zwlr_output_power_v1::Mode>, bool)>,
     pub output_serial: Option<u32>,
     pub heads: Vec<(ZwlrOutputHeadV1, Head)>,
     pub head_modes: HashMap<ZwlrOutputModeV1, HeadMode>,
@@ -419,6 +424,8 @@ impl Client {
             ws_done_count: 0,
             gamma_manager: None,
             output_manager: None,
+            power_manager: None,
+            power_controls: Vec::new(),
             output_serial: None,
             heads: Vec::new(),
             head_modes: HashMap::new(),
@@ -844,6 +851,9 @@ impl Dispatch<WlRegistry, ()> for State {
                 } else if interface == ZwlrForeignToplevelManagerV1::interface().name {
                     let version = min(version, ZwlrForeignToplevelManagerV1::interface().version);
                     state.wlr_toplevel_manager = Some(registry.bind(name, version, qh, ()));
+                } else if interface == ZwlrOutputPowerManagerV1::interface().name {
+                    let version = min(version, ZwlrOutputPowerManagerV1::interface().version);
+                    state.power_manager = Some(registry.bind(name, version, qh, ()));
                 } else if interface == ZwlrOutputManagerV1::interface().name {
                     let version = min(version, ZwlrOutputManagerV1::interface().version);
                     state.output_manager = Some(registry.bind(name, version, qh, ()));
@@ -1729,3 +1739,43 @@ impl Dispatch<ZwlrOutputConfigurationV1, ()> for State {
 }
 
 wayland_client::delegate_noop!(State: ignore ZwlrOutputConfigurationHeadV1);
+
+impl State {
+    pub fn get_output_power(&mut self, output: &WlOutput) -> ZwlrOutputPowerV1 {
+        let c = self
+            .power_manager
+            .as_ref()
+            .unwrap()
+            .get_output_power(output, &self.qh, ());
+        self.power_controls.push((c.clone(), Vec::new(), false));
+        c
+    }
+
+    /// (modes received, failed)
+    pub fn power_status(&self, c: &ZwlrOutputPowerV1) -> (Vec<zwlr_output_power_v1::Mode>, bool) {
+        let (_, modes, failed) = self.power_controls.iter().find(|(x, _, _)| x == c).unwrap();
+        (modes.clone(), *failed)
+    }
+}
+
+wayland_client::delegate_noop!(State: ignore ZwlrOutputPowerManagerV1);
+
+impl Dispatch<ZwlrOutputPowerV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        proxy: &ZwlrOutputPowerV1,
+        event: zwlr_output_power_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        let Some(entry) = state.power_controls.iter_mut().find(|(c, _, _)| c == proxy) else {
+            return;
+        };
+        match event {
+            zwlr_output_power_v1::Event::Mode { mode } => entry.1.push(mode.into_result().unwrap()),
+            zwlr_output_power_v1::Event::Failed => entry.2 = true,
+            _ => unreachable!(),
+        }
+    }
+}

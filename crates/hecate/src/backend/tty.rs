@@ -104,7 +104,6 @@ pub struct Tty {
     keyboards: Vec<smithay::reexports::input::Device>,
     input_devices: Vec<smithay::reexports::input::Device>,
     event_loop: LoopHandle<'static, State>,
-    outputs_powered: bool,
 }
 
 impl Tty {
@@ -222,7 +221,6 @@ impl Tty {
             keyboards: Vec::new(),
             input_devices: Vec::new(),
             event_loop,
-            outputs_powered: true,
         })
     }
 
@@ -601,7 +599,7 @@ impl Tty {
     }
 
     pub fn render(&mut self, hecate: &mut Hecate, output: &Output) -> bool {
-        if !self.session.is_active() || !self.outputs_powered {
+        if !self.session.is_active() || hecate.output_state.get(output).is_some_and(|s| s.powered_off) {
             return false;
         }
         let Some(mut renderer) = self.renderer.take() else {
@@ -725,28 +723,28 @@ impl Tty {
         }
     }
 
-    pub fn set_outputs_powered(&mut self, hecate: &mut Hecate, on: bool) {
-        self.outputs_powered = on;
-        for device in self.devices.values_mut() {
-            for surface in device.surfaces.values_mut() {
-                if on {
-                    if let Err(err) = surface.drm_output.with_compositor(|c| c.reset_state()) {
-                        tracing::warn!("error resetting output state: {err:?}");
-                    }
-                } else if let Err(err) = surface.drm_output.with_compositor(|c| c.clear()) {
-                    tracing::warn!("error powering off output: {err:?}");
-                }
-            }
+    /// Turn one output's CRTC off (DPMS) or back on.
+    pub fn set_output_powered(&mut self, hecate: &mut Hecate, output: &Output, on: bool) {
+        let Some(surface) = self.surface_for(output) else {
+            return;
+        };
+        let res = if on {
+            surface.drm_output.with_compositor(|c| c.reset_state())
+        } else {
+            surface.drm_output.with_compositor(|c| c.clear())
+        };
+        if let Err(err) = res {
+            tracing::warn!(
+                "error powering {} {}: {err:?}",
+                output.name(),
+                if on { "on" } else { "off" }
+            );
         }
-        if on {
-            for s in hecate.output_state.values_mut() {
-                s.waiting_for_vblank = false;
-            }
-            hecate.queue_redraw_all();
+        if on && let Some(s) = hecate.output_state.get_mut(output) {
+            s.waiting_for_vblank = false;
         }
     }
 
-    /// Re-apply modes, scale, transform and position from the config.
     pub fn heads(&self, hecate: &Hecate) -> Vec<super::HeadInfo> {
         let mut heads = Vec::new();
         for device in self.devices.values() {
@@ -827,6 +825,7 @@ impl Tty {
         }
     }
 
+    /// Re-apply enablement, modes, scale, transform and position from the config.
     pub fn apply_output_config(&mut self, hecate: &mut Hecate) {
         self.apply_output_enablement(hecate);
         let Some(renderer) = self.renderer.as_mut() else {
