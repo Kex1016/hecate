@@ -75,6 +75,8 @@ let
       glib
       xdg-user-dirs
       dbus
+      # The QML calls `python3` directly for some scripts (colour schemes, ...).
+      pythonEnv
       # audio
       cava
       lxqt.pavucontrol-qt
