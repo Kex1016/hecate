@@ -109,8 +109,13 @@ pub struct Closing {
     pub context: ContextId<GlesTexture>,
     /// Area the snapshot covers (window plus border), global logical coordinates.
     pub rect: Rectangle<i32, Logical>,
-    pub workspace: u64,
+    /// The window's workspace (shown only while it's active); None for layer surfaces.
+    pub workspace: Option<u64>,
+    /// For layer surfaces: drawn at this layer's level, else above the windows.
+    pub layer: Option<smithay::wayland::shell::wlr_layer::Layer>,
     pub anim: Animation,
+    /// Where a sliding close ends up, relative to `rect`.
+    pub slide: Point<f64, Logical>,
 }
 
 impl Default for Wm {
@@ -978,6 +983,18 @@ impl Wm {
         self.closing.retain(|c| !c.anim.is_done(now));
         let geo = Self::output_geometry(output);
         running |= self.closing.iter().any(|c| c.rect.overlaps(geo));
+        for layer in layer_map_for_output(output).layers() {
+            if let Some(state) = layer
+                .user_data()
+                .get::<std::cell::RefCell<crate::anim::LayerAnimState>>()
+            {
+                let mut state = state.borrow_mut();
+                if state.open.as_ref().is_some_and(|(a, _)| a.is_done(now)) {
+                    state.open = None;
+                }
+                running |= state.open.is_some();
+            }
+        }
         for w in self.windows_on_output(output) {
             let mut d = w.data();
             let a = &mut d.anims;

@@ -155,17 +155,37 @@ impl Hecate {
         }
 
         let map = layer_map_for_output(output);
+        let now = self.wm.clock.now();
         let push_layer = |out: &mut Vec<HecateElement>, renderer: &mut GlesRenderer, layer: Layer| {
+            self.push_closing(out, output, Some(layer), now);
             for surface in map.layers_on(layer).rev() {
                 let Some(geo) = map.layer_geometry(surface) else {
                     continue;
                 };
                 let rules = layer_rules_for(&self.config, surface.namespace());
-                let alpha = rules.opacity.unwrap_or(1.0).clamp(0., 1.);
-                let loc = geo.loc.to_physical_precise_round(scale);
+                let (anim_scale, anim_alpha, slide) = surface
+                    .user_data()
+                    .get::<std::cell::RefCell<crate::anim::LayerAnimState>>()
+                    .and_then(|s| {
+                        let s = s.borrow();
+                        let (a, from) = s.open.as_ref()?;
+                        let (sc, al) = a.scale_alpha(now, false);
+                        let k = 1. - a.value(now);
+                        Some((sc, al, Point::<f64, Logical>::from((from.x * k, from.y * k))))
+                    })
+                    .unwrap_or((1., 1., Point::default()));
+                let alpha = rules.opacity.unwrap_or(1.0).clamp(0., 1.) * anim_alpha;
+                let geo_loc = (geo.loc.to_f64() + slide).to_i32_round::<i32>();
+                let loc = geo_loc.to_physical_precise_round(scale);
                 let elems: Vec<WaylandSurfaceRenderElement<GlesRenderer>> =
                     surface.render_elements(renderer, loc, scale, alpha);
-                out.extend(elems.into_iter().map(HecateElement::Surface));
+                let center = geo_loc.to_f64() + geo.size.to_f64().downscale(2.);
+                push_scaled(
+                    out,
+                    elems.into_iter().map(WindowElement::Surface).collect(),
+                    center.to_physical_precise_round(scale),
+                    anim_scale,
+                );
             }
         };
 
@@ -182,8 +202,7 @@ impl Hecate {
             .get_keyboard()
             .and_then(|k| k.current_focus())
             .map(|s| crate::utils::root_surface(&s));
-        let now = self.wm.clock.now();
-        self.push_closing(&mut out, output, now);
+        self.push_closing(&mut out, output, None, now);
         // A workspace switch slides the new workspace in over the old one's way out.
         let width = output_geo.size.w as f64;
         let switch = self.wm.switch_for(output).cloned();
@@ -340,15 +359,27 @@ impl Hecate {
     }
 
     /// Closed windows' snapshots playing their close animation.
-    fn push_closing(&self, out: &mut Vec<HecateElement>, output: &Output, now: std::time::Duration) {
+    fn push_closing(
+        &self,
+        out: &mut Vec<HecateElement>,
+        output: &Output,
+        layer: Option<Layer>,
+        now: std::time::Duration,
+    ) {
         let output_geo = Wm::output_geometry(output);
         let scale = Scale::from(output.current_scale().fractional_scale());
         for c in self.wm.closing.iter().rev() {
-            if !c.rect.overlaps(output_geo) || !self.wm.is_workspace_active(c.workspace) {
+            if c.layer != layer
+                || !c.rect.overlaps(output_geo)
+                || c.workspace.is_some_and(|ws| !self.wm.is_workspace_active(ws))
+            {
                 continue;
             }
             let (s, alpha) = c.anim.scale_alpha(now, true);
-            let loc: Point<i32, Physical> = (c.rect.loc - output_geo.loc).to_physical_precise_round(scale);
+            let v = c.anim.value(now);
+            let slide = Point::<f64, Logical>::from((c.slide.x * v, c.slide.y * v));
+            let rect_loc = (c.rect.loc.to_f64() + slide).to_i32_round();
+            let loc: Point<i32, Physical> = (rect_loc - output_geo.loc).to_physical_precise_round(scale);
             // The texture is in physical pixels; show all of it over the logical rect.
             let tex_size = smithay::backend::renderer::Texture::size(&c.texture);
             let src = Rectangle::from_size((tex_size.w as f64, tex_size.h as f64).into());
@@ -365,7 +396,7 @@ impl Hecate {
                 None,
                 Kind::Unspecified,
             );
-            let center = (c.rect.loc - output_geo.loc).to_f64() + c.rect.size.to_f64().downscale(2.);
+            let center = (rect_loc - output_geo.loc).to_f64() + c.rect.size.to_f64().downscale(2.);
             push_scaled(
                 out,
                 vec![WindowElement::Texture(elem)],
@@ -579,8 +610,10 @@ impl crate::state::State {
             id: smithay::backend::renderer::element::Id::new(),
             context,
             rect,
-            workspace,
+            workspace: Some(workspace),
+            layer: None,
             anim,
+            slide: Point::default(),
         });
         hecate.queue_redraw(&output);
     }
@@ -613,5 +646,148 @@ pub mod snapshot {
                 .context("error rendering snapshot")?;
         }
         Ok(texture)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SlideEdge {
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
+
+impl Hecate {
+    /// How a layer surface opens or closes: the animation, and the offset it slides from (open)
+    /// or to (close).
+    pub fn layer_animation(
+        &self,
+        layer: &smithay::desktop::LayerSurface,
+        output: &Output,
+        closing: bool,
+    ) -> Option<(Animation, Point<f64, Logical>)> {
+        use crate::config::{AnimStyle, LayerAnimation};
+        let rules = layer_rules_for(&self.config, layer.namespace());
+        let mut anim = if closing {
+            self.wm.anim.layer_close.clone()
+        } else {
+            self.wm.anim.layer_open.clone()
+        };
+        let mut edge = None;
+        match &rules.animation {
+            None => {}
+            Some(LayerAnimation::Popin { popin }) => {
+                anim.style = AnimStyle::Popin;
+                anim.from = *popin;
+            }
+            Some(LayerAnimation::Named(name)) => {
+                let (style, e) = match name.as_str() {
+                    "none" => return None,
+                    "fade" => (AnimStyle::Fade, None),
+                    "popin" => (AnimStyle::Popin, None),
+                    "slide" => (AnimStyle::Slide, None),
+                    "slide_top" => (AnimStyle::Slide, Some(SlideEdge::Top)),
+                    "slide_bottom" => (AnimStyle::Slide, Some(SlideEdge::Bottom)),
+                    "slide_left" => (AnimStyle::Slide, Some(SlideEdge::Left)),
+                    "slide_right" => (AnimStyle::Slide, Some(SlideEdge::Right)),
+                    other => {
+                        tracing::warn!("unknown layer animation {other:?}");
+                        (anim.style, None)
+                    }
+                };
+                anim.style = style;
+                edge = e;
+            }
+        }
+        let a = Animation::start(&self.wm.clock, &self.wm.anim, &anim)?;
+        if anim.style != AnimStyle::Slide {
+            return Some((a, Point::default()));
+        }
+        let geo = layer_map_for_output(output).layer_geometry(layer)?;
+        let size = Wm::output_geometry(output).size;
+        // By default, slide from the output edge nearest to the surface.
+        let edge = edge.unwrap_or_else(|| {
+            let gaps = [
+                (geo.loc.y, SlideEdge::Top),
+                (size.h - geo.loc.y - geo.size.h, SlideEdge::Bottom),
+                (geo.loc.x, SlideEdge::Left),
+                (size.w - geo.loc.x - geo.size.w, SlideEdge::Right),
+            ];
+            gaps.into_iter().min_by_key(|(gap, _)| *gap).unwrap().1
+        });
+        let offset = match edge {
+            SlideEdge::Top => (0, -(geo.loc.y + geo.size.h)),
+            SlideEdge::Bottom => (0, size.h - geo.loc.y),
+            SlideEdge::Left => (-(geo.loc.x + geo.size.w), 0),
+            SlideEdge::Right => (size.w - geo.loc.x, 0),
+        };
+        Some((a, Point::from(offset).to_f64()))
+    }
+
+    /// A layer surface (re)mapped or unmapped: start or reset its open animation.
+    pub fn layer_mapped(&mut self, layer: &smithay::desktop::LayerSurface, output: &Output, mapped: bool) {
+        let state = layer
+            .user_data()
+            .get_or_insert(|| std::cell::RefCell::new(crate::anim::LayerAnimState::default()));
+        let was_shown = std::mem::replace(&mut state.borrow_mut().shown, mapped);
+        if mapped && !was_shown {
+            let open = self.layer_animation(layer, output, false);
+            state.borrow_mut().open = open;
+        } else if !mapped {
+            state.borrow_mut().open = None;
+        }
+    }
+}
+
+impl crate::state::State {
+    /// Keep a snapshot of a layer surface about to go away, for its close animation.
+    pub fn snapshot_closing_layer(&mut self, layer: &smithay::desktop::LayerSurface, output: &Output) {
+        let shown = layer
+            .user_data()
+            .get::<std::cell::RefCell<crate::anim::LayerAnimState>>()
+            .is_some_and(|s| s.borrow().shown);
+        if !shown || self.hecate.wm.is_locked() {
+            return;
+        }
+        let Some((anim, slide)) = self.hecate.layer_animation(layer, output, true) else {
+            return;
+        };
+        let Some(geo) = layer_map_for_output(output).layer_geometry(layer) else {
+            return;
+        };
+        if geo.size.w <= 0 || geo.size.h <= 0 {
+            return;
+        }
+        let scale = Scale::from(output.current_scale().fractional_scale());
+        let alpha = layer_rules_for(&self.hecate.config, layer.namespace())
+            .opacity
+            .unwrap_or(1.0)
+            .clamp(0., 1.);
+        let texture = self.backend.with_renderer(|renderer| {
+            let elems: Vec<WaylandSurfaceRenderElement<GlesRenderer>> =
+                layer.render_elements(renderer, Point::from((0, 0)), scale, alpha);
+            snapshot::render_to_texture(
+                renderer,
+                geo.size.to_f64().to_physical(scale).to_i32_round(),
+                scale,
+                &elems,
+            )
+            .map(|t| (t, smithay::backend::renderer::Renderer::context_id(renderer)))
+        });
+        let Some(Ok((texture, context))) = texture else {
+            return;
+        };
+        let output_loc = Wm::output_geometry(output).loc;
+        self.hecate.wm.closing.push(crate::wm::Closing {
+            texture,
+            id: smithay::backend::renderer::element::Id::new(),
+            context,
+            rect: Rectangle::new(geo.loc + output_loc, geo.size),
+            workspace: None,
+            layer: Some(layer.layer()),
+            anim,
+            slide,
+        });
+        self.hecate.queue_redraw(output);
     }
 }

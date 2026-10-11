@@ -45,6 +45,7 @@ impl WlrLayerShellHandler for State {
             layer.map(|l| (o.clone(), l))
         });
         if let Some((output, layer)) = found {
+            self.snapshot_closing_layer(&layer, &output);
             layer_map_for_output(&output).unmap_layer(&layer);
             self.on_usable_area_changed(&output);
             self.focus_topmost();
@@ -89,6 +90,10 @@ impl State {
                     .unwrap_or(true)
             });
             let keyboard = self.hecate.seat.get_keyboard().unwrap();
+            if initial_sent {
+                self.hecate
+                    .layer_mapped(&layer, &output, crate::utils::is_mapped(root));
+            }
             if !crate::utils::is_mapped(root) && keyboard.current_focus().as_ref() == Some(root) {
                 // Unmapped with a null buffer: give the keyboard back.
                 self.focus_topmost();

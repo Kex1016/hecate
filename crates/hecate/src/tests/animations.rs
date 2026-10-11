@@ -245,3 +245,95 @@ fn no_animations_rule_and_global_switch() {
     f.render("headless-1")
         .assert_rgb(200, 150, [255, 0, 0], "animations off: no fade-in");
 }
+
+const BLUE: [u8; 4] = [0, 0, 255, 255];
+
+/// A 30 px bar along the top edge.
+fn bar(f: &mut Fixture, id: ClientId, ns: &str) -> wayland_client::protocol::wl_surface::WlSurface {
+    use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_shell_v1::Layer;
+    use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_surface_v1::Anchor;
+    let layer = f.client(id).create_layer(None, Layer::Top, ns);
+    let surface = layer.surface.clone();
+    layer.set_configure_props(super::client::LayerConfigureProps {
+        size: Some((0, 30)),
+        anchor: Some(Anchor::Top | Anchor::Left | Anchor::Right),
+        ..Default::default()
+    });
+    layer.commit();
+    f.double_roundtrip(id);
+    let layer = f.client(id).layer(&surface);
+    let (w, h) = layer.configures_received.last().unwrap().1.size;
+    layer.attach_color(BLUE);
+    layer.set_size(w as u16, h as u16);
+    layer.ack_last_and_commit();
+    f.double_roundtrip(id);
+    surface
+}
+
+#[test]
+fn bar_slides_in_from_its_edge() {
+    let extra = format!(
+        "{}[[layer_rules]]\nmatch = {{ namespace = \"^bar$\" }}\nanimation = \"slide\"\n",
+        anim("layer_open", "popin")
+    );
+    let Some((mut f, id)) = fixture(&extra) else {
+        return;
+    };
+    bar(&mut f, id, "bar");
+    f.render("headless-1")
+        .assert_rgb(200, 5, BG, "above the output at first");
+    f.advance_clock(50);
+    let frame = f.render("headless-1");
+    frame.assert_rgb(200, 5, [0, 0, 255], "half in: 0..15");
+    frame.assert_rgb(200, 20, BG, "not all the way");
+    f.advance_clock(50);
+    f.render("headless-1")
+        .assert_rgb(200, 20, [0, 0, 255], "in place");
+}
+
+#[test]
+fn layer_without_rule_uses_the_configured_style() {
+    // Default style here: fade (from the test's layer_open).
+    let Some((mut f, id)) = fixture(&anim("layer_open", "fade")) else {
+        return;
+    };
+    bar(&mut f, id, "other");
+    f.render("headless-1")
+        .assert_rgb(200, 15, BG, "transparent at first");
+    f.advance_clock(50);
+    f.render("headless-1")
+        .assert_rgb(200, 15, [8, 16, 151], "half faded in");
+}
+
+#[test]
+fn destroyed_layer_fades_out() {
+    let Some((mut f, id)) = fixture(&anim("layer_close", "fade")) else {
+        return;
+    };
+    let surface = bar(&mut f, id, "bar");
+    f.render("headless-1")
+        .assert_rgb(200, 15, [0, 0, 255], "bar shown");
+    f.client(id).layer(&surface).layer_surface.destroy();
+    f.double_roundtrip(id);
+    f.render("headless-1")
+        .assert_rgb(200, 15, [0, 0, 255], "snapshot shown at first");
+    f.advance_clock(50);
+    f.render("headless-1")
+        .assert_rgb(200, 15, [8, 16, 151], "half faded out");
+    f.advance_clock(50);
+    f.render("headless-1").assert_rgb(200, 15, BG, "gone");
+}
+
+#[test]
+fn layer_rule_none_disables_the_animation() {
+    let extra = format!(
+        "{}[[layer_rules]]\nmatch = {{ namespace = \"^bar$\" }}\nanimation = \"none\"\n",
+        anim("layer_open", "fade")
+    );
+    let Some((mut f, id)) = fixture(&extra) else {
+        return;
+    };
+    bar(&mut f, id, "bar");
+    f.render("headless-1")
+        .assert_rgb(200, 15, [0, 0, 255], "shown at once");
+}

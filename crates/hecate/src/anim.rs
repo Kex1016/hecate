@@ -86,6 +86,15 @@ impl Curve {
     }
 }
 
+/// Animation state of a layer surface (in its user data).
+#[derive(Debug, Default)]
+pub struct LayerAnimState {
+    /// Open animation, with the offset it slides in from.
+    pub open: Option<(Animation, smithay::utils::Point<f64, smithay::utils::Logical>)>,
+    /// Mapped with a buffer (an unmap and remap opens again).
+    pub shown: bool,
+}
+
 /// One running animation: eased progress from 0 to 1 over a duration.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Animation {
