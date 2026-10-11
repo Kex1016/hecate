@@ -4,6 +4,7 @@ QUICKSHELL_CONFIG_NAME="ii"
 XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
 XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
+XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 CONFIG_DIR="$XDG_CONFIG_HOME/quickshell/$QUICKSHELL_CONFIG_NAME"
 CACHE_DIR="$XDG_CACHE_HOME/quickshell"
 STATE_DIR="$XDG_STATE_HOME/quickshell"
@@ -33,6 +34,28 @@ handle_kde_material_you_colors() {
             ;;
     esac
     "$XDG_CONFIG_HOME"/matugen/templates/kde/kde-material-you-colors-wrapper.sh --scheme-variant "$kde_scheme_variant"
+    # hecate: no Plasma, so nothing applied the scheme kde-material-you-colors just wrote.
+    if ! command -v plasma-apply-colorscheme >/dev/null; then
+        local scheme=MaterialYouLight
+        [[ "$(current_mode)" == "dark" ]] && scheme=MaterialYouDark
+        python3 "$SCRIPT_DIR/apply_kde_colors.py" "$XDG_DATA_HOME/color-schemes/$scheme.colors"
+    fi
+}
+
+# hecate: "dark" or "light", as pre_process set it.
+current_mode() {
+    if [[ "$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null)" == "'prefer-dark'" ]]; then
+        echo dark
+    else
+        echo light
+    fi
+}
+
+# hecate: Papirus with folders in the primary colour, as the GTK and KDE icon theme.
+# HECATE_FOLDER_COLORS=0 turns it off.
+handle_folder_icons() {
+    [[ "${HECATE_FOLDER_COLORS:-1}" == "0" ]] && return
+    python3 "$SCRIPT_DIR/folder_icons.py" "$(current_mode)"
 }
 
 pre_process() {
@@ -61,6 +84,7 @@ post_process() {
     fi
 
     handle_kde_material_you_colors &
+    handle_folder_icons &
     "$SCRIPT_DIR/code/material-code-set-color.sh" &
 }
 
@@ -81,6 +105,7 @@ apply_named_scheme() {
         }
     "$SCRIPT_DIR"/applycolor.sh
     apply_named_qt &
+    handle_folder_icons &
     "$SCRIPT_DIR/code/material-code-set-color.sh" &
 }
 
@@ -88,7 +113,11 @@ apply_named_qt() {
     if [ -f "$SHELL_CONFIG_FILE" ] && [ "$(jq -r '.appearance.wallpaperTheming.enableQtApps' "$SHELL_CONFIG_FILE")" == "false" ]; then
         return
     fi
-    command -v plasma-apply-colorscheme >/dev/null || return
+    if ! command -v plasma-apply-colorscheme >/dev/null; then
+        # hecate: no Plasma.
+        python3 "$SCRIPT_DIR/apply_kde_colors.py" "$XDG_DATA_HOME/color-schemes/IllogicalNamed.colors"
+        return
+    fi
     plasma-apply-colorscheme IllogicalNamed2 >/dev/null 2>&1
     plasma-apply-colorscheme IllogicalNamed >/dev/null 2>&1
 }

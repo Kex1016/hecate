@@ -45,5 +45,7 @@ See `git log -- shell/end4-pC` for the full list. In short:
   `HecateXkb.qml`)
 - global shortcuts through an IPC registry instead of Hyprland's `GlobalShortcut`
 - focus grabs enabled on hecate (hyprland-focus-grab-v1)
+- theming without Plasma: Qt colour schemes applied through kdeglobals, Papirus folders in
+  the wallpaper's colour, a matugen template for hecate's border colours
 - Hyprland-only features hidden or rerouted on hecate (night light, keybind list, game mode,
   updater)
