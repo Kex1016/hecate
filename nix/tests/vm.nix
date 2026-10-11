@@ -29,11 +29,15 @@ pkgs.testers.runNixOSTest {
     machine.wait_for_unit("multi-user.target")
     machine.succeed("loginctl enable-linger alice")
     machine.wait_for_unit("user@1000.service")
-    machine.succeed("su - alice -c 'systemctl --user start hecate-headless'")
+    # `su -` gives no session environment; the user manager's bus lives in /run/user/1000.
+    def as_alice(cmd):
+        return f"su - alice -c 'export XDG_RUNTIME_DIR=/run/user/1000; {cmd}'"
+
+    machine.succeed(as_alice("systemctl --user start hecate-headless"))
     machine.wait_until_succeeds("ls /run/user/1000/wayland-*", timeout=60)
 
     info = machine.succeed(
-        "su - alice -c 'WAYLAND_DISPLAY=$(basename $(ls /run/user/1000/wayland-? | head -1)) wayland-info'"
+        as_alice("WAYLAND_DISPLAY=$(basename $(ls /run/user/1000/wayland-? | head -1)) wayland-info")
     )
     for wanted in [
         "xdg_wm_base",
@@ -46,6 +50,15 @@ pkgs.testers.runNixOSTest {
         "ext_idle_notifier_v1",
         "zwp_idle_inhibit_manager_v1",
         "zwlr_data_control_manager_v1",
+        "zwlr_foreign_toplevel_manager_v1",
+        "ext_foreign_toplevel_list_v1",
+        "ext_workspace_manager_v1",
+        "zwlr_screencopy_manager_v1",
+        "ext_image_copy_capture_manager_v1",
+        "zwlr_output_manager_v1",
+        "zwlr_output_power_manager_v1",
+        "zwlr_gamma_control_manager_v1",
+        "hyprland_focus_grab_manager_v1",
     ]:
         assert wanted in info, f"missing global {wanted}"
 
