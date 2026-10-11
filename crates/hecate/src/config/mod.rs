@@ -42,7 +42,9 @@ pub struct Config {
     pub animations: Animations,
     pub keyboard: Keyboard,
     pub cursor: Cursor,
-    /// libinput settings per device: `"*"`, `"type:touchpad"`, `"type:pointer"` or a device name.
+    pub gestures: Gestures,
+    /// libinput settings per device: `"*"`, `"type:touchpad"`, `"type:pointer"`, `"type:touch"`,
+    /// `"type:tablet"` or a device name.
     pub input: BTreeMap<String, InputDevice>,
     pub environment: BTreeMap<String, String>,
     /// Extra variables (from hecate's environment) to import into the systemd and D-Bus
@@ -81,6 +83,7 @@ impl Default for Config {
             animations: Animations::default(),
             keyboard: Keyboard::default(),
             cursor: Cursor::default(),
+            gestures: Gestures::default(),
             input: BTreeMap::new(),
             environment: BTreeMap::new(),
             session_variables: Vec::new(),
@@ -773,6 +776,58 @@ pub enum ScrollMethod {
     TwoFinger,
     Edge,
     OnButton,
+}
+
+/// What a libinput device is, for picking its `[input."type:…"]` section.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DeviceKind {
+    pub touchpad: bool,
+    pub pointer: bool,
+    pub touch: bool,
+    pub tablet: bool,
+}
+
+impl Config {
+    /// Settings for a device: its own section, then its type's, then `"*"` (first set wins).
+    pub fn input_for(&self, name: &str, kind: DeviceKind) -> InputDevice {
+        let keys = [
+            Some(name),
+            kind.touchpad.then_some("type:touchpad"),
+            (kind.pointer && !kind.touchpad).then_some("type:pointer"),
+            kind.touch.then_some("type:touch"),
+            kind.tablet.then_some("type:tablet"),
+            Some("*"),
+        ];
+        let mut merged = InputDevice::default();
+        for k in keys.into_iter().flatten() {
+            if let Some(c) = self.input.get(k) {
+                merged.merge_from(c);
+            }
+        }
+        merged
+    }
+}
+
+/// Touchpad gestures the compositor handles itself (the rest go to clients).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct Gestures {
+    /// Horizontal swipes with this many fingers switch workspaces (0: off).
+    pub workspace_swipe_fingers: u32,
+    /// How far (touchpad units, roughly logical pixels) a swipe goes to switch.
+    pub workspace_swipe_distance: f64,
+    /// Swipe right for the next workspace instead of left.
+    pub workspace_swipe_invert: bool,
+}
+
+impl Default for Gestures {
+    fn default() -> Self {
+        Gestures {
+            workspace_swipe_fingers: 3,
+            workspace_swipe_distance: 200.,
+            workspace_swipe_invert: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Default)]

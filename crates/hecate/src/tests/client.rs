@@ -83,6 +83,7 @@ use wayland_client::protocol::wl_seat::{self, WlSeat};
 use wayland_client::protocol::wl_shm::{self, WlShm};
 use wayland_client::protocol::wl_shm_pool::WlShmPool;
 use wayland_client::protocol::wl_surface::{self, WlSurface};
+use wayland_client::protocol::wl_touch::{self, WlTouch};
 use wayland_client::{Connection, Dispatch, Proxy as _, QueueHandle};
 
 pub struct Client {
@@ -351,6 +352,29 @@ impl WsHandle {
 #[derive(Debug, Default)]
 pub struct Seat {
     pub keyboard: Option<Keyboard>,
+    pub touch: Option<WlTouch>,
+    /// wl_touch events, in order.
+    pub touch_events: Vec<TouchEvent>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TouchEvent {
+    Down {
+        surface: WlSurface,
+        id: i32,
+        x: f64,
+        y: f64,
+    },
+    Motion {
+        id: i32,
+        x: f64,
+        y: f64,
+    },
+    Up {
+        id: i32,
+    },
+    Frame,
+    Cancel,
 }
 
 #[derive(Debug)]
@@ -1065,6 +1089,10 @@ impl Dispatch<WlSeat, ()> for State {
         _conn: &Connection,
         qh: &QueueHandle<Self>,
     ) {
+        let caps = match &event {
+            wl_seat::Event::Capabilities { capabilities } => (*capabilities).into_result().ok(),
+            _ => None,
+        };
         match event {
             wl_seat::Event::Capabilities { capabilities } => {
                 let capabilities = capabilities.into_result().unwrap();
@@ -1087,6 +1115,39 @@ impl Dispatch<WlSeat, ()> for State {
             wl_seat::Event::Name { .. } => (),
             _ => unreachable!(),
         }
+        if let Some(caps) = caps {
+            let data = state.seats.get_mut(seat).unwrap();
+            let touch = caps.contains(wl_seat::Capability::Touch);
+            if touch && data.touch.is_none() {
+                data.touch = Some(seat.get_touch(qh, seat.clone()));
+            } else if !touch && let Some(t) = data.touch.take() {
+                t.release();
+            }
+        }
+    }
+}
+
+impl Dispatch<WlTouch, WlSeat> for State {
+    fn event(
+        state: &mut Self,
+        _touch: &WlTouch,
+        event: wl_touch::Event,
+        seat: &WlSeat,
+        _conn: &Connection,
+        _qhandle: &QueueHandle<Self>,
+    ) {
+        let seat = state.seats.get_mut(seat).unwrap();
+        let e = match event {
+            wl_touch::Event::Down {
+                surface, id, x, y, ..
+            } => TouchEvent::Down { surface, id, x, y },
+            wl_touch::Event::Motion { id, x, y, .. } => TouchEvent::Motion { id, x, y },
+            wl_touch::Event::Up { id, .. } => TouchEvent::Up { id },
+            wl_touch::Event::Frame => TouchEvent::Frame,
+            wl_touch::Event::Cancel => TouchEvent::Cancel,
+            _ => return,
+        };
+        seat.touch_events.push(e);
     }
 }
 

@@ -1,6 +1,8 @@
 //! Input handling: keyboard binds, pointer focus, mouse binds.
 
+pub mod gestures;
 pub mod grabs;
+pub mod touch;
 
 use smithay::backend::input::{
     AbsolutePositionEvent, Axis, AxisSource, ButtonState, Event, InputBackend, InputEvent, KeyState,
@@ -56,6 +58,19 @@ impl State {
             InputEvent::PointerMotionAbsolute { event } => self.on_pointer_motion_absolute::<I>(event),
             InputEvent::PointerButton { event } => self.on_pointer_button::<I>(event),
             InputEvent::PointerAxis { event } => self.on_pointer_axis::<I>(event),
+            InputEvent::GestureSwipeBegin { event } => self.on_swipe_begin::<I>(event),
+            InputEvent::GestureSwipeUpdate { event } => self.on_swipe_update::<I>(event),
+            InputEvent::GestureSwipeEnd { event } => self.on_swipe_end::<I>(event),
+            InputEvent::GesturePinchBegin { event } => self.on_pinch_begin::<I>(event),
+            InputEvent::GesturePinchUpdate { event } => self.on_pinch_update::<I>(event),
+            InputEvent::GesturePinchEnd { event } => self.on_pinch_end::<I>(event),
+            InputEvent::GestureHoldBegin { event } => self.on_hold_begin::<I>(event),
+            InputEvent::GestureHoldEnd { event } => self.on_hold_end::<I>(event),
+            InputEvent::TouchDown { event } => self.on_touch_down::<I>(event),
+            InputEvent::TouchMotion { event } => self.on_touch_motion::<I>(event),
+            InputEvent::TouchUp { event } => self.on_touch_up::<I>(event),
+            InputEvent::TouchCancel { .. } => self.touch_cancel(),
+            InputEvent::TouchFrame { .. } => self.touch_frame(),
             InputEvent::DeviceAdded { device } => self.backend.on_device_added(&device, &self.hecate.config),
             _ => {}
         }
@@ -613,7 +628,7 @@ impl State {
         pointer.frame(self);
     }
 
-    fn focus_layer_if_wanted(&mut self, surface: &WlSurface) {
+    pub(crate) fn focus_layer_if_wanted(&mut self, surface: &WlSurface) {
         let root = crate::utils::root_surface(surface);
         let target = self.hecate.wm.outputs().find_map(|o| {
             let map = layer_map_for_output(o);

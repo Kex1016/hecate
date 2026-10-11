@@ -1038,24 +1038,16 @@ fn pick_mode(
 
 /// Apply `[input]` settings to a libinput device. Order: `"*"`, `"type:..."`, then the name.
 pub fn apply_libinput_config(device: &mut smithay::reexports::input::Device, config: &Config) {
-    use crate::config::{AccelProfile, ClickMethod, InputDevice, ScrollMethod};
+    use crate::config::{AccelProfile, ClickMethod, ScrollMethod};
     use smithay::reexports::input as li;
 
-    let is_touchpad = device.config_tap_finger_count() > 0;
-    let is_pointer = device.has_capability(DeviceCapability::Pointer);
-    let mut merged = InputDevice::default();
-    let keys = [
-        Some(device.name().to_string()),
-        is_touchpad.then(|| "type:touchpad".to_string()),
-        (is_pointer && !is_touchpad).then(|| "type:pointer".to_string()),
-        Some("*".to_string()),
-    ];
-    for k in keys.into_iter().flatten() {
-        if let Some(c) = config.input.get(&k) {
-            merged.merge_from(c);
-        }
-    }
-    let c = merged;
+    let kind = crate::config::DeviceKind {
+        touchpad: device.config_tap_finger_count() > 0,
+        pointer: device.has_capability(DeviceCapability::Pointer),
+        touch: device.has_capability(DeviceCapability::Touch),
+        tablet: device.has_capability(DeviceCapability::TabletTool),
+    };
+    let c = config.input_for(&device.name(), kind);
     if let Some(p) = c.accel_profile {
         let _ = device.config_accel_set_profile(match p {
             AccelProfile::Flat => li::AccelProfile::Flat,

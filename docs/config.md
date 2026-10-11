@@ -140,6 +140,14 @@ tap = true
 natural_scroll = true
 disable_while_typing = true
 
+[input."type:touch"]           # also "type:tablet", "type:pointer", or a device name
+map_to_output = "eDP-1"        # absolute devices: which output they cover
+
+[gestures]
+workspace_swipe_fingers = 3    # horizontal swipes switch workspaces (0: off; other counts go to apps)
+workspace_swipe_distance = 200
+workspace_swipe_invert = false
+
 [environment]
 NIXOS_OZONE_WL = "1"
 QT_QPA_PLATFORM = "wayland"

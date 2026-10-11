@@ -179,6 +179,7 @@ pub struct Hecate {
     pub suppressed_keys: Vec<u32>,
     /// Buttons whose press triggered a mouse bind.
     pub suppressed_buttons: Vec<u32>,
+    pub gestures: crate::input::gestures::GestureState,
     /// A modifier went down alone; fire tap binds on release unless something else happens.
     pub pending_mod_tap: Option<Modifiers>,
     /// A config reload is scheduled (debounce).
@@ -425,6 +426,7 @@ impl Hecate {
             keyboard.set_modifier_state(mods);
         }
         seat.add_pointer();
+        seat.add_touch();
 
         let socket_name = if create_socket {
             let socket = ListeningSocketSource::new_auto()?;
@@ -557,6 +559,7 @@ impl Hecate {
             shortcut_inhibitors: Vec::new(),
             suppressed_keys: Vec::new(),
             suppressed_buttons: Vec::new(),
+            gestures: Default::default(),
             pending_mod_tap: None,
             reload_pending: false,
             config_watcher: None,

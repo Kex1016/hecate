@@ -13,6 +13,7 @@ mod foreign_toplevel;
 mod gaming;
 mod gamma;
 mod image_copy_capture;
+mod input;
 mod ipc;
 mod layers;
 mod output_management;
