@@ -63,7 +63,6 @@ nearest stacking equivalent or dropped.
 | `Mod+Return`                 | `spawn $TERMINAL` (fallback `foot`, `kitty`, `alacritty`) | all three |
 | `Mod+Shift+E`                | `exit`                         | niri default |
 | `Mod+Ctrl+Alt+R`             | `reload`                       | new; `Mod+Shift+C` is end-4's colour picker |
-| `Mod+L`                      | `loginctl lock-session`        | end-4 (your `Mod+Backspace` stays as a personal bind) |
 | `Mod+Shift+L`                | `systemctl suspend`            | end-4 |
 | `XF86Audio*`                 | `wpctl` / `playerctl`          | labwc, end-4 |
 | `XF86MonBrightness*`         | `brightnessctl`                | labwc, end-4 |
@@ -92,22 +91,20 @@ so `hecate msg binds` shows each bind's layer.
 | ---------------------------- | --------------------------------------- |
 | `Super` (tap)                | `shell:searchToggleRelease` (launcher / search) |
 | `Super_L`, `Super_R` (hold)  | press/release `shell:workspaceNumber` (shows workspace numbers) |
-| `Mod+Tab`                    | `shell:overviewWorkspacesToggle`        |
 | `Mod+V`                      | `shell:overviewClipboardToggle`         |
 | `Mod+Period`                 | `shell:overviewEmojiToggle`             |
 | `Mod+A`, `Mod+O`             | `shell:sidebarLeftToggle`               |
 | `Mod+Alt+A`                  | `shell:sidebarLeftToggleDetach`         |
 | `Mod+N`                      | `shell:sidebarRightToggle` (notifications, quick settings) |
-| `Mod+Slash`                  | `shell:cheatsheetToggle` (reads `hecate msg -j binds`) |
 | `Mod+K`                      | `shell:oskToggle`                       |
 | `Mod+M`                      | `shell:mediaControlsToggle`             |
 | `Mod+G`                      | `shell:overlayToggle`                   |
 | `Mod+J`                      | `shell:barToggle`                       |
 | `Ctrl+Alt+Delete`            | `shell:sessionToggle`                   |
 | `Mod+Ctrl+T` / `Mod+Ctrl+Alt+T` | `shell:wallpaperSelectorToggle` / `wallpaperSelectorRandom` |
-| `Mod+Ctrl+Shift+D`           | `shell:toggleLightDark`                 |
-| `Mod+Ctrl+P`                 | `shell:panelFamilyCycle`                |
 | `Mod+Escape`                 | `shell:settingsToggle` (end4-pC README) |
+| `Mod+L`                      | lock (`hecate-shell-ipc lock activate`; works while locked) |
+| `Mod+F` / `Mod+D`            | `toggle_fullscreen` / `toggle_maximize` (see conflicts) |
 | `Mod+Shift+S`, `Print`       | `shell:regionScreenshot`                |
 | `Mod+Shift+A`                | `shell:regionSearch` (Google Lens)      |
 | `Mod+Shift+X`                | `shell:regionOcr`                       |
