@@ -83,6 +83,19 @@
         {
           hecate = self.packages.${pkgs.stdenv.hostPlatform.system}.hecate;
           hecate-shell = self.packages.${pkgs.stdenv.hostPlatform.system}.hecate-shell;
+          # docs/keybinds.md's shell table lists exactly the shell profile's binds (the base
+          # table is checked by a Rust test).
+          keybind-docs =
+            pkgs.runCommand "keybind-docs"
+              {
+                nativeBuildInputs = [ pkgs.python3 ];
+                binds = builtins.toJSON (builtins.attrNames (import ./nix/shell-binds.nix { shell = "/shell"; }));
+                passAsFile = [ "binds" ];
+              }
+              ''
+                python3 ${./nix/tests/keybind-docs.py} ${./docs/keybinds.md} "$bindsPath"
+                touch $out
+              '';
           # The Home Manager module with the shell: builds the home and validates the generated
           # config (shell binds included) with `hecate validate`.
           hm =
