@@ -7,6 +7,7 @@ pub mod gamma_control;
 pub mod output_management;
 pub mod output_power;
 pub mod screencopy;
+pub mod tearing_control;
 
 /// User data for resources that need none.
 pub struct EmptyData;

@@ -25,6 +25,8 @@ pub struct Headless {
     pub capture: bool,
     /// Gamma ramp set per output (tests).
     pub gamma: HashMap<String, Vec<u16>>,
+    /// VRR state per output (tests).
+    pub vrr: HashMap<String, bool>,
     /// Every output ever added (name, native size), enabled or not, in order.
     known: Vec<(String, (i32, i32))>,
 }
@@ -44,6 +46,7 @@ impl Headless {
             capture: false,
             gamma: HashMap::new(),
             known: Vec::new(),
+            vrr: HashMap::new(),
         }
     }
 

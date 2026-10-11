@@ -75,6 +75,8 @@ pub struct OutputState {
     pub global: Option<smithay::reexports::wayland_server::backend::GlobalId>,
     /// Powered off via DPMS (action or wlr-output-power).
     pub powered_off: bool,
+    /// VRR state last sent to the backend.
+    pub vrr_applied: Option<bool>,
 }
 
 pub struct Hecate {
@@ -128,6 +130,8 @@ pub struct Hecate {
     pub output_power_state: crate::protocols::output_power::OutputPowerState,
     pub screencopy_state: crate::protocols::screencopy::ScreencopyManagerState,
     pub focus_grab_state: crate::protocols::focus_grab::FocusGrabState,
+    pub tearing_control_state: crate::protocols::tearing_control::TearingControlState,
+    pub content_type_state: smithay::wayland::content_type::ContentTypeState,
     pub image_capture_source_state: smithay::wayland::image_capture_source::ImageCaptureSourceState,
     pub output_capture_source_state: smithay::wayland::image_capture_source::OutputCaptureSourceState,
     pub image_copy_capture_state: smithay::wayland::image_copy_capture::ImageCopyCaptureState,
@@ -255,6 +259,7 @@ impl State {
         crate::protocols::output_management::refresh(self);
         self.refresh_image_copy_capture();
         self.refresh_focus_grab();
+        self.refresh_vrr();
         self.ipc_refresh();
         self.ipc_flush();
         if let Err(err) = self.hecate.display_handle.flush_clients() {
@@ -338,6 +343,8 @@ impl Hecate {
         let screencopy_state =
             crate::protocols::screencopy::ScreencopyManagerState::new(&dh, client_is_unrestricted);
         let focus_grab_state = crate::protocols::focus_grab::FocusGrabState::new(&dh, client_is_unrestricted);
+        let tearing_control_state = crate::protocols::tearing_control::TearingControlState::new(&dh);
+        let content_type_state = smithay::wayland::content_type::ContentTypeState::new::<State>(&dh);
         let image_capture_source_state =
             smithay::wayland::image_capture_source::ImageCaptureSourceState::new();
         let output_capture_source_state =
@@ -491,6 +498,8 @@ impl Hecate {
             output_power_state,
             screencopy_state,
             focus_grab_state,
+            tearing_control_state,
+            content_type_state,
             image_capture_source_state,
             output_capture_source_state,
             image_copy_capture_state,
@@ -682,6 +691,8 @@ pub fn advertised_globals() -> Vec<String> {
         "ext_output_image_capture_source_manager_v1",
         "ext_foreign_toplevel_image_capture_source_manager_v1",
         "hyprland_focus_grab_manager_v1",
+        "wp_tearing_control_manager_v1",
+        "wp_content_type_manager_v1",
     ]
     .iter()
     .map(|s| s.to_string())

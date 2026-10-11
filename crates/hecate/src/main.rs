@@ -9,6 +9,7 @@ mod check;
 mod cli;
 mod config;
 mod cursor;
+mod gaming;
 mod handlers;
 mod input;
 mod ipc;

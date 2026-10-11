@@ -16,7 +16,11 @@ use calloop_wayland_source::WaylandSource;
 use single_pixel_buffer::v1::client::wp_single_pixel_buffer_manager_v1::WpSinglePixelBufferManagerV1;
 use smithay::reexports::wayland_protocols::wp::keyboard_shortcuts_inhibit::zv1::client::zwp_keyboard_shortcuts_inhibit_manager_v1::ZwpKeyboardShortcutsInhibitManagerV1;
 use smithay::reexports::wayland_protocols::wp::keyboard_shortcuts_inhibit::zv1::client::zwp_keyboard_shortcuts_inhibitor_v1::{self, ZwpKeyboardShortcutsInhibitorV1};
+use smithay::reexports::wayland_protocols::wp::content_type::v1::client::wp_content_type_manager_v1::WpContentTypeManagerV1;
+use smithay::reexports::wayland_protocols::wp::content_type::v1::client::wp_content_type_v1::WpContentTypeV1;
 use smithay::reexports::wayland_protocols::wp::single_pixel_buffer;
+use smithay::reexports::wayland_protocols::wp::tearing_control::v1::client::wp_tearing_control_manager_v1::WpTearingControlManagerV1;
+use smithay::reexports::wayland_protocols::wp::tearing_control::v1::client::wp_tearing_control_v1::WpTearingControlV1;
 use smithay::reexports::wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use smithay::reexports::wayland_protocols::wp::viewporter::client::wp_viewporter::WpViewporter;
 use smithay::reexports::wayland_protocols::xdg::decoration::zv1::client::zxdg_decoration_manager_v1::ZxdgDecorationManagerV1;
@@ -116,6 +120,8 @@ pub struct State {
     pub power_manager: Option<ZwlrOutputPowerManagerV1>,
     pub screencopy_manager: Option<ZwlrScreencopyManagerV1>,
     pub focus_grab_manager: Option<HyprlandFocusGrabManagerV1>,
+    pub tearing_manager: Option<WpTearingControlManagerV1>,
+    pub content_type_manager: Option<WpContentTypeManagerV1>,
     /// Grabs that received `cleared`, once per event.
     pub focus_grabs_cleared: Vec<HyprlandFocusGrabV1>,
     pub output_source_manager: Option<ExtOutputImageCaptureSourceManagerV1>,
@@ -511,6 +517,8 @@ impl Client {
             power_manager: None,
             screencopy_manager: None,
             focus_grab_manager: None,
+            tearing_manager: None,
+            content_type_manager: None,
             focus_grabs_cleared: Vec::new(),
             output_source_manager: None,
             toplevel_source_manager: None,
@@ -950,6 +958,10 @@ impl Dispatch<WlRegistry, ()> for State {
                     state.toplevel_source_manager = Some(registry.bind(name, 1, qh, ()));
                 } else if interface == ExtImageCopyCaptureManagerV1::interface().name {
                     state.copy_capture_manager = Some(registry.bind(name, 1, qh, ()));
+                } else if interface == WpTearingControlManagerV1::interface().name {
+                    state.tearing_manager = Some(registry.bind(name, 1, qh, ()));
+                } else if interface == WpContentTypeManagerV1::interface().name {
+                    state.content_type_manager = Some(registry.bind(name, 1, qh, ()));
                 } else if interface == HyprlandFocusGrabManagerV1::interface().name {
                     state.focus_grab_manager = Some(registry.bind(name, 1, qh, ()));
                 } else if interface == ZwlrScreencopyManagerV1::interface().name {
@@ -2121,3 +2133,8 @@ impl Dispatch<HyprlandFocusGrabV1, ()> for State {
         }
     }
 }
+
+wayland_client::delegate_noop!(State: ignore WpTearingControlManagerV1);
+wayland_client::delegate_noop!(State: ignore WpTearingControlV1);
+wayland_client::delegate_noop!(State: ignore WpContentTypeManagerV1);
+wayland_client::delegate_noop!(State: ignore WpContentTypeV1);

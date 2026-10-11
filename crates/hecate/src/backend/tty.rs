@@ -44,7 +44,7 @@ use smithay_drm_extras::display_info;
 use smithay_drm_extras::drm_scanner::{DrmScanEvent, DrmScanner};
 
 use super::gamma::GammaProps;
-use crate::config::{Config, Vrr};
+use crate::config::Config;
 use crate::render::HecateElement;
 use crate::state::{Hecate, State};
 
@@ -542,7 +542,6 @@ impl Tty {
             },
         );
         hecate.add_output(output.clone());
-        self.apply_vrr(&output, &hecate.config, false);
     }
 
     fn connector_disconnected(
@@ -862,27 +861,29 @@ impl Tty {
         let outputs: Vec<Output> = hecate.wm.outputs().cloned().collect();
         for o in &outputs {
             hecate.apply_output_props(o);
-            self.apply_vrr(o, &hecate.config, false);
+            // refresh_vrr re-applies VRR with the new config.
+            if let Some(s) = hecate.output_state.get_mut(o) {
+                s.vrr_applied = None;
+            }
         }
         hecate.queue_redraw_all();
     }
 
-    /// Turn adaptive sync on or off for an output. `fullscreen_active` is used for the
-    /// `fullscreen` setting.
-    pub fn apply_vrr(&mut self, output: &Output, config: &Config, fullscreen_active: bool) {
-        let want = match config
-            .outputs
-            .get(&output.name())
-            .and_then(|o| o.adaptive_sync)
-            .unwrap_or_default()
-        {
-            Vrr::Off => false,
-            Vrr::On => true,
-            Vrr::Fullscreen => fullscreen_active,
+    pub fn vrr_supported(&self, output: &Output) -> bool {
+        let Some(id) = output.user_data().get::<TtyOutputId>() else {
+            return false;
         };
+        self.devices
+            .get(&id.node)
+            .and_then(|d| d.surfaces.get(&id.crtc))
+            .is_some_and(|s| s.vrr_supported)
+    }
+
+    /// Turn adaptive sync on or off for an output.
+    pub fn set_vrr(&mut self, output: &Output, on: bool) {
         if let Some(surface) = self.surface_for(output)
             && surface.vrr_supported
-            && let Err(err) = surface.drm_output.with_compositor(|c| c.use_vrr(want))
+            && let Err(err) = surface.drm_output.with_compositor(|c| c.use_vrr(on))
         {
             tracing::debug!("error setting VRR on {}: {err:?}", output.name());
         }

@@ -8,6 +8,7 @@ mod ext_workspace;
 mod fixture;
 mod focus_grab;
 mod foreign_toplevel;
+mod gaming;
 mod gamma;
 mod image_copy_capture;
 mod ipc;

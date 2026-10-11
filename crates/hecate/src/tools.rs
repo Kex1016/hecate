@@ -2,7 +2,6 @@
 
 use std::time::{Duration, Instant};
 
-use hecate_ipc as ipc;
 use smithay::backend::allocator::Fourcc;
 use smithay::backend::renderer::damage::OutputDamageTracker;
 use smithay::backend::renderer::gles::{GlesRenderer, GlesTexture};
@@ -11,7 +10,7 @@ use smithay::reexports::calloop::timer::{TimeoutAction, Timer};
 use smithay::utils::{Logical, Point, Rectangle, Size};
 
 use crate::state::{Hecate, State};
-use crate::wm::{WindowExt, Wm};
+use crate::wm::Wm;
 
 impl State {
     /// Highlight every visible window's border for `ms` milliseconds.
@@ -36,67 +35,6 @@ impl State {
         let local = (pos - geo.loc.to_f64()).to_physical(scale).to_i32_round::<i32>();
         let State { backend, hecate } = self;
         backend.with_renderer(|renderer| capture_pixel(renderer, hecate, &output, local))?
-    }
-
-    pub fn ipc_gaming(&self) -> ipc::Gaming {
-        let outputs = self
-            .hecate
-            .wm
-            .outputs()
-            .map(|o| {
-                let windows = self.hecate.wm.windows_on_output(o);
-                let fullscreen = windows.iter().any(|w| w.data().fullscreen);
-                let vrr = self
-                    .hecate
-                    .config
-                    .outputs
-                    .get(&o.name())
-                    .and_then(|c| c.adaptive_sync)
-                    .unwrap_or_default();
-                let blocker = if !self.hecate.config.gaming.direct_scanout {
-                    Some("gaming.direct_scanout = false".to_string())
-                } else if !fullscreen {
-                    Some("no fullscreen window".to_string())
-                } else if windows.iter().rev().skip(1).any(|w| !w.data().fullscreen) {
-                    Some("other windows above the fullscreen one".to_string())
-                } else {
-                    None
-                };
-                ipc::GamingOutput {
-                    name: o.name(),
-                    refresh_hz: o.current_mode().map(|m| m.refresh as f64 / 1000.0).unwrap_or(0.0),
-                    vrr_supported: false,
-                    vrr_enabled: matches!(vrr, crate::config::Vrr::On)
-                        || (matches!(vrr, crate::config::Vrr::Fullscreen) && fullscreen),
-                    tearing_allowed: match self.hecate.config.gaming.allow_tearing {
-                        crate::config::Tearing::Never => false,
-                        crate::config::Tearing::Fullscreen => fullscreen,
-                        crate::config::Tearing::Always => true,
-                    },
-                    direct_scanout: blocker.is_none(),
-                    direct_scanout_blocker: blocker,
-                }
-            })
-            .collect();
-        let windows = self
-            .hecate
-            .wm
-            .visible_windows()
-            .iter()
-            .map(|w| {
-                let d = w.data();
-                ipc::GamingWindow {
-                    id: d.id,
-                    app_id: None,
-                    content_type: None,
-                    tearing_requested: d.rules.tearing,
-                    pointer_locked: false,
-                    pointer_confined: false,
-                    fullscreen: d.fullscreen,
-                }
-            })
-            .collect();
-        ipc::Gaming { outputs, windows }
     }
 }
 

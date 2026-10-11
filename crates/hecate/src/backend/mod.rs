@@ -241,6 +241,25 @@ impl Backend {
         }
     }
 
+    /// Whether the output's connector can do adaptive sync.
+    pub fn vrr_supported(&self, output: &Output) -> bool {
+        match self {
+            Backend::Tty(b) => b.vrr_supported(output),
+            Backend::Headless(_) => true,
+            Backend::Winit(_) => false,
+        }
+    }
+
+    pub fn set_vrr(&mut self, output: &Output, on: bool) {
+        match self {
+            Backend::Tty(b) => b.set_vrr(output, on),
+            Backend::Headless(b) => {
+                b.vrr.insert(output.name(), on);
+            }
+            Backend::Winit(_) => (),
+        }
+    }
+
     /// Render node of the primary GPU, for dmabuf capture constraints.
     pub fn render_node(&self) -> Option<smithay::backend::drm::DrmNode> {
         match self {
