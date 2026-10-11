@@ -79,13 +79,19 @@ pkgs.testers.runNixOSTest {
     # QuickShell maps its bar as a layer surface.
     sock = "$(ls /run/user/1000/hecate.*.sock | head -1)"
     disp = "$(basename $(ls /run/user/1000/wayland-? | head -1))"
+    # systemd-run doesn't pass our environment to the unit; hand it over explicitly.
     machine.succeed(as_alice(
-        f"WAYLAND_DISPLAY={disp} QT_QPA_PLATFORM=wayland QT_QUICK_BACKEND=software "
-        "systemd-run --user --unit qs-test quickshell -p /etc/qs-test/shell.qml"
+        f"systemd-run --user --unit qs-test -E WAYLAND_DISPLAY={disp} -E QT_QPA_PLATFORM=wayland "
+        "-E QT_QUICK_BACKEND=software quickshell -p /etc/qs-test/shell.qml"
     ))
-    machine.wait_until_succeeds(
-        as_alice(f"HECATE_SOCKET={sock} hecate msg --json layers | grep -q quickshell"), timeout=90
-    )
+    try:
+        machine.wait_until_succeeds(
+            as_alice(f"HECATE_SOCKET={sock} hecate msg --json layers | grep -q quickshell"), timeout=90
+        )
+    except Exception:
+        print(machine.execute(as_alice("journalctl --user -u qs-test --no-pager | tail -50"))[1])
+        print(machine.execute(as_alice(f"HECATE_SOCKET={sock} hecate msg --json layers"))[1])
+        raise
 
     machine.succeed("hecate validate /dev/null || true")
     machine.succeed("echo '[workspaces]\ncount = 4' > /tmp/ok.toml && hecate validate /tmp/ok.toml")
