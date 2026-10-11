@@ -19,6 +19,8 @@ use smithay::reexports::wayland_protocols::wp::keyboard_shortcuts_inhibit::zv1::
 use smithay::reexports::wayland_protocols::wp::single_pixel_buffer;
 use smithay::reexports::wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use smithay::reexports::wayland_protocols::wp::viewporter::client::wp_viewporter::WpViewporter;
+use smithay::reexports::wayland_protocols::xdg::decoration::zv1::client::zxdg_decoration_manager_v1::ZxdgDecorationManagerV1;
+use smithay::reexports::wayland_protocols::xdg::decoration::zv1::client::zxdg_toplevel_decoration_v1::{self, ZxdgToplevelDecorationV1};
 use smithay::reexports::wayland_protocols::xdg::shell::client::xdg_surface::{self, XdgSurface};
 use smithay::reexports::wayland_protocols::xdg::shell::client::xdg_toplevel::{self, XdgToplevel};
 use smithay::reexports::wayland_protocols::xdg::shell::client::xdg_wm_base::{self, XdgWmBase};
@@ -64,6 +66,9 @@ pub struct State {
 
     pub compositor: Option<WlCompositor>,
     pub shm: Option<WlShm>,
+    pub decoration_manager: Option<ZxdgDecorationManagerV1>,
+    /// Last decoration mode received per toplevel decoration object.
+    pub decoration_modes: HashMap<ZxdgToplevelDecorationV1, zxdg_toplevel_decoration_v1::Mode>,
     pub xdg_wm_base: Option<XdgWmBase>,
     pub layer_shell: Option<ZwlrLayerShellV1>,
     pub virtual_pointer_manager: Option<ZwlrVirtualPointerManagerV1>,
@@ -267,6 +272,8 @@ impl Client {
             seats: HashMap::new(),
             compositor: None,
             shm: None,
+            decoration_manager: None,
+            decoration_modes: HashMap::new(),
             xdg_wm_base: None,
             layer_shell: None,
             virtual_pointer_manager: None,
@@ -657,7 +664,10 @@ impl Dispatch<WlRegistry, ()> for State {
                 interface,
                 version,
             } => {
-                if interface == WlShm::interface().name {
+                if interface == ZxdgDecorationManagerV1::interface().name {
+                    let version = min(version, ZxdgDecorationManagerV1::interface().version);
+                    state.decoration_manager = Some(registry.bind(name, version, qh, ()));
+                } else if interface == WlShm::interface().name {
                     let version = min(version, WlShm::interface().version);
                     state.shm = Some(registry.bind(name, version, qh, ()));
                 } else if interface == WlCompositor::interface().name {
@@ -1021,6 +1031,41 @@ fn shm_buffer(shm: &WlShm, qh: &QueueHandle<State>, w: i32, h: i32, rgba: [u8; 4
 }
 
 wayland_client::delegate_noop!(State: ignore WlShm);
+wayland_client::delegate_noop!(State: ignore ZxdgDecorationManagerV1);
+
+impl Dispatch<ZxdgToplevelDecorationV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        proxy: &ZxdgToplevelDecorationV1,
+        event: zxdg_toplevel_decoration_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        if let zxdg_toplevel_decoration_v1::Event::Configure { mode } = event
+            && let Ok(mode) = mode.into_result()
+        {
+            state.decoration_modes.insert(proxy.clone(), mode);
+        }
+    }
+}
+
+impl State {
+    /// Create an xdg-decoration object for a window and optionally request a mode.
+    pub fn decorate(
+        &mut self,
+        surface: &WlSurface,
+        request: Option<zxdg_toplevel_decoration_v1::Mode>,
+    ) -> ZxdgToplevelDecorationV1 {
+        let manager = self.decoration_manager.clone().expect("no xdg-decoration global");
+        let toplevel = self.window(surface).xdg_toplevel.clone();
+        let deco = manager.get_toplevel_decoration(&toplevel, &self.qh, ());
+        if let Some(mode) = request {
+            deco.set_mode(mode);
+        }
+        deco
+    }
+}
 wayland_client::delegate_noop!(State: ignore WlShmPool);
 
 impl Dispatch<WlBuffer, ()> for State {

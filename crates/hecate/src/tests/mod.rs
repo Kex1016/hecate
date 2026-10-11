@@ -3,6 +3,7 @@
 //! Nix devShell) and check pixels.
 
 mod client;
+mod decorations;
 mod fixture;
 mod layers;
 mod render;
