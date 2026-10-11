@@ -2,7 +2,6 @@
 
 use smithay::backend::input::{AbsolutePositionEvent, Device, Event, InputBackend, InputTime, TouchEvent};
 use smithay::input::touch::{DownEvent, MotionEvent, UpEvent};
-use smithay::output::Output;
 use smithay::utils::{Logical, Point, SERIAL_COUNTER};
 
 pub use smithay::backend::input::TouchSlot;
@@ -11,26 +10,15 @@ use crate::state::State;
 use crate::wm::Wm;
 
 impl State {
-    /// The output a touch device maps to: `map_to_output` from its config, else the focused one.
-    fn touch_output(&self, device_name: &str) -> Option<Output> {
-        let kind = crate::config::DeviceKind {
-            touch: true,
-            ..Default::default()
-        };
-        self.hecate
-            .config
-            .input_for(device_name, kind)
-            .map_to_output
-            .and_then(|name| self.hecate.wm.output_by_name(&name).cloned())
-            .or_else(|| self.hecate.wm.focused_output.clone())
-            .or_else(|| self.hecate.wm.outputs().next().cloned())
-    }
-
     fn touch_position<I: InputBackend, E: AbsolutePositionEvent<I>>(
         &self,
         event: &E,
     ) -> Option<Point<f64, Logical>> {
-        let output = self.touch_output(&event.device().name())?;
+        let kind = crate::config::DeviceKind {
+            touch: true,
+            ..Default::default()
+        };
+        let output = self.absolute_output(&event.device().name(), kind)?;
         let geo = Wm::output_geometry(&output);
         Some(event.position_transformed(geo.size) + geo.loc.to_f64())
     }

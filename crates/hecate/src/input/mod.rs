@@ -2,6 +2,7 @@
 
 pub mod gestures;
 pub mod grabs;
+pub mod tablet;
 pub mod touch;
 
 use smithay::backend::input::{
@@ -71,7 +72,15 @@ impl State {
             InputEvent::TouchUp { event } => self.on_touch_up::<I>(event),
             InputEvent::TouchCancel { .. } => self.touch_cancel(),
             InputEvent::TouchFrame { .. } => self.touch_frame(),
-            InputEvent::DeviceAdded { device } => self.backend.on_device_added(&device, &self.hecate.config),
+            InputEvent::DeviceAdded { device } => {
+                self.on_tablet_added(&device);
+                self.backend.on_device_added(&device, &self.hecate.config);
+            }
+            InputEvent::DeviceRemoved { device } => self.on_tablet_removed(&device),
+            InputEvent::TabletToolAxis { event } => self.on_tablet_axis::<I>(event),
+            InputEvent::TabletToolProximity { event } => self.on_tablet_proximity::<I>(event),
+            InputEvent::TabletToolTip { event } => self.on_tablet_tip::<I>(event),
+            InputEvent::TabletToolButton { event } => self.on_tablet_button::<I>(event),
             _ => {}
         }
     }

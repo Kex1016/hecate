@@ -184,3 +184,37 @@ fn three_finger_swipe_switches_workspaces() {
     swipe(&mut f, 3, 250., 0.);
     assert_eq!(active_index(&mut f), 1, "three fingers no longer ours");
 }
+
+#[test]
+fn absolute_devices_map_to_their_output() {
+    let mut f = Fixture::with_toml(
+        "[input.\"type:tablet\"]\nmap_to_output = \"headless-2\"\n[input.\"Odd Screen\"]\nmap_to_output = \"nope\"",
+    );
+    f.add_output("headless-1", (1920, 1080));
+    f.add_output("headless-2", (1280, 720));
+    let tablet = DeviceKind {
+        tablet: true,
+        ..Default::default()
+    };
+    let touch = DeviceKind {
+        touch: true,
+        ..Default::default()
+    };
+    let s = f.hecate();
+    let name = |o: Option<smithay::output::Output>| o.map(|o| o.name());
+    assert_eq!(
+        name(s.absolute_output("Pen", tablet)).as_deref(),
+        Some("headless-2")
+    );
+    let focused = s.hecate.wm.focused_output.clone().map(|o| o.name());
+    assert_eq!(
+        name(s.absolute_output("Screen", touch)),
+        focused,
+        "unmapped: focused output"
+    );
+    assert_eq!(
+        name(s.absolute_output("Odd Screen", touch)),
+        focused,
+        "unknown output name: focused output"
+    );
+}
