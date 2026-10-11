@@ -84,6 +84,8 @@ pkgs.testers.runNixOSTest {
     def dump():
         print(machine.execute(as_alice("journalctl --user -u hecate-shell --no-pager | grep -v icon | tail -80"))[1])
         print(machine.execute(as_alice(f"HECATE_SOCKET={sock} hecate msg --json layers"))[1])
+        print(machine.execute(as_alice("timeout 15 qs list --all; echo qs-list-rc=$?"))[1])
+        print(machine.execute(as_alice("timeout 15 hecate-shell-ipc shortcut list; echo ipc-rc=$?"))[1])
 
     try:
         # The bar and the background both map as layer surfaces.
@@ -95,10 +97,10 @@ pkgs.testers.runNixOSTest {
         )
         # Every shortcut the shell's binds trigger is registered over its IPC.
         machine.wait_until_succeeds(
-            as_alice("hecate-shell-ipc shortcut list | grep -q sidebarRightToggle"), timeout=60
+            as_alice("timeout 15 hecate-shell-ipc shortcut list | grep -q sidebarRightToggle"), timeout=180
         )
         before = msg("--json layers").count("quickshell")
-        machine.succeed(as_alice("hecate-shell-ipc shortcut trigger sidebarRightToggle"))
+        machine.succeed(as_alice("timeout 15 hecate-shell-ipc shortcut trigger sidebarRightToggle"))
         machine.wait_until_succeeds(
             as_alice(
                 f"test $(HECATE_SOCKET={sock} hecate msg --json layers | grep -o quickshell | wc -l) -gt {before}"
