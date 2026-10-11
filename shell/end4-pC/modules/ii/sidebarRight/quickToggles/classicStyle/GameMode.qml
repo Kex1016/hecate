@@ -12,6 +12,7 @@ QuickToggleButton {
     // hecate: runtime overrides, set one by one so a key a build doesn't know can't block the rest.
     readonly property var hecateOverrides: [
         ["animations.enable", "false"],
+        ["blur.enable", "false"],
         ["border.width", "1"],
         ["border.radius", "0"],
         ["gaming.allow_tearing", "\"always\""],

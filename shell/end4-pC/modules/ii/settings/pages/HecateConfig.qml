@@ -164,6 +164,13 @@ ContentPage {
                 checked: page.value("animations.enable", true)
                 onCheckedChanged: page.set("animations.enable", checked)
             }
+
+            ConfigSwitch {
+                buttonIcon: "blur_on"
+                text: Translation.tr("Blur behind panels and windows that ask for it")
+                checked: page.value("blur.enable", true)
+                onCheckedChanged: page.set("blur.enable", checked)
+            }
         }
 
         RippleButtonWithIcon {
