@@ -30,6 +30,7 @@ bitflags = "2"
 clap_complete = "4"
 notify = { version = "8", default-features = false }
 glam = "0.33"
+drm-ffi = "0.9"
 smithay-drm-extras.workspace = true
 
 [dependencies.smithay]

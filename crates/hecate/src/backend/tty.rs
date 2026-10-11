@@ -43,6 +43,7 @@ use smithay::wayland::presentation::Refresh;
 use smithay_drm_extras::display_info;
 use smithay_drm_extras::drm_scanner::{DrmScanEvent, DrmScanner};
 
+use super::gamma::GammaProps;
 use crate::config::{Config, Vrr};
 use crate::render::HecateElement;
 use crate::state::{Hecate, State};
@@ -79,6 +80,9 @@ struct Surface {
     drm_output: HecateDrmOutput,
     connector: connector::Handle,
     vrr_supported: bool,
+    gamma: Option<GammaProps>,
+    /// Gamma set while the session was inactive, applied on resume.
+    pending_gamma: Option<Option<Vec<u16>>>,
 }
 
 struct Device {
@@ -179,6 +183,20 @@ impl Tty {
                         for device in tty.devices.values_mut() {
                             if let Err(err) = device.manager.lock().activate(false) {
                                 tracing::warn!("error re-activating DRM device: {err:?}");
+                            }
+                            // Another session may have changed gamma.
+                            let drm = device.manager.device();
+                            for surface in device.surfaces.values_mut() {
+                                let Some(gamma) = &mut surface.gamma else {
+                                    continue;
+                                };
+                                let res = match surface.pending_gamma.take() {
+                                    Some(ramp) => gamma.set_gamma(drm, ramp),
+                                    None => gamma.restore_gamma(drm),
+                                };
+                                if let Err(err) = res {
+                                    tracing::warn!("error restoring gamma: {err:?}");
+                                }
                             }
                         }
                     }
@@ -504,6 +522,16 @@ impl Tty {
             wl_mode.size.h,
             wl_mode.refresh
         );
+        let drm = device.manager.device();
+        let mut gamma = GammaProps::new(drm, crtc)
+            .inspect_err(|err| tracing::debug!("no gamma control for {name}: {err:?}"))
+            .ok();
+        // Reset gamma left over from a previous session.
+        if let Some(g) = &mut gamma
+            && let Err(err) = g.set_gamma(drm, None)
+        {
+            tracing::debug!("couldn't reset gamma on {name}: {err:?}");
+        }
         device.surfaces.insert(
             crtc,
             Surface {
@@ -511,6 +539,8 @@ impl Tty {
                 drm_output,
                 connector: connector.handle(),
                 vrr_supported,
+                gamma,
+                pending_gamma: None,
             },
         );
         hecate.add_output(output.clone());
@@ -536,6 +566,38 @@ impl Tty {
     fn surface_for(&mut self, output: &Output) -> Option<&mut Surface> {
         let id = *output.user_data().get::<TtyOutputId>()?;
         self.devices.get_mut(&id.node)?.surfaces.get_mut(&id.crtc)
+    }
+
+    pub fn gamma_size(&self, output: &Output) -> Option<u32> {
+        let id = *output.user_data().get::<TtyOutputId>()?;
+        let surface = self.devices.get(&id.node)?.surfaces.get(&id.crtc)?;
+        surface.gamma.as_ref().map(GammaProps::gamma_size)
+    }
+
+    pub fn set_gamma(&mut self, output: &Output, ramp: Option<Vec<u16>>) -> anyhow::Result<()> {
+        let id = *output
+            .user_data()
+            .get::<TtyOutputId>()
+            .ok_or_else(|| anyhow::anyhow!("not a tty output"))?;
+        let active = self.session.is_active();
+        let device = self
+            .devices
+            .get_mut(&id.node)
+            .ok_or_else(|| anyhow::anyhow!("missing device"))?;
+        let surface = device
+            .surfaces
+            .get_mut(&id.crtc)
+            .ok_or_else(|| anyhow::anyhow!("missing surface"))?;
+        // Properties can't change while another session owns the device.
+        if !active {
+            surface.pending_gamma = Some(ramp);
+            return Ok(());
+        }
+        let gamma = surface
+            .gamma
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("setting gamma is not supported"))?;
+        gamma.set_gamma(device.manager.device(), ramp)
     }
 
     pub fn render(&mut self, hecate: &mut Hecate, output: &Output) -> bool {

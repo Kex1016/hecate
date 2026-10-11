@@ -23,6 +23,8 @@ pub struct Headless {
     pub frames: HashMap<String, (Vec<u8>, i32, i32)>,
     /// Read back every frame into `frames` (tests).
     pub capture: bool,
+    /// Gamma ramp set per output (tests).
+    pub gamma: HashMap<String, Vec<u16>>,
 }
 
 impl Default for Headless {
@@ -38,6 +40,7 @@ impl Headless {
             targets: HashMap::new(),
             frames: HashMap::new(),
             capture: false,
+            gamma: HashMap::new(),
         }
     }
 
@@ -140,6 +143,23 @@ impl Headless {
         self.renderer
             .as_mut()
             .is_some_and(|r| r.import_dmabuf(dmabuf, None).is_ok())
+    }
+
+    pub fn gamma_size(&self, _output: &Output) -> u32 {
+        256
+    }
+
+    pub fn set_gamma(&mut self, output: &Output, ramp: Option<Vec<u16>>) -> anyhow::Result<()> {
+        match ramp {
+            Some(r) => {
+                anyhow::ensure!(r.len() == 256 * 3, "wrong gamma length");
+                self.gamma.insert(output.name(), r);
+            }
+            None => {
+                self.gamma.remove(&output.name());
+            }
+        }
+        Ok(())
     }
 
     pub fn renderer(&mut self) -> Option<&mut GlesRenderer> {

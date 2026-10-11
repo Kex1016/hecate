@@ -37,6 +37,8 @@ use smithay::reexports::wayland_protocols::ext::workspace::v1::client::ext_works
 use smithay::reexports::wayland_protocols::ext::workspace::v1::client::ext_workspace_manager_v1::{self, ExtWorkspaceManagerV1};
 use smithay::reexports::wayland_protocols_wlr::foreign_toplevel::v1::client::zwlr_foreign_toplevel_handle_v1::{self, ZwlrForeignToplevelHandleV1};
 use smithay::reexports::wayland_protocols_wlr::foreign_toplevel::v1::client::zwlr_foreign_toplevel_manager_v1::{self, ZwlrForeignToplevelManagerV1};
+use smithay::reexports::wayland_protocols_wlr::gamma_control::v1::client::zwlr_gamma_control_manager_v1::ZwlrGammaControlManagerV1;
+use smithay::reexports::wayland_protocols_wlr::gamma_control::v1::client::zwlr_gamma_control_v1::{self, ZwlrGammaControlV1};
 use smithay::reexports::wayland_protocols_wlr::virtual_pointer::v1::client::zwlr_virtual_pointer_manager_v1::ZwlrVirtualPointerManagerV1;
 use smithay::reexports::wayland_protocols_wlr::virtual_pointer::v1::client::zwlr_virtual_pointer_v1::ZwlrVirtualPointerV1;
 use wayland_backend::client::Backend;
@@ -92,6 +94,9 @@ pub struct State {
     pub ws_groups: Vec<(ExtWorkspaceGroupHandleV1, WsGroup)>,
     pub ws_handles: Vec<(ExtWorkspaceHandleV1, WsHandle)>,
     pub ws_done_count: usize,
+    pub gamma_manager: Option<ZwlrGammaControlManagerV1>,
+    /// Per gamma control: received size and whether it failed.
+    pub gamma_controls: Vec<(ZwlrGammaControlV1, Option<u32>, bool)>,
 
     pub windows: Vec<Window>,
     pub layers: Vec<LayerSurface>,
@@ -374,6 +379,8 @@ impl Client {
             ws_groups: Vec::new(),
             ws_handles: Vec::new(),
             ws_done_count: 0,
+            gamma_manager: None,
+            gamma_controls: Vec::new(),
             windows: Vec::new(),
             layers: Vec::new(),
         };
@@ -794,6 +801,9 @@ impl Dispatch<WlRegistry, ()> for State {
                 } else if interface == ZwlrForeignToplevelManagerV1::interface().name {
                     let version = min(version, ZwlrForeignToplevelManagerV1::interface().version);
                     state.wlr_toplevel_manager = Some(registry.bind(name, version, qh, ()));
+                } else if interface == ZwlrGammaControlManagerV1::interface().name {
+                    let version = min(version, ZwlrGammaControlManagerV1::interface().version);
+                    state.gamma_manager = Some(registry.bind(name, version, qh, ()));
                 } else if interface == ExtWorkspaceManagerV1::interface().name {
                     let version = min(version, ExtWorkspaceManagerV1::interface().version);
                     state.workspace_manager = Some(registry.bind(name, version, qh, ()));
@@ -1486,6 +1496,60 @@ impl Dispatch<ExtWorkspaceHandleV1, ()> for State {
                 w.capabilities = capabilities.into()
             }
             ext_workspace_handle_v1::Event::Removed => w.removed = true,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl State {
+    pub fn get_gamma_control(&mut self, output: &WlOutput) -> ZwlrGammaControlV1 {
+        let control = self
+            .gamma_manager
+            .as_ref()
+            .unwrap()
+            .get_gamma_control(output, &self.qh, ());
+        self.gamma_controls.push((control.clone(), None, false));
+        control
+    }
+
+    /// (gamma_size, failed) for a control.
+    pub fn gamma_status(&self, control: &ZwlrGammaControlV1) -> (Option<u32>, bool) {
+        let (_, size, failed) = self.gamma_controls.iter().find(|(c, _, _)| c == control).unwrap();
+        (*size, *failed)
+    }
+}
+
+/// Send a ramp of raw u16 values to a gamma control through a memfd.
+pub fn send_gamma(control: &ZwlrGammaControlV1, ramp: &[u16]) {
+    use std::io::{Seek, Write};
+    use std::os::fd::{AsFd, FromRawFd};
+    // SAFETY: memfd_create returns a new owned fd or -1.
+    let fd = unsafe { libc::memfd_create(c"hecate-gamma".as_ptr(), libc::MFD_CLOEXEC) };
+    assert!(fd >= 0);
+    let mut file = unsafe { std::fs::File::from_raw_fd(fd) };
+    let bytes: Vec<u8> = ramp.iter().flat_map(|v| v.to_ne_bytes()).collect();
+    file.write_all(&bytes).unwrap();
+    file.rewind().unwrap();
+    control.set_gamma(file.as_fd());
+}
+
+wayland_client::delegate_noop!(State: ignore ZwlrGammaControlManagerV1);
+
+impl Dispatch<ZwlrGammaControlV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        proxy: &ZwlrGammaControlV1,
+        event: zwlr_gamma_control_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        let Some(entry) = state.gamma_controls.iter_mut().find(|(c, _, _)| c == proxy) else {
+            return;
+        };
+        match event {
+            zwlr_gamma_control_v1::Event::GammaSize { size } => entry.1 = Some(size),
+            zwlr_gamma_control_v1::Event::Failed => entry.2 = true,
             _ => unreachable!(),
         }
     }

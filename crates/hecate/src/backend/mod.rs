@@ -1,5 +1,6 @@
 //! Backends: real session (DRM/KMS), nested (winit), headless (tests).
 
+pub mod gamma;
 pub mod headless;
 pub mod tty;
 pub mod winit;
@@ -114,6 +115,24 @@ impl Backend {
         }
     }
 
+    /// Gamma ramp length per channel, or None if gamma can't be set on this output.
+    pub fn gamma_size(&self, output: &Output) -> Option<u32> {
+        match self {
+            Backend::Tty(b) => b.gamma_size(output),
+            Backend::Winit(_) => None,
+            Backend::Headless(b) => Some(b.gamma_size(output)),
+        }
+    }
+
+    /// Set (Some) or reset (None) an output's gamma ramp: red, green, blue concatenated.
+    pub fn set_gamma(&mut self, output: &Output, ramp: Option<Vec<u16>>) -> anyhow::Result<()> {
+        match self {
+            Backend::Tty(b) => b.set_gamma(output, ramp),
+            Backend::Winit(_) => anyhow::bail!("gamma is not supported when nested"),
+            Backend::Headless(b) => b.set_gamma(output, ramp),
+        }
+    }
+
     /// Run something with the primary renderer, if there is one.
     pub fn with_renderer<T>(
         &mut self,
@@ -187,6 +206,7 @@ impl Hecate {
     }
 
     pub fn remove_output(&mut self, output: &Output) {
+        self.gamma_control_state.output_removed(output);
         self.wm.remove_output(output);
         self.output_state.remove(output);
         smithay::desktop::layer_map_for_output(output).cleanup();

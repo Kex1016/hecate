@@ -120,6 +120,7 @@ pub struct Hecate {
     pub xdg_foreign_state: XdgForeignState,
     pub foreign_toplevel_state: crate::protocols::foreign_toplevel::ForeignToplevelManagerState,
     pub ext_workspace_state: crate::protocols::ext_workspace::ExtWorkspaceManagerState,
+    pub gamma_control_state: crate::protocols::gamma_control::GammaControlManagerState,
     pub cursor_shape_state: CursorShapeManagerState,
     pub single_pixel_buffer_state: SinglePixelBufferState,
     pub idle_notifier_state: IdleNotifierState<State>,
@@ -309,6 +310,8 @@ impl Hecate {
             crate::protocols::foreign_toplevel::ForeignToplevelManagerState::new(&dh, client_is_unrestricted);
         let ext_workspace_state =
             crate::protocols::ext_workspace::ExtWorkspaceManagerState::new(&dh, client_is_unrestricted);
+        let gamma_control_state =
+            crate::protocols::gamma_control::GammaControlManagerState::new(&dh, client_is_unrestricted);
         let cursor_shape_state = CursorShapeManagerState::new::<State>(&dh);
         let single_pixel_buffer_state = SinglePixelBufferState::new::<State>(&dh);
         let idle_notifier_state = IdleNotifierState::new(&dh, event_loop.clone());
@@ -439,6 +442,7 @@ impl Hecate {
             xdg_foreign_state,
             foreign_toplevel_state,
             ext_workspace_state,
+            gamma_control_state,
             cursor_shape_state,
             single_pixel_buffer_state,
             idle_notifier_state,
@@ -612,6 +616,7 @@ pub fn advertised_globals() -> Vec<String> {
         "ext_foreign_toplevel_list_v1",
         "zwlr_foreign_toplevel_manager_v1",
         "ext_workspace_manager_v1",
+        "zwlr_gamma_control_manager_v1",
     ]
     .iter()
     .map(|s| s.to_string())

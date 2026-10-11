@@ -634,6 +634,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "directories",
+ "drm-ffi",
  "glam",
  "glob",
  "hecate-ipc",

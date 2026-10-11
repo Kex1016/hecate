@@ -7,6 +7,7 @@ mod decorations;
 mod ext_workspace;
 mod fixture;
 mod foreign_toplevel;
+mod gamma;
 mod ipc;
 mod layers;
 mod render;
