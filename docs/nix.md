@@ -119,6 +119,8 @@ so `nixos-option` and editor completion work in Nix too.
     enable = true;                 # default false
     package = pkgs.hecate-shell;   # from the overlay
     keybinds = true;               # add the end-4 profile as `shell_binds` (keybinds.md)
+    layerRules = true;             # blur and per-panel animations for the shell's layers;
+                                   # your settings.layer_rules come after and win
     dotfiles = [ "matugen" "kde-material-you-colors" "Kvantum" "fuzzel" ];  # default; also fontconfig, kitty, foot, fish
     extraPackages = [ ];           # more tools on the shell's PATH (hecate itself is always there)
   };

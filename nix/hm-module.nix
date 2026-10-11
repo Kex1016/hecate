@@ -13,6 +13,10 @@ let
   shellBinds = lib.optionalAttrs (shellCfg.enable && shellCfg.keybinds) (
     import ./shell-binds.nix { shell = shellCfg.finalPackage; }
   );
+  # Shell layer rules first: later rules win, so yours override them.
+  layerRules =
+    lib.optionals (shellCfg.enable && shellCfg.layerRules) (import ./shell-layer-rules.nix)
+    ++ (cfg.settings.layer_rules or [ ]);
   # The shell's settings page writes ~/.config/hecate/shell.toml; included last-but-yours.
   includes =
     lib.optional shellCfg.enable "${config.xdg.configHome}/hecate/shell.toml"
@@ -22,6 +26,7 @@ let
       lib.optionalAttrs (shellBinds != { }) { shell_binds = shellBinds; }
       // lib.optionalAttrs (cfg.systemd.variables != [ ]) { session_variables = cfg.systemd.variables; }
     ) cfg.settings
+    // lib.optionalAttrs (layerRules != [ ]) { layer_rules = layerRules; }
     // lib.optionalAttrs (includes != [ ]) { include = includes; }
   );
   dots = "${self}/shell/dots-hyprland/dots/.config";
@@ -116,6 +121,15 @@ in
         type = lib.types.bool;
         default = true;
         description = "Add the shell's keybind profile (docs/keybinds.md) as `shell_binds`.";
+      };
+
+      layerRules = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Add the shell's layer rules (blur behind panels, per-panel animations) before
+          `settings.layer_rules`, which can override them.
+        '';
       };
 
       dotfiles = lib.mkOption {
