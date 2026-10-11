@@ -32,6 +32,7 @@
           craneLib = crane.mkLib pkgs;
           common = common pkgs;
         };
+        hecate-shell = pkgs.callPackage ./nix/shell-package.nix { };
         default = hecate;
       });
 
@@ -40,6 +41,7 @@
 
       overlays.default = final: _prev: {
         hecate = self.packages.${final.stdenv.hostPlatform.system}.hecate;
+        hecate-shell = self.packages.${final.stdenv.hostPlatform.system}.hecate-shell;
       };
 
       devShells = forAllSystems (pkgs: {
@@ -74,6 +76,7 @@
         pkgs:
         {
           hecate = self.packages.${pkgs.stdenv.hostPlatform.system}.hecate;
+          hecate-shell = self.packages.${pkgs.stdenv.hostPlatform.system}.hecate-shell;
         }
         //
           removeAttrs

@@ -8,7 +8,8 @@ Singleton {
     id: root
 
     // Installed from a Nix store path (hecate's flake): read-only, updated with the system.
-    readonly property bool managedByNix: String(Quickshell.shellPath("")).includes("/nix/store/")
+    readonly property bool managedByNix: Quickshell.env("HECATE_SHELL_NIX") === "1"
+        || String(Quickshell.shellPath("")).includes("/nix/store/")
 
     function notifyManaged() {
         Quickshell.execDetached(["notify-send", "Updates", "This shell is installed by Nix. Update the flake and rebuild instead."])
