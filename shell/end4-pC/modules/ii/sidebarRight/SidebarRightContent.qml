@@ -694,7 +694,9 @@ Item {
                 toggled: false
                 buttonIcon: "restart_alt"
                 onClicked: {
-                    if (WM.compositor === "niri") {
+                    if (WM.compositor === "hecate") {
+                        Quickshell.execDetached(["hecate", "msg", "reload"]);
+                    } else if (WM.compositor === "niri") {
                         Quickshell.execDetached(["niri", "msg", "action", "reload-config"]);
                     } else {
                         Quickshell.execDetached(["hyprctl", "reload"]);
@@ -702,7 +704,9 @@ Item {
                     Quickshell.reload(true);
                 }
                 StyledToolTip {
-                    text: WM.compositor === "niri"
+                    text: WM.compositor === "hecate"
+                        ? Translation.tr("Reload hecate & Quickshell")
+                        : WM.compositor === "niri"
                         ? Translation.tr("Reload Niri & Quickshell")
                         : Translation.tr("Reload Hyprland & Quickshell")
                 }

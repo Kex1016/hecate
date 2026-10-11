@@ -12,7 +12,8 @@ Singleton {
     signal gammaChangeAttempt()
 
     readonly property real gammaLowerLimit: 25
-    readonly property bool isNiri: WM.compositor === "niri"
+    // niri and hecate both drive wlsunset (wlr-gamma-control).
+    readonly property bool isNiri: WM.niriLike
 
     property string from: Config.options?.light?.night?.from ?? "19:00"
     property string to: Config.options?.light?.night?.to ?? "06:30"

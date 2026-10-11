@@ -7,6 +7,10 @@ Singleton {
     id: root
 
     function closeAllWindows() {
+        if (WM.compositor === "hecate") {
+            WM.windowList.forEach(w => WM.closeWindow(w.id));
+            return;
+        }
         HyprlandData.windowList.map(w => w.pid).forEach(pid => {
             Quickshell.execDetached(["kill", pid]);
         });
@@ -17,7 +21,7 @@ Singleton {
     }
 
     function lock() {
-        if (WM.compositor === "niri") {
+        if (WM.niriLike) {
             Quickshell.execDetached(["qs", "-c", "end4-pC", "ipc", "call", "lock", "activate"]);
         } else {
             Quickshell.execDetached(["loginctl", "lock-session"]);
@@ -30,7 +34,9 @@ Singleton {
 
     function logout() {
         closeAllWindows();
-        if (WM.compositor === "niri") {
+        if (WM.compositor === "hecate") {
+            Quickshell.execDetached(["hecate", "msg", "exit"]);
+        } else if (WM.compositor === "niri") {
             Quickshell.execDetached(["niri", "msg", "action", "quit"]);
         } else {
             Quickshell.execDetached(["pkill", "-i", "Hyprland"]);

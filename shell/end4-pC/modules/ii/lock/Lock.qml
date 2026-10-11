@@ -64,7 +64,7 @@ LockScreen {
                     MaterialThemeLoader.useLockTheme()
                 }
                 
-                if (WM.compositor === "niri") {
+                if (WM.niriLike) {
                     return;
                 }
 
@@ -86,7 +86,7 @@ LockScreen {
                 if (Config.options.background.lockWall !== "") {
                     MaterialThemeLoader.useLiveTheme()
                 }
-                if (WM.compositor !== "niri") {
+                if (!WM.niriLike) {
                     restoreTimer.start()
                 }
             }

@@ -28,7 +28,7 @@ Loader {
             StyledText {
                 id: layoutCodeText
                 horizontalAlignment: Text.AlignHCenter
-                text: WM.compositor === "niri" ? NiriXkb.currentLayoutCode : HyprlandXkb.currentLayoutCode
+                text: WM.niriLike ? NiriXkb.currentLayoutCode : HyprlandXkb.currentLayoutCode
                 font.pixelSize: Appearance.font.pixelSize.small
                 color: root.contentColor
                 animateChange: true

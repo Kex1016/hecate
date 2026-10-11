@@ -85,7 +85,7 @@ Scope {
 
                 function slideIn() {
                     content.y = -content.height;
-                    if (WM.compositor === "niri") {
+                    if (WM.niriLike) {
                         Qt.callLater(() => { Qt.callLater(() => { content.y = 0; }); });
                     } else {
                         Qt.callLater(() => { content.y = 0; });
@@ -103,7 +103,7 @@ Scope {
 
                 Behavior on y {
                     NumberAnimation {
-                        duration: WM.compositor === "niri"
+                        duration: WM.niriLike
                             ? Appearance.animation.sidebarSlideEnter.duration
                             : Appearance.animation.sidebarSlideExit.duration
                         easing.type: GlobalStates.wallpaperSelectorOpen

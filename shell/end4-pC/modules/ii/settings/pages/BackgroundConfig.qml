@@ -31,7 +31,7 @@ ContentPage {
 
             Rectangle {
                 Layout.fillWidth: true
-                visible: WM.compositor !== "niri"
+                visible: !WM.niriLike
                 implicitHeight: wrapperCol.implicitHeight + 16
                 topLeftRadius: Appearance.rounding.verylarge
                 topRightRadius: Appearance.rounding.verylarge
@@ -122,7 +122,7 @@ ContentPage {
 
             Rectangle {
                 Layout.fillWidth: true
-                visible: WM.compositor === "niri"
+                visible: WM.niriLike
                 implicitHeight: niriWrapperCol.implicitHeight + 16
                 topLeftRadius: Appearance.rounding.verylarge
                 topRightRadius: Appearance.rounding.verylarge
@@ -319,7 +319,7 @@ ContentPage {
                         onCheckedChanged: {
                             Config.options.background.centeredWallpaperOnlyWhenLocked = checked;
                         }
-                        enabled: Config.options.background.centeredWallpaper && WM.compositor !== "niri"
+                        enabled: Config.options.background.centeredWallpaper && !WM.niriLike
                     }
                 }
 
@@ -478,7 +478,7 @@ ContentPage {
                 ConfigSwitch {
                     buttonIcon: "lock_clock"
                     text: Translation.tr("Show only when locked")
-                    enabled: WM.compositor !== "niri"
+                    enabled: !WM.niriLike
                     checked: Config.options.background.widgets.clock.showOnlyWhenLocked
                     onCheckedChanged: {
                         Config.options.background.widgets.clock.showOnlyWhenLocked = checked;

@@ -113,7 +113,7 @@ MouseArea {
     Loader {
         anchors.fill: parent
         z: -1
-        active: WM.compositor === "niri"
+        active: WM.niriLike
 
         sourceComponent: Item {
             anchors.fill: parent

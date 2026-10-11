@@ -10,6 +10,8 @@ Singleton {
 
     readonly property string compositor: detectCompositor()
     readonly property bool isHyprland: compositor === "hyprland"
+    // Compositors that take niri's paths in the UI (no Hyprland-only features).
+    readonly property bool niriLike: compositor === "niri" || compositor === "hecate"
     property QtObject backend: null
 
     function switchWorkspaceRelative(direction) { backend?.switchWorkspaceRelative(direction) }

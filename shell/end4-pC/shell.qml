@@ -29,7 +29,7 @@ ShellRoot {
         function onReadyChanged() {
             if (!Config.ready) return
 
-            if (WM.compositor === "niri") {
+            if (WM.niriLike) {
                 Config.options.background.lockWall = ""
                 Config.options.overview.enable = false
             }

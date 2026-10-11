@@ -601,7 +601,7 @@ ContentPage {
         }
     
         ContentSection { // I see that for many the overview is important, I put it first why not
-            visible: WM.compositor !== "niri"
+            visible: !WM.niriLike
             icon: "overview_key"
             shape: MaterialShape.Shape.Gem
             title: Translation.tr("Overview")
@@ -926,7 +926,7 @@ ContentPage {
                 }
                 ConfigSwitch {
                     buttonIcon: "widgets"
-                    enabled: WM.compositor !== "niri"
+                    enabled: !WM.niriLike
                     text: Translation.tr("Show Widgets")
                     checked: Config.options.lock.showWidgets
                     onCheckedChanged: { Config.options.lock.showWidgets = checked }
