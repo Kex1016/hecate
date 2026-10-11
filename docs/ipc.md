@@ -45,6 +45,9 @@ debugging.
 | `"config"`                | effective config as JSON                     |
 | `{"reload": {}}`          | ok / validation errors                       |
 | `{"validate": {"path": ...}}` | validation errors without applying       |
+| `{"set": {"path": "animations.enable", "value": false}}` | runtime override on top of the config, not persisted; validated against the schema |
+| `{"get": {"path": "animations.enable"}}` | effective value (override or config) |
+| `{"unset": {"path": ...}}` / `{"unset": "all"}` | drop overrides |
 | `"event_stream"`          | switches the connection to an event stream (below) |
 
 Window and workspace ids match the ids used in ext-workspace / foreign
@@ -77,6 +80,9 @@ hecate msg windows            # human table
 hecate msg --json windows     # raw JSON
 hecate msg event-stream
 hecate msg reload
+hecate msg set animations.enable false
+hecate msg get animations.enable
+hecate msg unset --all
 ```
 
 ## Not in scope

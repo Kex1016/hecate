@@ -122,10 +122,9 @@ are left out of the shell profile; apps are personal.
 ## Conflicts
 
 Between base (labwc + niri), the shell profile and your niri personal binds.
-**Proposed** resolution in the last column; this is open question 1 in
-PLAN.md.
+Resolution in the last column, **agreed in round 3**.
 
-| bind | niri / base | end-4 shell | your niri personal | proposal |
+| bind | niri / base | end-4 shell | your niri personal | decision |
 | ---- | ----------- | ----------- | ------------------ | -------- |
 | `Mod+J/K/L/M` | focus left/down/up/right | bar / OSK / lock / media | | **shell**; directional focus stays on the arrow keys |
 | `Mod+Shift+J/K/L/M` | focus output | `Shift+L` suspend, `Shift+M` mute | | **shell**; arrows only for output focus |

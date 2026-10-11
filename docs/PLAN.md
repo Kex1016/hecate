@@ -13,6 +13,7 @@ Companion docs:
 - [labwc-survey.md](labwc-survey.md): what labwc does, what we keep and drop
 - [protocols.md](protocols.md): protocol matrix (QuickShell / end4-pC, gaming, desktop)
 - [config.md](config.md): config format, schema, examples
+- [animations.md](animations.md): window, layer, workspace and border animations, Game Mode overrides
 - [shell.md](shell.md): the bundled shell (end4-pC + illogical-impulse) and its port
 - [keybinds.md](keybinds.md): default binds (labwc + your niri setup + end-4's shell binds)
 - [ipc.md](ipc.md): control socket and CLI
@@ -53,7 +54,12 @@ Hard requirements, in priority order:
 
 Non-goals (for now): Openbox compatibility (rc.xml, menu.xml, themerc),
 server-side titlebars, root/client menus, built-in window switcher OSD,
-animations, tiling or scrolling layouts, built-in bar, plugin system.
+tiling or scrolling layouts, built-in bar, plugin system.
+
+Unlike labwc, hecate **animates**: the set end-4's shell expects (window
+open/close/move, layer open/close with per-namespace styles, workspace
+slide, border colour fade). Configurable, globally switchable, and off
+whenever a game is fullscreen. See [animations.md](animations.md).
 
 ## 2. Language and core library
 
@@ -118,7 +124,8 @@ src/
     mod.rs           frame assembly, damage, direct scanout path
     border.rs        rounded border shader element
     clip.rs          rounded-corner clipping of client surfaces
-    blur.rs          dual-kawase blur for ext-background-effect
+    blur.rs          dual-kawase blur (layer rules, ext-background-effect)
+    anim.rs          animation curves, timelines, close-animation snapshots
   shell/
     xdg.rs           xdg-shell toplevels + popups
     layer.rs         wlr-layer-shell, exclusive zones, keyboard modes
@@ -242,7 +249,10 @@ Kept from labwc (adapted, no Openbox semantics):
 - Output margins (labwc `<margin>`) on top of layer-shell exclusive zones.
 - **Layer rules**: match layer-shell surfaces by namespace (regex) and set
   `blur`, `blur_popups`, `ignore_alpha`, `xray`, `no_keyboard_focus`,
-  `opacity`. The shell profile adds end-4's set.
+  `opacity`, `animation`. The shell profile adds end-4's set.
+- **Animations** and **runtime overrides** (`hecate msg set <path>
+  <value>`, used by end4-pC's Game Mode toggle). See
+  [animations.md](animations.md).
 - Libinput per-device config, xkb layouts, repeat, numlock, touch, tablet.
 - Autostart commands and environment variables, from config.
 - Hot reload on file change, `hecate msg reload` and SIGHUP.
@@ -309,7 +319,8 @@ session exit until someone writes a hecate backend for it against our IPC.
   windows behind the panel. That's what end-4 uses, and it's cheap: one
   blurred wallpaper texture per output, re-rendered only when the wallpaper
   changes. Non-xray blur re-samples the live scene each frame.
-  This is the only "bling" we add.
+  Together with animations, this is the visual polish we add; both
+  switch off for fullscreen games.
 - **Global shortcuts**: QuickShell's `GlobalShortcut` is Hyprland-only. Our
   answer is compositor keybinds that `spawn` `qs ipc call <target> <fn>`,
   with separate press and release actions and modifier-only taps (end-4's
@@ -479,27 +490,18 @@ Each phase ends usable and merged. **v1.0 = phases 0 to 6.**
    backend and patches ([shell.md](shell.md)), `hecate-shell` package,
    Python env, Home Manager `shell.enable`, shell keybind profile. VM test
    boots into the full desktop.
-6. **WM polish + blur.** Interactive move/resize, snapping, regions,
+6. **WM polish, blur, animations.** Interactive move/resize, snapping, regions,
    resistance, size presets, placement policies, window rules, margins,
    minimize/maximize/fullscreen edge cases, libinput per-device config,
    touch, tablet, gestures, IME. **Blur**: layer rules (xray first, which
-   end-4 needs) and ext-background-effect. Default keybinds finalised.
-   v1.0 release.
+   end-4 needs) and ext-background-effect. **Animations** (window, layer,
+   workspace, border) and runtime overrides for Game Mode. Default
+   keybinds finalised. v1.0 release.
 7. **After v1.** Noctalia backend, HDR / color management, border
    gradients, zoom, typed Nix options generated from the JSON Schema.
 
 ## 13. Open questions
 
-1. **Bind conflicts** between your niri binds and end-4's shell binds
-   (see [keybinds.md](keybinds.md#conflicts)). Proposal: end-4's shell binds
-   win, since that's the desktop you picked, and your niri binds that clash
-   move or go.
-2. **Pruning dots-hyprland**: OK to vendor only the parts we package (keeps
-   the repo small), or do you want the whole tree in `shell/` for reference?
-3. **Repo rename**: rename `kex1016/wl-hex` to `hecate` on GitHub? (Your
-   call, I can't do it from here.)
-4. **Layer animations**: end-4's Hyprland config also slides panels in
-   (`animation = "slide"` layer rules). Most of end-4's motion is inside
-   QML and keeps working; only the compositor-side open/close slide of
-   layer surfaces would be missing. labwc's philosophy says no animations.
-   Keep it that way, or allow a small opt-in layer open/close slide?
+None right now. Round 3 settled the bind conflicts, what to vendor from
+dots-hyprland and animations ([decisions.md](decisions.md)). The repo
+rename to `hecate` is on your side.

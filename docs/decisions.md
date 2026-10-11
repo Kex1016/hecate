@@ -2,6 +2,15 @@
 
 Log of review decisions on the plan. Newest first.
 
+## Round 3
+
+| topic          | decision                                         | notes |
+| -------------- | ------------------------------------------------ | ----- |
+| Bind conflicts | **as proposed**: end-4's shell binds win, with the listed exceptions | See [keybinds.md](keybinds.md#conflicts) |
+| dots-hyprland  | **vendor whatever we need**                       | Pruned subtree; grows if we need more |
+| Repo rename    | you rename `wl-hex` → `hecate` on GitHub          | Docs already use hecate |
+| Animations     | **add what the shell needs**                     | Window, layer, workspace, border, with end-4's curves; off for fullscreen games; runtime overrides for Game Mode. See [animations.md](animations.md) |
+
 ## Round 2
 
 | topic          | decision                                         | notes |

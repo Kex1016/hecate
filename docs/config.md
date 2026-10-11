@@ -121,6 +121,11 @@ passes = 3
 radius = 6
 noise = 0.02
 
+[animations]                   # see animations.md for every key and the curve list
+enable = true
+window_open = { style = "popin", from = 0.8, ms = 300, curve = "emphasized_decel" }
+workspace_switch = { style = "slide", ms = 700, curve = "menu_decel" }
+
 [keyboard]
 layout = "us"
 repeat_rate = 25
@@ -174,6 +179,10 @@ xray = true
 [[layer_rules]]
 match = { namespace = "quickshell:background" }
 blur = false
+
+[[layer_rules]]
+match = { namespace = "quickshell:bar" }
+animation = "slide"
 
 [[window_rules]]
 match = { app_id = "zen-beta", title = "Picture-in-Picture" }

@@ -87,7 +87,11 @@ backend, which is why it has to be explicit.
    layer rules (`blur`, `ignore_alpha`, `blur_popups`, global `xray`), not
    from the client asking. hecate implements the same rules; the shell
    profile ships end-4's set translated from `hypr/hyprland/rules.lua`.
-5. IPC extras the shell needs: `cursor_position`, `keyboard_layouts`
+5. **Animations** matching end-4's Hyprland settings (window popin/fade,
+   layer popin and per-namespace slides, workspace slide, border fade) and
+   **runtime overrides** for the Game Mode toggle. See
+   [animations.md](animations.md).
+6. IPC extras the shell needs: `cursor_position`, `keyboard_layouts`
    (+ switch), `binds` (cheat sheet), `set_cursor_theme`, output power
    on/off, `reload`.
 
@@ -107,7 +111,7 @@ backend, which is why it has to be explicit.
 | `HyprlandAntiFlashbangShader` | hidden on hecate (Hyprland screen shader, no equivalent) |
 | `HyprlandKeybinds.qml` / cheat sheet | on hecate read `hecate msg -j binds` |
 | Settings → Hyprland config page | replaced on hecate by a page that writes `~/.config/hecate/shell.toml`, which the Nix-generated config `include`s. Nix config stays read-only; shell tweaks go in that file |
-| `getoption animations` | hecate has none, return false |
+| `GameMode.qml` (`hyprctl --batch keyword ...`, `getoption animations:enabled`) | hecate branch using runtime overrides: `hecate msg set animations.enable false`, `blur.enable false`, `border.radius 0`, `gaming.allow_tearing always`, ...; state from `hecate msg get` ([animations.md](animations.md#game-mode-runtime-overrides)) |
 | `DotsUpdater` / `Updates` (git pull into `~/.config`) | disabled in the Nix build, updates come from the flake |
 | `ConflictKiller` (kills other bars/notification daemons) | review; keep but make it Nix-aware |
 
@@ -135,7 +139,8 @@ bundled. With a subtree the patched code is plain files in the repo, and
 resolution. Patch files on top of a flake input would rot on every upstream
 change to a patched file, and end4-pC moves fast.
 
-**Pruning** dots-hyprland keeps the repo smaller: subtree-split only what we
+**Pruning** dots-hyprland keeps the repo smaller (agreed in round 3: keep
+whatever we need, add more later if a feature needs it). Subtree-split only what we
 package (`dots/.config/{matugen,Kvantum,kde-material-you-colors,fontconfig,kitty,foot,fuzzel,fish}`,
 `sdata/uv`, `sdata/dist-nix`, `sdata/deps-info.md`, `licenses/`, `LICENSE`).
 
