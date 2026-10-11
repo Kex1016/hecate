@@ -95,7 +95,7 @@ labwc's action list (from `docs/labwc-actions.5.scd`), with our verdict:
 | ToggleAlwaysOnTop, ToggleAlwaysOnBottom, ToggleOmnipresent | NextWindow/PreviousWindow OSD → plain focus-cycle without OSD (QuickShell can draw one) |
 | Move, Resize (interactive), MoveTo, ResizeTo, MoveRelative, ResizeRelative, MoveToCursor, AutoPlace | ToggleMagnify, ZoomIn, ZoomOut (later, maybe) |
 | MoveToEdge, GrowToEdge, ShrinkToEdge, FitToOutput      | DebugToggleKeyStateIndicator           |
-| SnapToEdge, ToggleSnapToEdge, UnSnap, SnapToRegion, ToggleSnapToRegion | If, ForEach (Lua covers conditionals at config time) |
+| SnapToEdge, ToggleSnapToEdge, UnSnap, SnapToRegion, ToggleSnapToRegion | If, ForEach (Nix covers conditionals at config time) |
 | GoToDesktop, SendToDesktop (`workspace`, `move_to_workspace`) |                                  |
 | FocusOutput, MoveToOutput, WarpCursor, HideCursor      |                                        |
 | ToggleKeybinds (games), ToggleTearing                  |                                        |
