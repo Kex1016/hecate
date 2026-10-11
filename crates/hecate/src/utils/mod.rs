@@ -55,6 +55,13 @@ pub fn spawn(argv: &[String], wayland_display: Option<&str>, extra_env: &BTreeMa
         for (k, v) in &extra_env {
             command.env(k, v);
         }
+        // SAFETY: sigprocmask is async-signal-safe.
+        unsafe {
+            std::os::unix::process::CommandExt::pre_exec(&mut command, || {
+                unblock_signals();
+                Ok(())
+            });
+        }
         match command.spawn() {
             Ok(mut child) => {
                 let _ = child.wait();
@@ -64,6 +71,16 @@ pub fn spawn(argv: &[String], wayland_display: Option<&str>, extra_env: &BTreeMa
     });
     if let Err(err) = res {
         tracing::warn!("error starting spawner thread: {err}");
+    }
+}
+
+/// Children must not inherit the signals we block for calloop (SIGHUP for reload).
+pub fn unblock_signals() {
+    // SAFETY: plain sigprocmask with a valid, empty set.
+    unsafe {
+        let mut set: libc::sigset_t = std::mem::zeroed();
+        libc::sigemptyset(&mut set);
+        libc::sigprocmask(libc::SIG_SETMASK, &set, std::ptr::null_mut());
     }
 }
 

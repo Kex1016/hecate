@@ -172,6 +172,8 @@ fn run_compositor(
     for (k, v) in state.hecate.config.environment.clone() {
         crate::utils::set_child_env(&k, Some(&v));
     }
+    // Sets DISPLAY for children when X11 is available.
+    state.setup_xwayland();
 
     if let Some(path) = state.hecate.config_path.clone() {
         match crate::config::watch::watch(&path, &state.hecate.event_loop) {

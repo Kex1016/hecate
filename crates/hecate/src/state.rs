@@ -152,6 +152,7 @@ pub struct Hecate {
     pub output_state: HashMap<Output, OutputState>,
     /// Outputs changed; output-management needs to resend heads.
     pub output_heads_dirty: bool,
+    pub satellite: Option<crate::xwayland::Satellite>,
     /// Outputs were powered off by the action; the next input powers them on.
     pub wake_outputs_on_input: bool,
 
@@ -511,6 +512,7 @@ impl Hecate {
             popups: PopupManager::default(),
             output_state: HashMap::new(),
             output_heads_dirty: true,
+            satellite: None,
             wake_outputs_on_input: false,
             pointer_location: (0., 0.).into(),
             cursor_status: CursorImageStatus::default_named(),

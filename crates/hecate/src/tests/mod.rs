@@ -18,3 +18,4 @@ mod render;
 mod screencopy;
 mod windows;
 mod workspaces;
+mod xwayland;

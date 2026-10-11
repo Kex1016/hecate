@@ -20,6 +20,7 @@ mod state;
 mod tools;
 mod utils;
 mod wm;
+mod xwayland;
 
 #[cfg(test)]
 mod tests;

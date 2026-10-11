@@ -483,6 +483,10 @@ impl State {
         if old.outputs != self.hecate.config.outputs {
             self.backend.apply_output_config(&mut self.hecate);
         }
+        if old.xwayland != self.hecate.config.xwayland {
+            self.teardown_xwayland();
+            self.setup_xwayland();
+        }
         if old.input != self.hecate.config.input {
             self.backend.apply_input_config(&self.hecate.config);
         }
