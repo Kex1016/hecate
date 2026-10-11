@@ -50,7 +50,8 @@ Of that, roughly **9k lines** we would not reimplement at all: `theme.c`,
   Copy all three.
 - **Reconfigure** keeps state, reloads config, re-applies rules and borders.
 - `xwaylandPersistence`: keep XWayland running once started (lazy start
-  by default). Copy.
+  by default). We get lazy start from spawning xwayland-satellite on the
+  first X11 connection; persistence is satellite's default.
 - Session/environment handling (`config/session.c`): reads
   `~/.config/labwc/environment`, runs `autostart`/`shutdown`, updates the
   dbus/systemd activation environment. We need the same, minus shell

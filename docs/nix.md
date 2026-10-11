@@ -1,50 +1,45 @@
 # NixOS / flakes
 
-First-class target: install and run wl-hex on NixOS from this repo's flake
-with no extra overlays or manual steps.
+First-class target: install, run and fully configure wl-hex on NixOS from
+this repo's flake, with config written as plain Nix attrsets.
 
 ## flake.nix outputs
 
 ```
-packages.<system>.default        wl-hex (compositor + wl-hex msg CLI later)
-packages.<system>.wl-hex
+packages.<system>.default        wl-hex (compositor + `msg` CLI)
 overlays.default                 pkgs.wl-hex
 nixosModules.default             programs.wl-hex
 homeManagerModules.default       wayland.windowManager.wl-hex
-devShells.<system>.default       rust toolchain, rust-analyzer, deps, wayland-info, weston-* clients
-checks.<system>.*                build, clippy, fmt, tests, nixos VM test
+devShells.<system>.default       rust toolchain, rust-analyzer, deps, wayland-info, foot, xwayland-satellite
+checks.<system>.*                build, clippy, fmt, tests, example-config validation, nixos VM test
 formatter.<system>               nixfmt-rfc-style
 ```
 
 Systems: `x86_64-linux`, `aarch64-linux`.
 
-Inputs: `nixpkgs` (unstable), `crane` (incremental Rust builds, cached deps),
-`rust-overlay` or `fenix` only if we need a newer toolchain than nixpkgs
-ships. Keep inputs minimal; no flake-utils if a small `forAllSystems`
-helper does the job.
+Inputs: `nixpkgs` (unstable) and `crane` (incremental Rust builds, cached
+deps). `rust-overlay` only if we need a newer toolchain than nixpkgs ships.
+No flake-utils; a small `forAllSystems` helper is enough.
 
 ## Package
 
-- `nativeBuildInputs`: `pkg-config`, `rustPlatform.bindgenHook` (if needed).
-- `buildInputs`: `libinput`, `libxkbcommon`, `mesa`/`libgbm`, `libdrm`,
-  `udev`, `seatd` (libseat), `wayland`, `pixman`, `libdisplay-info`,
-  `lua5_4` (if `mlua` uses system Lua, otherwise vendored).
-- Runtime: `xwayland` on `PATH` (wrapped with `makeWrapper --prefix PATH`),
-  EGL/GBM drivers come from `/run/opengl-driver` via `hardware.graphics`.
-- Installs `share/wayland-sessions/wl-hex.desktop` and
-  `share/xdg-desktop-portal/wl-hex-portals.conf`;
+- `nativeBuildInputs`: `pkg-config`, `makeWrapper`.
+- `buildInputs`: `libinput`, `libxkbcommon`, `libgbm`, `libdrm`, `udev`,
+  `seatd` (libseat), `wayland`, `pixman`, `libdisplay-info`.
+- Wrapped with `--prefix PATH : ${xwayland-satellite}/bin` (satellite
+  itself brings `xwayland`). EGL/GBM drivers come from
+  `/run/opengl-driver` via `hardware.graphics`.
+- Installs `share/wayland-sessions/wl-hex.desktop`,
+  `share/xdg-desktop-portal/wl-hex-portals.conf` and the JSON Schema;
   `passthru.providedSessions = [ "wl-hex" ]`.
-- `meta.mainProgram = "wl-hex"`.
+- `meta.mainProgram = "wl-hex"`, `meta.license = lib.licenses.gpl3Plus`.
 
 ## NixOS module: `programs.wl-hex`
 
 ```nix
 {
-  programs.wl-hex = {
-    enable = true;
-    package = inputs.wl-hex.packages.${pkgs.system}.default;
-    xwayland.enable = true;
-  };
+  imports = [ inputs.wl-hex.nixosModules.default ];
+  programs.wl-hex.enable = true;
 }
 ```
 
@@ -55,14 +50,14 @@ Does:
 - `hardware.graphics.enable = true`
 - `security.polkit.enable = true`, `programs.dconf.enable = true`
 - `xdg.portal`: enable, `extraPortals = [ xdg-desktop-portal-wlr xdg-desktop-portal-gtk ]`,
-  `configPackages = [ cfg.package ]` (ships `wl-hex-portals.conf`:
-  ScreenCast/Screenshot → wlr, everything else → gtk)
-- `services.seatd` not required when logind is present (libseat uses logind)
-- `programs.xwayland.enable = cfg.xwayland.enable`
-- Optional `programs.wl-hex.gaming.enable`: turns on
-  `hardware.graphics.enable32Bit`, adds `gamescope`, sets
-  `programs.steam.extraCompatPackages` hints. Kept small; users usually
-  configure Steam themselves.
+  `configPackages = [ cfg.package ]`. The shipped `wl-hex-portals.conf`:
+  `default=gtk`, `ScreenCast=wlr`, `Screenshot=wlr`,
+  `Secret=gnome-keyring`.
+  (`xdg-desktop-portal-gnome` won't work: it needs Mutter's D-Bus
+  screencast API, which niri emulates and we don't.)
+- Optional `programs.wl-hex.gaming.enable`: `hardware.graphics.enable32Bit`,
+  `programs.gamescope.enable`. Kept small; you already configure Steam and
+  gamemode in `generic/system/gaming.nix`.
 
 ## Home Manager module: `wayland.windowManager.wl-hex`
 
@@ -70,53 +65,51 @@ Does:
 {
   wayland.windowManager.wl-hex = {
     enable = true;
-    format = "lua";                  # or "json"
-    settings = {
-      border = {
-        width = 2;
-        radius = { top_left = 12; top_right = 12; bottom_right = 4; bottom_left = 4; };
-        color = { active = "#89b4fa"; inactive = "#45475a"; };
-      };
-      keyboard.binds = [
-        { key = "Super+Return"; action.spawn = [ "foot" ]; }
-      ];
-    };
-    extraConfig = ''
-      -- raw Lua appended; can modify `config` before it is returned
-    '';
+    settings = { /* plain attrset, see config.md */ };
     systemd.enable = true;
   };
 }
 ```
 
+Options:
+
+- `settings`: type `(pkgs.formats.toml { }).type`, i.e. any attrset that
+  serialises to TOML. Merges across modules like any NixOS attrset, so a
+  host module can override or add binds from a shared module.
+- `extraConfigFiles`: list of paths added to `include`.
+- `package`: used for validation and `systemd` paths.
+- `systemd.enable` (default true): creates `wl-hex-session.target`
+  (`BindsTo=graphical-session.target`, `Wants=graphical-session-pre.target`)
+  so shells and daemons run as user services, e.g.
+  `systemd.user.services.noctalia-shell.Install.WantedBy = [ "graphical-session.target" ]`.
+- `systemd.variables`: env vars imported into the activation environment
+  at startup (default: `WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP
+  XDG_SESSION_TYPE WL_HEX_SOCKET NIXOS_OZONE_WL`).
+
 Does:
 
-- Writes `xdg.configFile."wl-hex/init.lua"` (via `lib.generators.toLua`)
-  or `config.json`.
-- `systemd.enable` creates `wl-hex-session.target` (`BindsTo` +
-  `Wants=graphical-session-pre.target`, `Before=graphical-session.target`),
-  so QuickShell can run as a user service:
-  `systemd.user.services.quickshell.Install.WantedBy = [ "graphical-session.target" ]`.
-- The compositor, on start, runs `dbus-update-activation-environment
-  --systemd WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE`
-  and starts the target; on exit stops it. (labwc does the same in
-  `config/session.c`.)
-- Config validation at build time: `checkPhase` runs
-  `wl-hex --check-config <file>` so a bad config fails `home-manager switch`
-  instead of at login.
+- Writes `xdg.configFile."wl-hex/config.toml"` with `pkgs.formats.toml`.
+- Validates it at build time: the generated file is passed through
+  `wl-hex validate`, so a typo fails `home-manager switch` / `nixos-rebuild`
+  instead of breaking login.
 
-## QuickShell on NixOS
+### Typing
 
-QuickShell is in nixpkgs (`pkgs.quickshell`) and has its own flake. We
-document both:
+v1 uses the freeform TOML type plus build-time validation (cheap, always in
+sync with the compositor). After v1, generate fully typed Nix options with
+descriptions from the JSON Schema, like niri-flake's typed `settings`,
+so `nixos-option` and editor completion work in Nix too.
 
-- simple: `autostart = { { "qs" } }` in config
-- systemd: HM user service bound to `graphical-session.target`
+## Shells on NixOS
+
+- Noctalia: your flake already pulls it. Run it from `autostart` or as a
+  user service bound to `graphical-session.target`.
+- QuickShell: `pkgs.quickshell` or its flake; same two options.
 
 ## VM test (checks)
 
-`nixosTest` with `virtualisation.qemu.options = [ "-vga none" "-device virtio-gpu-pci" ]`:
-log in a user, start `wl-hex` on the DRM backend (or headless backend if
-virtio-gpu proves flaky in CI), wait for the socket, run `wayland-info` and
-assert the expected globals are present, start a QuickShell config with a
-`PanelWindow`, take a screenshot via `grim`.
+`nixosTest` with virtio-gpu: log in a user, start wl-hex on the DRM backend
+(or the headless backend if virtio-gpu proves flaky in CI), wait for the
+socket, run `wayland-info` and assert the expected globals are present,
+`wl-hex msg outputs`, start an X11 client to exercise satellite, start a
+QuickShell config with a `PanelWindow`, take a screenshot with `grim`.

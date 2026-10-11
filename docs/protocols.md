@@ -3,7 +3,7 @@
 Legend for **Source**: `smithay` = handler exists in Smithay 0.7
 (`src/wayland/`), `own` = we implement on top of the protocol crates.
 **Phase** refers to PLAN.md section 11. **Why** lists who needs it:
-QS = QuickShell, G = gaming, D = general desktop / ecosystem tools.
+QS = QuickShell (Noctalia 5.x binds the same set, see PLAN.md section 6), G = gaming, D = general desktop / ecosystem tools.
 
 ## Core
 
@@ -38,7 +38,7 @@ QS = QuickShell, G = gaming, D = general desktop / ecosystem tools.
 | idle-inhibit-unstable-v1              | smithay | 3     | QS `IdleInhibitor`, G, video |
 | keyboard-shortcuts-inhibit-v1         | smithay | 3     | QS `ShortcutInhibitor`, G, VMs |
 | ext-background-effect-v1              | smithay | 5     | QS `BackgroundEffect` (blur) |
-| hyprland-focus-grab-v1 (optional)     | own     | 5     | QS `HyprlandFocusGrab` |
+| hyprland-focus-grab-v1                | own     | 3     | QS `HyprlandFocusGrab`, Noctalia popups |
 | xdg-activation-v1                     | smithay | 3     | focus requests, notifications |
 | wlr-data-control / ext-data-control   | smithay | 3     | clipboard managers, QS |
 | xdg-foreign v1/v2                     | smithay | 3     | portals parent windows |
@@ -70,9 +70,12 @@ QS = QuickShell, G = gaming, D = general desktop / ecosystem tools.
 | wp-tearing-control-v1             | own     | 4     | async flips             |
 | content-type-v1                   | smithay | 4     | `game` hint → policy    |
 | drm-lease-v1                      | smithay | 4     | VR headsets             |
-| xwayland-shell-v1                 | smithay | 4     | Xwayland surface mapping |
-| xwayland-keyboard-grab-v1         | smithay | 4     | X11 games grabbing keys |
 | alpha-modifier-v1                 | smithay | 4     | overlays (mangohud etc.) |
+
+X11 goes through xwayland-satellite, which is itself the Wayland server
+for Xwayland. So xwayland-shell-v1 and xwayland-keyboard-grab-v1 are not
+needed on our side; satellite forwards what X11 games need (pointer
+constraints, relative pointer, dmabuf) as normal Wayland requests.
 
 ## Input
 
