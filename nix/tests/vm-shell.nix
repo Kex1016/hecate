@@ -73,13 +73,16 @@ pkgs.testers.runNixOSTest {
     assert shell_binds, "no shell binds in the generated config"
 
     # Start the shell through its own unit, the way hecate-session.target would.
+    # What hecate imports into the session on a real login (HECATE_NO_SESSION skips it here);
+    # the shell tells it's on hecate from these.
     machine.succeed(as_alice(
-        f"systemctl --user set-environment WAYLAND_DISPLAY={disp} QT_QUICK_BACKEND=software"
+        f"systemctl --user set-environment WAYLAND_DISPLAY={disp} HECATE_SOCKET={sock} "
+        "XDG_CURRENT_DESKTOP=hecate QT_QUICK_BACKEND=software"
     ))
     machine.succeed(as_alice("systemctl --user start hecate-shell"))
 
     def dump():
-        print(machine.execute(as_alice("journalctl --user -u hecate-shell --no-pager | tail -80"))[1])
+        print(machine.execute(as_alice("journalctl --user -u hecate-shell --no-pager | grep -v icon | tail -80"))[1])
         print(machine.execute(as_alice(f"HECATE_SOCKET={sock} hecate msg --json layers"))[1])
 
     try:
