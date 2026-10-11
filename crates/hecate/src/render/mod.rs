@@ -132,7 +132,11 @@ impl Hecate {
             let render_loc = to_local(Wm::render_location(window));
             let is_focused = focused.as_ref() == Some(window.toplevel_surface().wl_surface());
             let alpha = window.data().rules.opacity.unwrap_or(1.0).clamp(0., 1.);
-            let style = border::style_for(&self.config, window, is_focused);
+            let style = if self.identify_until.is_some() {
+                border::style_for_identify(&self.config, window, is_focused)
+            } else {
+                border::style_for(&self.config, window, is_focused)
+            };
             let geo_rect = self.wm.window_rect(window);
             let _ = render_loc;
             border::push_window(

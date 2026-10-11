@@ -630,6 +630,10 @@ impl Tty {
         hecate.on_vblank(&output);
     }
 
+    pub fn renderer_mut(&mut self) -> Option<&mut GlesRenderer> {
+        self.renderer.as_mut()
+    }
+
     pub fn import_dmabuf(&mut self, dmabuf: &Dmabuf) -> bool {
         let ok = self
             .renderer

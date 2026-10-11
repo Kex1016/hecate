@@ -8,9 +8,12 @@ mod config;
 mod cursor;
 mod handlers;
 mod input;
+mod ipc;
+mod overrides;
 mod render;
 mod session;
 mod state;
+mod tools;
 mod utils;
 mod wm;
 

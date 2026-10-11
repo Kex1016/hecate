@@ -75,7 +75,17 @@ pub struct OutputState {
 }
 
 pub struct Hecate {
+    /// Effective config: the file plus runtime overrides.
     pub config: Config,
+    /// The config as loaded from disk.
+    pub file_config: Config,
+    /// Runtime overrides (`hecate msg set`), in order.
+    pub overrides: Vec<(String, serde_json::Value)>,
+    pub config_reload_failures: u64,
+    pub last_config_error: Option<String>,
+    pub ipc: Option<crate::ipc::IpcServer>,
+    /// Windows highlighted by `hecate msg identify` until this time.
+    pub identify_until: Option<Instant>,
     pub config_path: Option<PathBuf>,
     pub binds: Vec<Bind>,
     pub mouse_binds: Vec<(KeyCombo, MouseBind)>,
@@ -216,7 +226,13 @@ impl State {
         self.hecate.popups.cleanup();
         self.hecate.wm.refresh();
         self.update_keyboard_focus_if_needed();
+        if self.hecate.identify_until.is_some_and(|t| Instant::now() >= t) {
+            self.hecate.identify_until = None;
+            self.hecate.queue_redraw_all();
+        }
         self.hecate.redraw_queued_outputs(&mut self.backend);
+        self.ipc_refresh();
+        self.ipc_flush();
         if let Err(err) = self.hecate.display_handle.flush_clients() {
             tracing::warn!("error flushing clients: {err}");
         }
@@ -377,6 +393,12 @@ impl Hecate {
 
         Ok(Hecate {
             wm: Wm::new(),
+            file_config: config.clone(),
+            overrides: Vec::new(),
+            config_reload_failures: 0,
+            last_config_error: None,
+            ipc: None,
+            identify_until: None,
             config,
             config_path,
             binds,
@@ -537,4 +559,48 @@ impl Hecate {
     pub fn spawn(&self, argv: &[String]) {
         crate::utils::spawn(argv, self.socket_name.as_deref(), &self.config.environment);
     }
+}
+
+/// Interface names of the globals hecate advertises (for `hecate msg protocols`).
+pub fn advertised_globals() -> Vec<String> {
+    [
+        "wl_compositor",
+        "wl_subcompositor",
+        "wl_shm",
+        "wl_seat",
+        "wl_output",
+        "wl_data_device_manager",
+        "xdg_wm_base",
+        "zxdg_output_manager_v1",
+        "zxdg_decoration_manager_v1",
+        "org_kde_kwin_server_decoration_manager",
+        "zwlr_layer_shell_v1",
+        "ext_session_lock_manager_v1",
+        "zwp_linux_dmabuf_v1",
+        "wp_viewporter",
+        "wp_fractional_scale_manager_v1",
+        "wp_presentation",
+        "xdg_activation_v1",
+        "zxdg_exporter_v2",
+        "zxdg_importer_v2",
+        "wp_cursor_shape_manager_v1",
+        "wp_single_pixel_buffer_manager_v1",
+        "ext_idle_notifier_v1",
+        "zwp_idle_inhibit_manager_v1",
+        "zwp_keyboard_shortcuts_inhibit_manager_v1",
+        "zwp_pointer_constraints_v1",
+        "zwp_relative_pointer_manager_v1",
+        "zwp_pointer_gestures_v1",
+        "wp_security_context_manager_v1",
+        "zwp_text_input_manager_v3",
+        "zwp_input_method_manager_v2",
+        "zwp_virtual_keyboard_manager_v1",
+        "zwp_tablet_manager_v2",
+        "zwp_primary_selection_device_manager_v1",
+        "zwlr_data_control_manager_v1",
+        "ext_data_control_manager_v1",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect()
 }

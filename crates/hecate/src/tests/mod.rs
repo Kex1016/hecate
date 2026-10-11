@@ -5,6 +5,7 @@
 mod client;
 mod decorations;
 mod fixture;
+mod ipc;
 mod layers;
 mod render;
 mod windows;

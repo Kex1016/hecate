@@ -42,6 +42,8 @@ pub enum Command {
     PrintDefaultConfig,
     /// Diagnose the environment: GPU, outputs, session, tools, config
     Check,
+    /// Talk to the running compositor (windows, workspaces, actions, pick, …)
+    Msg(crate::ipc::client::MsgArgs),
     /// Generate shell completions
     Completions { shell: clap_complete::Shell },
 }
@@ -66,6 +68,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             print!("{}", toml::to_string_pretty(&config)?);
             Ok(())
         }
+        Some(Command::Msg(args)) => crate::ipc::client::run(args),
         Some(Command::Check) => {
             let findings = crate::check::run(cli.config);
             if !crate::check::print(&findings) {
@@ -151,6 +154,9 @@ fn run_compositor(
         h.add_output(hecate, "headless-1", (1920, 1080));
     }
 
+    if let Err(err) = crate::ipc::IpcServer::start(&mut state) {
+        tracing::warn!("IPC disabled: {err}");
+    }
     let socket = state.hecate.socket_name.clone().unwrap_or_default();
     tracing::info!("listening on WAYLAND_DISPLAY={socket}");
     // SAFETY: set before spawning any threads that read the environment.

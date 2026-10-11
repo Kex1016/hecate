@@ -114,6 +114,18 @@ impl Backend {
         }
     }
 
+    /// Run something with the primary renderer, if there is one.
+    pub fn with_renderer<T>(
+        &mut self,
+        f: impl FnOnce(&mut smithay::backend::renderer::gles::GlesRenderer) -> T,
+    ) -> Option<T> {
+        match self {
+            Backend::Tty(b) => b.renderer_mut().map(f),
+            Backend::Winit(b) => Some(f(b.renderer())),
+            Backend::Headless(b) => b.renderer().map(f),
+        }
+    }
+
     pub fn headless(&mut self) -> &mut Headless {
         match self {
             Backend::Headless(h) => h,

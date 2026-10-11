@@ -414,10 +414,17 @@ impl State {
         match result {
             Ok(config) => {
                 tracing::info!("config reloaded");
-                self.apply_config(config);
+                self.hecate.last_config_error = None;
+                let effective = self.effective_config(&config);
+                self.hecate.file_config = config;
+                self.apply_config(effective);
+                self.ipc_broadcast_event(hecate_ipc::Event::ConfigReloaded { failed: false });
             }
             Err(err) => {
                 tracing::warn!("config reload failed, keeping the current config: {err}");
+                self.hecate.config_reload_failures += 1;
+                self.hecate.last_config_error = Some(err.to_string());
+                self.ipc_broadcast_event(hecate_ipc::Event::ConfigReloaded { failed: true });
                 if let Some(cmd) = self.hecate.config.general.error_command.clone() {
                     let msg = err.to_string();
                     let argv: Vec<String> = cmd.iter().map(|a| a.replace("{error}", &msg)).collect();

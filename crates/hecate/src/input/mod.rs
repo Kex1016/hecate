@@ -35,6 +35,7 @@ enum KeyResult {
     Swallow,
     /// Ctrl+Alt+Fn: switch virtual terminal.
     Vt(i32),
+    CancelPick,
 }
 
 impl State {
@@ -81,9 +82,40 @@ impl State {
         let was_suppressed = self.hecate.suppressed_keys.contains(&raw_code);
         let pending_tap = self.hecate.pending_mod_tap.take();
 
+        let picking = self.has_pending_pick();
         let keyboard = self.hecate.seat.get_keyboard().unwrap();
+        let mut key_report: Option<hecate_ipc::KeyEvent> = None;
         let result = keyboard.input(self, keycode, state, serial, time, |_, mods, handle| {
             let modifiers = Modifiers::from_xkb(mods);
+            {
+                let sym = handle
+                    .raw_latin_sym_or_raw_current_sym()
+                    .unwrap_or_else(|| handle.modified_sym());
+                let combo = crate::config::keys::KeyCombo {
+                    modifiers,
+                    trigger: Trigger::Keysym(sym),
+                };
+                key_report = Some(hecate_ipc::KeyEvent {
+                    pressed,
+                    keycode: raw_code,
+                    keysym: smithay::input::keyboard::xkb::keysym_get_name(sym),
+                    modifiers: combo
+                        .to_string()
+                        .split('+')
+                        .rev()
+                        .skip(1)
+                        .map(String::from)
+                        .collect(),
+                    bind: combo.to_string(),
+                    fired: None,
+                });
+            }
+            if picking {
+                if pressed && handle.modified_sym() == smithay::input::keyboard::Keysym::Escape {
+                    return FilterResult::Intercept(KeyResult::CancelPick);
+                }
+                return FilterResult::Intercept(KeyResult::Swallow);
+            }
             let sym = handle
                 .raw_latin_sym_or_raw_current_sym()
                 .unwrap_or_else(|| handle.modified_sym());
@@ -155,6 +187,18 @@ impl State {
             FilterResult::Forward
         });
 
+        if let Some(mut report) = key_report {
+            if let Some(KeyResult::Bind(value, _)) = &result {
+                report.fired = value
+                    .action
+                    .as_ref()
+                    .or(value.on_press.as_ref())
+                    .or(value.tap.as_ref())
+                    .and_then(|a| serde_json::to_string(a).ok());
+            }
+            self.ipc_broadcast_key(report);
+        }
+
         // Track modifier taps: a lone modifier press arms it, anything else disarms.
         let is_mod_press = pressed && {
             let kb = self.hecate.seat.get_keyboard().unwrap();
@@ -191,6 +235,10 @@ impl State {
             }
             Some(KeyResult::Swallow) => {
                 self.hecate.suppressed_keys.retain(|k| *k != raw_code);
+            }
+            Some(KeyResult::CancelPick) => {
+                self.hecate.suppressed_keys.push(raw_code);
+                self.finish_picks(true);
             }
             Some(KeyResult::Vt(vt)) => {
                 self.hecate.suppressed_keys.push(raw_code);
@@ -467,6 +515,12 @@ impl State {
         let button = event.button_code();
         let state = event.state();
         let pointer = self.hecate.seat.get_pointer().unwrap();
+
+        if state == ButtonState::Pressed && self.has_pending_pick() {
+            self.hecate.suppressed_buttons.push(button);
+            self.finish_picks(button != crate::config::keys::BTN_LEFT);
+            return;
+        }
 
         if state == ButtonState::Pressed && !pointer.is_grabbed() {
             let pos = pointer.current_location();

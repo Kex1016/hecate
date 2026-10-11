@@ -202,6 +202,15 @@ pub struct BorderStyle {
 }
 
 pub fn style_for(config: &Config, window: &Window, focused: bool) -> BorderStyle {
+    style_for_inner(config, window, focused, false)
+}
+
+/// `identify`: thick urgent-coloured borders on every window for a moment.
+pub fn style_for_identify(config: &Config, window: &Window, focused: bool) -> BorderStyle {
+    style_for_inner(config, window, focused, true)
+}
+
+fn style_for_inner(config: &Config, window: &Window, focused: bool, identify: bool) -> BorderStyle {
     let d = window.data();
     let o = d.rules.border.clone().unwrap_or_default();
     let width = o.width.unwrap_or(config.border.width).max(0.);
@@ -219,6 +228,15 @@ pub fn style_for(config: &Config, window: &Window, focused: bool) -> BorderStyle
     let maximized_hides = d.maximized != Maximized::No && !config.border.keep_on_maximize;
     let fullscreen = d.fullscreen;
     let draw_border = width > 0. && !d.border_hidden && !maximized_hides && !fullscreen;
+    if identify {
+        return BorderStyle {
+            width: width.max(6.),
+            radius,
+            color: colors.urgent,
+            clip,
+            draw_border: true,
+        };
+    }
     BorderStyle {
         width: if draw_border { width } else { 0. },
         // Fullscreen and maximized windows get square corners.

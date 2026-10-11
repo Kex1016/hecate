@@ -143,6 +143,10 @@ impl Winit {
         submitted
     }
 
+    pub fn renderer(&mut self) -> &mut GlesRenderer {
+        self.backend.renderer()
+    }
+
     pub fn import_dmabuf(&mut self, dmabuf: &Dmabuf) -> bool {
         self.backend.renderer().import_dmabuf(dmabuf, None).is_ok()
     }
