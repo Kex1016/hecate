@@ -25,6 +25,8 @@ rec {
       ../rustfmt.toml
       ../crates
       ../resources
+      # A test checks the base binds against their docs.
+      ../docs/keybinds.md
     ];
   };
 
