@@ -631,7 +631,7 @@ checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
 name = "hecate"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -667,7 +667,7 @@ dependencies = [
 
 [[package]]
 name = "hecate-ipc"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "serde",
  "serde_json",
