@@ -2,6 +2,9 @@
 //!
 //! Adapted from niri (src/protocols/gamma_control.rs), GPL-3.0-or-later.
 
+// `Output` hashes by identity; its interior mutability does not affect the key.
+#![allow(clippy::mutable_key_type)]
+
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
