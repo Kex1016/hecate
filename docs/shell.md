@@ -83,7 +83,11 @@ backend, which is why it has to be explicit.
    search). hecate binds support `on_press` + `on_release` actions and
    modifier-only taps (fires on release only if no other key was pressed).
    See [keybinds.md](keybinds.md).
-4. IPC extras the shell needs: `cursor_position`, `keyboard_layouts`
+4. **Layer rules with blur**: end-4 gets its frosted panels from Hyprland
+   layer rules (`blur`, `ignore_alpha`, `blur_popups`, global `xray`), not
+   from the client asking. hecate implements the same rules; the shell
+   profile ships end-4's set translated from `hypr/hyprland/rules.lua`.
+5. IPC extras the shell needs: `cursor_position`, `keyboard_layouts`
    (+ switch), `binds` (cheat sheet), `set_cursor_theme`, output power
    on/off, `reload`.
 

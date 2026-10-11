@@ -240,6 +240,9 @@ Kept from labwc (adapted, no Openbox semantics):
 - Keybinds and mousebinds mapped to actions ([keybinds.md](keybinds.md),
   action list in [labwc-survey.md](labwc-survey.md#actions)).
 - Output margins (labwc `<margin>`) on top of layer-shell exclusive zones.
+- **Layer rules**: match layer-shell surfaces by namespace (regex) and set
+  `blur`, `blur_popups`, `ignore_alpha`, `xray`, `no_keyboard_focus`,
+  `opacity`. The shell profile adds end-4's set.
 - Libinput per-device config, xkb layouts, repeat, numlock, touch, tablet.
 - Autostart commands and environment variables, from config.
 - Hot reload on file change, `hecate msg reload` and SIGHUP.
@@ -293,10 +296,20 @@ session exit until someone writes a hecate backend for it against our IPC.
   `keyboard_interactivity` none/exclusive/on_demand, margin, layer changes
   after map, popups parented to layer surfaces, output hotplug re-sending
   `configure`, per-output surfaces created on output add.
-- **Blur (v1)** for `ext-background-effect`: a dual-kawase pass over what
-  is behind the surface, restricted to the region the client sets, with
-  config for passes/radius/noise and a global off switch. The only "bling"
-  we add, opt-in by the client.
+- **Blur (v1)**: a dual-kawase pass over what is behind a surface, with
+  config for passes/radius/noise and a global off switch. Two ways to get
+  it:
+  - the client asks via `ext-background-effect` (QuickShell
+    `BackgroundEffect`), restricted to the region it sets;
+  - **layer rules** in hecate's config, matched on layer-shell namespace.
+    end-4 relies on these: its Hyprland config blurs `quickshell:.*`
+    surfaces with `ignore_alpha = 0.79` (only pixels above that alpha get
+    blur behind them), `blur_popups`, and `xray = true` globally.
+  `xray` mode blurs only the background/bottom layers (the wallpaper), not
+  windows behind the panel. That's what end-4 uses, and it's cheap: one
+  blurred wallpaper texture per output, re-rendered only when the wallpaper
+  changes. Non-xray blur re-samples the live scene each frame.
+  This is the only "bling" we add.
 - **Global shortcuts**: QuickShell's `GlobalShortcut` is Hyprland-only. Our
   answer is compositor keybinds that `spawn` `qs ipc call <target> <fn>`,
   with separate press and release actions and modifier-only taps (end-4's
@@ -453,7 +466,7 @@ Each phase ends usable and merged. **v1.0 = phases 0 to 6.**
 2. **Borders.** Rounded per-corner border shader, content clipping,
    active/inactive colours, xdg-decoration server-side negotiation.
 3. **Shell baseline.** Layer-shell (full), wlr-foreign-toplevel,
-   ext-foreign-toplevel-list, workspaces (both modes) + ext-workspace,
+   ext-foreign-toplevel-list, workspaces (both scopes, fixed + auto) + ext-workspace,
    session-lock, idle notify/inhibit, shortcuts inhibit, screencopy (ext +
    wlr), data-control, xdg-activation, output-management, output-power,
    gamma, focus-grab. **IPC socket + `hecate msg`** (niri-shaped JSON).
@@ -469,8 +482,9 @@ Each phase ends usable and merged. **v1.0 = phases 0 to 6.**
 6. **WM polish + blur.** Interactive move/resize, snapping, regions,
    resistance, size presets, placement policies, window rules, margins,
    minimize/maximize/fullscreen edge cases, libinput per-device config,
-   touch, tablet, gestures, IME. **ext-background-effect blur.** Default
-   keybinds finalised. v1.0 release.
+   touch, tablet, gestures, IME. **Blur**: layer rules (xray first, which
+   end-4 needs) and ext-background-effect. Default keybinds finalised.
+   v1.0 release.
 7. **After v1.** Noctalia backend, HDR / color management, border
    gradients, zoom, typed Nix options generated from the JSON Schema.
 
@@ -484,3 +498,8 @@ Each phase ends usable and merged. **v1.0 = phases 0 to 6.**
    the repo small), or do you want the whole tree in `shell/` for reference?
 3. **Repo rename**: rename `kex1016/wl-hex` to `hecate` on GitHub? (Your
    call, I can't do it from here.)
+4. **Layer animations**: end-4's Hyprland config also slides panels in
+   (`animation = "slide"` layer rules). Most of end-4's motion is inside
+   QML and keeps working; only the compositor-side open/close slide of
+   layer surfaces would be missing. labwc's philosophy says no animations.
+   Keep it that way, or allow a small opt-in layer open/close slide?

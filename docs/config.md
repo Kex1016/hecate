@@ -115,7 +115,7 @@ range = { inner = 10, outer = 10 }
 corner_range = 50
 top_maximize = true
 
-[blur]                         # ext-background-effect, only for surfaces that ask
+[blur]                         # used by layer_rules and ext-background-effect
 enable = true
 passes = 3
 radius = 6
@@ -162,6 +162,18 @@ QT_QPA_PLATFORM = "wayland"
 [mouse_binds]
 "Mod+BTN_LEFT" = { action = "move", context = "window" }
 "Mod+BTN_RIGHT" = { action = "resize", context = "window" }
+
+# layer rules (the shell profile adds end-4's set; these are a sample)
+[[layer_rules]]
+match = { namespace = "quickshell:.*" }
+blur = true
+blur_popups = true
+ignore_alpha = 0.79
+xray = true
+
+[[layer_rules]]
+match = { namespace = "quickshell:background" }
+blur = false
 
 [[window_rules]]
 match = { app_id = "zen-beta", title = "Picture-in-Picture" }
