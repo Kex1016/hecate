@@ -16,7 +16,8 @@ Companion docs:
 - [animations.md](animations.md): window, layer, workspace and border animations, Game Mode overrides
 - [shell.md](shell.md): the bundled shell (end4-pC + illogical-impulse) and its port
 - [keybinds.md](keybinds.md): default binds (labwc + your niri setup + end-4's shell binds)
-- [ipc.md](ipc.md): control socket and CLI
+- [ipc.md](ipc.md): control socket
+- [cli.md](cli.md): `hecate` command line: window identification (`pick`, `identify`, `rules`), debugging, diagnostics
 - [nix.md](nix.md): flake layout, NixOS and Home Manager modules
 - [names.md](names.md): the name (hecate) and where it applies
 
@@ -198,7 +199,7 @@ Design:
 - `width = 0` disables the border but still allows corner clipping (this is
   your current niri look: radius 15, clipped, no visible border).
 
-Decoration negotiation: we advertise **xdg-decoration** and KDE
+Decoration negotiation (approved in round 4): we advertise **xdg-decoration** and KDE
 server-decoration and answer **server-side** by default (your niri
 `prefer-no-csd = true`), so GTK/Qt/SDL/Firefox drop their own titlebars. We
 then draw nothing but the border. A config option and a window rule allow
@@ -256,6 +257,12 @@ Kept from labwc (adapted, no Openbox semantics):
 - Libinput per-device config, xkb layouts, repeat, numlock, touch, tablet.
 - Autostart commands and environment variables, from config.
 - Hot reload on file change, `hecate msg reload` and SIGHUP.
+- A **CLI with window identification and diagnostics**: click-to-inspect
+  (`hecate msg pick`, with `--rule` to print a ready-made window rule in
+  TOML or Nix), on-screen `identify`, rule matching (`rules`), stack
+  `tree`, key event viewer (`keys`), gaming status (`gaming`: why direct
+  scanout or tearing isn't active), environment `check`. See
+  [cli.md](cli.md).
 
 Dropped: menus, window switcher OSD (the shell can draw one), titlebars and
 buttons, shading, themerc, magnifier (maybe later), labnag (replace with a
@@ -473,6 +480,7 @@ Each phase ends usable and merged. **v1.0 = phases 0 to 6.**
 1. **Real session.** udev/DRM/libinput/libseat backend, multi-output,
    hotplug, keyboard/pointer, xdg-shell toplevels + popups, basic stacking
    and focus, TOML/JSON config with keybinds, spawn, exit, reload.
+   `hecate validate`, `schema`, `check`, completions.
    NixOS module + session entry so it can be picked in a display manager.
 2. **Borders.** Rounded per-corner border shader, content clipping,
    active/inactive colours, xdg-decoration server-side negotiation.
@@ -480,12 +488,15 @@ Each phase ends usable and merged. **v1.0 = phases 0 to 6.**
    ext-foreign-toplevel-list, workspaces (both scopes, fixed + auto) + ext-workspace,
    session-lock, idle notify/inhibit, shortcuts inhibit, screencopy (ext +
    wlr), data-control, xdg-activation, output-management, output-power,
-   gamma, focus-grab. **IPC socket + `hecate msg`** (niri-shaped JSON).
+   gamma, focus-grab. **IPC socket + `hecate msg`** (niri-shaped JSON),
+   including the window identification tools (`pick`, `identify`, `rules`,
+   `tree`, `keys`, `watch`).
    Press/release and modifier-tap binds. Home Manager module with systemd
    target. Portals config. Test with a plain QuickShell config.
 4. **Gaming.** xwayland-satellite integration, pointer constraints/relative
    pointer, direct scanout, VRR, tearing control, drm-syncobj,
-   fifo/commit-timing, drm-lease, content-type. Run the test matrix.
+   fifo/commit-timing, drm-lease, content-type. `hecate msg gaming` and
+   `frames`. Run the test matrix.
 5. **Bundled shell.** Subtree end4-pC + pruned dots-hyprland, hecate
    backend and patches ([shell.md](shell.md)), `hecate-shell` package,
    Python env, Home Manager `shell.enable`, shell keybind profile. VM test

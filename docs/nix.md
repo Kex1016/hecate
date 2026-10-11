@@ -36,6 +36,8 @@ No flake-utils; a small `forAllSystems` helper is enough.
 - Installs `share/wayland-sessions/hecate.desktop`,
   `share/xdg-desktop-portal/hecate-portals.conf` and the JSON Schema;
   `passthru.providedSessions = [ "hecate" ]`.
+- Installs shell completions (bash, zsh, fish) and man pages generated at
+  build time (`hecate completions`, clap_mangen).
 - `meta.mainProgram = "hecate"`, `meta.license = lib.licenses.gpl3Plus`.
 
 ## NixOS module: `programs.hecate`

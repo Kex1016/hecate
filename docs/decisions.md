@@ -2,6 +2,13 @@
 
 Log of review decisions on the plan. Newest first.
 
+## Round 4
+
+| topic          | decision                                         | notes |
+| -------------- | ------------------------------------------------ | ----- |
+| Decorations    | **approved as planned**: answer server-side, draw only the border; `client` mode per config and window rule; libadwaita CSD is a documented limitation | PLAN.md section 4 |
+| CLI            | **rich CLI** with window identification and debugging tools | `pick` (+ `--rule` to generate rules), `identify`, `rules`, `tree`, `keys`, `gaming`, `check`, ... See [cli.md](cli.md) |
+
 ## Round 3
 
 | topic          | decision                                         | notes |

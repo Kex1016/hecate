@@ -48,7 +48,24 @@ debugging.
 | `{"set": {"path": "animations.enable", "value": false}}` | runtime override on top of the config, not persisted; validated against the schema |
 | `{"get": {"path": "animations.enable"}}` | effective value (override or config) |
 | `{"unset": {"path": ...}}` / `{"unset": "all"}` | drop overrides |
+| `{"window": <selector>}`  | full details for one window, including matched rules |
+| `{"rules": <selector>}`   | matching window rules in order + effective properties |
+| `"tree"`                  | outputs → layers → workspaces → windows → popups, z-ordered |
+| `{"pick": "window" \| "layer" \| "output" \| "point" \| "color"}` | enters pick mode (crosshair cursor, `Esc` cancels) and replies with what was clicked |
+| `{"identify": {"ms": 1500}}` | flashes each window's border and draws id + app_id on top |
+| `"clients"`               | connected clients: pid, executable, security context, bound globals |
+| `"protocols"`             | advertised globals and versions |
+| `"gaming"`                | per output: VRR, tearing, direct scanout (+ reason when not), explicit sync; per window: content type, tearing request, pointer constraints |
+| `{"frames": {"output": ...}}` | frame timing stats |
+| `{"debug": {"overlay": "damage", "enable": true}}` | visual debug overlays |
+| `{"log_level": "debug"}`  | runtime log verbosity |
+| `{"output": {"name": ..., "mode" \| "scale" \| "transform" \| "position" \| "power": ...}}` | runtime output change, not persisted |
+| `"key_stream"`            | switches the connection to a stream of key/button events with the bind string for each (for `hecate msg keys`) |
 | `"event_stream"`          | switches the connection to an event stream (below) |
+
+A `<selector>` is `{"id": 42}`, `{"app_id": "glob"}`, `{"title": "glob"}`,
+`{"pid": 1234}`, `"focused"`, or `"pick"`, optionally with `workspace` /
+`output` narrowing and `"all": true`. Actions take the same selector.
 
 Window and workspace ids match the ids used in ext-workspace / foreign
 toplevel where possible, so a shell can correlate protocol objects with
@@ -72,18 +89,8 @@ After `"event_stream"`, the server first sends full state
 
 ## CLI
 
-```
-hecate msg version
-hecate msg action close
-hecate msg action workspace 3
-hecate msg windows            # human table
-hecate msg --json windows     # raw JSON
-hecate msg event-stream
-hecate msg reload
-hecate msg set animations.enable false
-hecate msg get animations.enable
-hecate msg unset --all
-```
+`hecate msg ...` wraps all of the above. Full command list, window
+identification tools and selectors in [cli.md](cli.md).
 
 ## Not in scope
 

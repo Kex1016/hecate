@@ -257,6 +257,8 @@ works unchanged once action names are mapped, because binds have the same
   are capped at 32 (validation error above that). Switching `kind` or
   `scope` on reload migrates windows to the nearest workspace by index.
 - Output `mode` accepts `WxH`, `WxH@Hz` (closest match) or exact decimals.
+- Tip: `hecate msg pick --rule` (or `--rule --nix`) prints a rule for a
+  window you click, ready to paste. See [cli.md](cli.md).
 - Window rule matching uses globs on `app_id`, `title`, `sandbox_engine`,
   `tag` (xdg-toplevel-tag), plus `is_x11` (via satellite). All given fields
   must match; rules apply in order, later wins.
