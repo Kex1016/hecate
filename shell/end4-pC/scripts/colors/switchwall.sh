@@ -98,8 +98,8 @@ check_and_prompt_upscale() {
     if [ -f "$SHELL_CONFIG_FILE" ] && [ "$(jq -r '.background.collage.enable // false' "$SHELL_CONFIG_FILE")" == "true" ]; then
         return
     fi
-    min_width_desired="$(hyprctl monitors -j | jq '([.[].width] | max)' | xargs)"
-    min_height_desired="$(hyprctl monitors -j | jq '([.[].height] | max)' | xargs)"
+    min_width_desired="$("$SCRIPT_DIR/../wm/monitors.sh" | jq '([.[].width] | max)' | xargs)"
+    min_height_desired="$("$SCRIPT_DIR/../wm/monitors.sh" | jq '([.[].height] | max)' | xargs)"
 
     if command -v identify &>/dev/null && [ -f "$img" ]; then
         local img_width img_height
@@ -162,7 +162,7 @@ create_restore_script() {
 
 pkill -f -9 mpvpaper
 
-for monitor in \$(hyprctl monitors -j | jq -r '.[] | .name'); do
+for monitor in \$("$SCRIPT_DIR/../wm/monitors.sh" | jq -r '.[] | .name'); do
     mpvpaper $MPVPAPER_FLAGS -o "$VIDEO_OPTS" "\$monitor" "$video_path" &
     sleep 0.1
 done
@@ -212,10 +212,10 @@ switch() {
         categorize_wallpaper "$imgpath" &
     fi
 
-    read scale screenx screeny screensizey < <(hyprctl monitors -j | jq '.[] | select(.focused) | .scale, .x, .y, .height' | xargs)
-    cursorposx=$(hyprctl cursorpos -j | jq '.x' 2>/dev/null) || cursorposx=960
+    read scale screenx screeny screensizey < <("$SCRIPT_DIR/../wm/monitors.sh" | jq '.[] | select(.focused) | .scale, .x, .y, .height' | xargs)
+    cursorposx=$("$SCRIPT_DIR/../wm/cursorpos.sh" | jq '.x' 2>/dev/null) || cursorposx=960
     cursorposx=$(bc <<< "scale=0; ($cursorposx - $screenx) * $scale / 1")
-    cursorposy=$(hyprctl cursorpos -j | jq '.y' 2>/dev/null) || cursorposy=540
+    cursorposy=$("$SCRIPT_DIR/../wm/cursorpos.sh" | jq '.y' 2>/dev/null) || cursorposy=540
     cursorposy=$(bc <<< "scale=0; ($cursorposy - $screeny) * $scale / 1")
     cursorposy_inverted=$((screensizey - cursorposy))
 
@@ -268,7 +268,7 @@ switch() {
                 set_wallpaper_path "$imgpath"
 
                 local video_path="$imgpath"
-                monitors=$(hyprctl monitors -j | jq -r '.[] | .name')
+                monitors=$("$SCRIPT_DIR/../wm/monitors.sh" | jq -r '.[] | .name')
                 for monitor in $monitors; do
                     mpvpaper $MPVPAPER_FLAGS -o "$VIDEO_OPTS" "$monitor" "$video_path" &
                     sleep 0.1
@@ -404,8 +404,8 @@ switch() {
         "$SCRIPT_DIR"/applycolor.sh
     fi
 
-    max_width_desired="$(hyprctl monitors -j | jq '([.[].width] | min)' | xargs)"
-    max_height_desired="$(hyprctl monitors -j | jq '([.[].height] | min)' | xargs)"
+    max_width_desired="$("$SCRIPT_DIR/../wm/monitors.sh" | jq '([.[].width] | min)' | xargs)"
+    max_height_desired="$("$SCRIPT_DIR/../wm/monitors.sh" | jq '([.[].height] | min)' | xargs)"
     post_process "$max_width_desired" "$max_height_desired" "$imgpath" "$colors_lock_flag"
 }
 

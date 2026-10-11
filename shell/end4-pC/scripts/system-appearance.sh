@@ -30,7 +30,11 @@ read_cursor() {
 }
 
 apply_cursor() {
-    hyprctl setcursor "$1" "$2" >/dev/null 2>&1
+    if [[ -n "${HECATE_SOCKET:-}" ]]; then
+        hecate msg action "{\"set_cursor_theme\": {\"name\": \"$1\", \"size\": $2}}" >/dev/null 2>&1
+    else
+        hyprctl setcursor "$1" "$2" >/dev/null 2>&1
+    fi
     gsettings set org.gnome.desktop.interface cursor-theme "$1" 2>/dev/null
     gsettings set org.gnome.desktop.interface cursor-size "$2" 2>/dev/null
     mkdir -p "$HOME/.icons/default"

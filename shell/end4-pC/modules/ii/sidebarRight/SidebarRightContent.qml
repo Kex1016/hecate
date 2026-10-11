@@ -391,11 +391,16 @@ Item {
                             toggled: false
                             buttonIcon: "restart_alt"
                             onClicked: {
-                                Quickshell.execDetached(["hyprctl", "reload"])
+                                if (WM.compositor === "hecate")
+                                    Quickshell.execDetached(["hecate", "msg", "reload"])
+                                else
+                                    Quickshell.execDetached(["hyprctl", "reload"])
                                 Quickshell.reload(true);
                             }
                             StyledToolTip {
-                                text: Translation.tr("Reload Hyprland & Quickshell")
+                                text: WM.compositor === "hecate"
+                                    ? Translation.tr("Reload hecate & Quickshell")
+                                    : Translation.tr("Reload Hyprland & Quickshell")
                             }
                         }
                         QuickToggleButton {
