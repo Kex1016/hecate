@@ -285,12 +285,14 @@ impl State {
     }
 
     /// Commit on a mapped window: keep resize anchors in place.
-    pub fn on_window_commit(&mut self, window: &Window, old_size: Size<i32, Logical>) {
+    pub fn on_window_commit(&mut self, window: &Window) {
         let new_size = window.geometry().size;
         let mut d = window.data();
-        if new_size != old_size
-            && let (Some(edge), Some(initial)) = (d.resize_edge, d.resize_initial)
-        {
+        // Keep the edges opposite the dragged one where they were. Recomputed on every commit
+        // rather than only when the size changed: the size from before the commit isn't
+        // reliable (window geometry is clamped to a bounding box that only updates in
+        // on_commit), and this is idempotent anyway.
+        if let (Some(edge), Some(initial)) = (d.resize_edge, d.resize_initial) {
             if edge.left() {
                 d.loc.x = initial.loc.x + initial.size.w - new_size.w;
             }

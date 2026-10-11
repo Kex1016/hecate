@@ -310,3 +310,64 @@ fn usable_area_matches_output() {
     assert_eq!(area.loc, (5, 20).into());
     assert_eq!(area.size, (1915, 1060).into());
 }
+
+/// A resize from a left/top edge keeps the opposite edges where they were: the window grows
+/// towards the pointer, not away from it.
+#[test]
+fn resizing_from_left_and_top_edges_moves_the_window() {
+    use crate::wm::window::ResizeEdge;
+    for (edge, grow) in [
+        (ResizeEdge::Left, (100, 0)),
+        (ResizeEdge::Top, (0, 80)),
+        (ResizeEdge::TopLeft, (100, 80)),
+        (ResizeEdge::BottomLeft, (100, 80)),
+        (ResizeEdge::Right, (100, 0)),
+        // Shrinking: the new geometry fits in the old bounding box.
+        (ResizeEdge::Left, (-100, 0)),
+        (ResizeEdge::TopLeft, (-100, -80)),
+    ] {
+        let (mut f, id) = setup("");
+        let surface = f.map_window(id, (400, 300), RED, None);
+        f.client(id)
+            .window(&surface)
+            .xdg_surface
+            .set_window_geometry(0, 0, 400, 300);
+        f.client(id).window(&surface).commit();
+        f.double_roundtrip(id);
+        let w = f.windows()[0].clone();
+        let initial = f.hecate().hecate.wm.window_rect(&w);
+        {
+            let mut d = w.data();
+            d.resize_edge = Some(edge);
+            d.resize_initial = Some(initial);
+            d.resizing = true;
+        }
+        w.request_size(Some((400 + grow.0, 300 + grow.1).into()));
+        f.double_roundtrip(id);
+        // Like GTK and Qt: an explicit window geometry, double-buffered with the commit.
+        f.client(id)
+            .window(&surface)
+            .xdg_surface
+            .set_window_geometry(0, 0, 400 + grow.0, 300 + grow.1);
+        f.ack_and_resize(id, &surface, RED);
+
+        let rect = f.hecate().hecate.wm.window_rect(&w);
+        assert_eq!(rect.size, (400 + grow.0, 300 + grow.1).into(), "{edge:?}: size");
+        let right = initial.loc.x + initial.size.w;
+        let bottom = initial.loc.y + initial.size.h;
+        if edge.left() {
+            assert_eq!(rect.loc.x + rect.size.w, right, "{edge:?}: right edge stays put");
+        } else {
+            assert_eq!(rect.loc.x, initial.loc.x, "{edge:?}: left edge stays put");
+        }
+        if edge.top() {
+            assert_eq!(
+                rect.loc.y + rect.size.h,
+                bottom,
+                "{edge:?}: bottom edge stays put"
+            );
+        } else {
+            assert_eq!(rect.loc.y, initial.loc.y, "{edge:?}: top edge stays put");
+        }
+    }
+}

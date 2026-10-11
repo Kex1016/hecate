@@ -82,9 +82,8 @@ impl CompositorHandler for State {
                     self.focus_topmost();
                     return;
                 }
-                let old_size = window.geometry().size;
                 window.on_commit();
-                self.on_window_commit(&window, old_size);
+                self.on_window_commit(&window);
                 if let Some(o) = self.hecate.wm.output_for_window(&window).cloned() {
                     self.hecate.queue_redraw(&o);
                 }
