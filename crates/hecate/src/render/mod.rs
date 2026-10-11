@@ -3,6 +3,7 @@
 pub mod blur;
 pub mod border;
 pub mod capture;
+pub mod label;
 pub mod screencopy;
 
 use smithay::backend::renderer::element::memory::MemoryRenderBufferRenderElement;
@@ -119,6 +120,7 @@ render_elements! {
     Border = border::BorderElement,
     Clipped = border::ClippedSurfaceElement,
     Texture = TextureRenderElement<GlesTexture>,
+    Label = MemoryRenderBufferRenderElement<GlesRenderer>,
 }
 
 /// Push window elements, scaled around `origin` unless the scale is 1.
@@ -526,6 +528,25 @@ impl Hecate {
         let shift = offset + move_offset;
         let rect = Rectangle::new((geo_rect.loc.to_f64() + shift).to_i32_round(), geo_rect.size);
         let mut elems = Vec::new();
+        if self.identify_until.is_some() {
+            // `identify`: id and app_id on top of each window.
+            let text = format!("{} {}", window.wid(), window.app_id());
+            let cache = window.user_data().get_or_insert(label::LabelCache::default);
+            let buf = cache.get(&text, Color::rgb(255, 255, 255), self.config.border.color.urgent);
+            let loc = (rect.loc - output_geo.loc + Point::from((8, 8))).to_physical_precise_round(scale);
+            match MemoryRenderBufferRenderElement::from_buffer(
+                renderer,
+                loc,
+                &buf,
+                None,
+                None,
+                None,
+                Kind::Unspecified,
+            ) {
+                Ok(e) => elems.push(WindowElement::Label(e)),
+                Err(err) => tracing::warn!("error importing identify label: {err:?}"),
+            }
+        }
         border::push_window(
             renderer,
             &mut elems,

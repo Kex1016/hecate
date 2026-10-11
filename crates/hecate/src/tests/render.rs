@@ -129,3 +129,32 @@ fn maximized_window_has_no_border_or_rounding() {
     frame.assert_rgb(0, 0, [255, 0, 0], "square corner when maximized");
     frame.assert_rgb(399, 299, [255, 0, 0], "fills the output");
 }
+
+#[test]
+fn identify_draws_thick_borders_and_a_label() {
+    let Some((mut f, id)) = fixture("[border]\nwidth = 2\nradius = 0") else {
+        return;
+    };
+    f.hecate().hecate.config.border.color.urgent = crate::config::Color::rgb(255, 0, 255);
+    f.map_shm_window(id, (100, 100), RED);
+    let frame = f.render("headless-1");
+    frame.assert_rgb(146, 150, BG, "normal border is 2 px");
+
+    f.hecate().identify_windows(1000);
+    let frame = f.render("headless-1");
+    frame.assert_rgb(146, 150, [255, 0, 255], "identify: 6 px urgent-coloured border");
+    // Label at the window's top-left + 8: padding in the urgent colour, then white text.
+    frame.assert_rgb(160, 110, [255, 0, 255], "label background");
+    let white = (160..220)
+        .flat_map(|x| (114..130).map(move |y| (x, y)))
+        .filter(|&(x, y)| frame.pixel(x, y)[..3] == [255, 255, 255])
+        .count();
+    assert!(white > 10, "label text drawn ({white} white px)");
+    frame.assert_rgb(240, 190, [255, 0, 0], "rest of the window untouched");
+
+    // Over: back to normal.
+    f.hecate().hecate.identify_until = Some(std::time::Instant::now());
+    f.dispatch();
+    let frame = f.render("headless-1");
+    frame.assert_rgb(160, 110, [255, 0, 0], "label gone");
+}
