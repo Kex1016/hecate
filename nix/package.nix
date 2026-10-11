@@ -5,7 +5,10 @@
   libGL,
   wayland,
   libxkbcommon,
-  xorg,
+  libx11,
+  libxcursor,
+  libxi,
+  libxrandr,
   xwayland-satellite,
 }:
 let
@@ -15,10 +18,10 @@ let
     wayland
     libGL
     libxkbcommon
-    xorg.libX11
-    xorg.libXcursor
-    xorg.libXi
-    xorg.libXrandr
+    libx11
+    libxcursor
+    libxi
+    libxrandr
   ];
 in
 craneLib.buildPackage (
