@@ -1,4 +1,4 @@
-//! Commit synchronisation: buffer readiness (implicit fences and drm-syncobj acquire points),
+//! DRM leasing glue, and commit synchronisation: buffer readiness (implicit fences and drm-syncobj acquire points),
 //! wp-fifo barriers and wp-commit-timing deadlines.
 //!
 //! Follows Smithay's anvil (MIT).
@@ -21,10 +21,44 @@ use smithay::wayland::compositor::{
     add_pre_commit_hook, with_states, with_surface_tree_downward,
 };
 use smithay::wayland::dmabuf::get_dmabuf;
+use smithay::wayland::drm_lease::{DrmLease, DrmLeaseBuilder, DrmLeaseRequest, DrmLeaseState, LeaseRejected};
 use smithay::wayland::drm_syncobj::{DrmSyncobjCachedState, DrmSyncobjHandler, DrmSyncobjState};
 use smithay::wayland::fifo::FifoBarrierCachedState;
 
 use crate::state::State;
+
+impl smithay::wayland::drm_lease::DrmLeaseHandler for State {
+    fn drm_lease_state(&mut self, node: smithay::backend::drm::DrmNode) -> &mut DrmLeaseState {
+        // Lease globals only exist for tty devices with a lease state.
+        match &mut self.backend {
+            crate::backend::Backend::Tty(tty) => tty.lease_state(node).expect("lease global without state"),
+            _ => unreachable!("drm-lease outside the tty backend"),
+        }
+    }
+
+    fn lease_request(
+        &mut self,
+        node: smithay::backend::drm::DrmNode,
+        request: DrmLeaseRequest,
+    ) -> Result<DrmLeaseBuilder, LeaseRejected> {
+        match &self.backend {
+            crate::backend::Backend::Tty(tty) => tty.lease_request(node, request),
+            _ => Err(LeaseRejected::default()),
+        }
+    }
+
+    fn new_active_lease(&mut self, node: smithay::backend::drm::DrmNode, lease: DrmLease) {
+        if let crate::backend::Backend::Tty(tty) = &mut self.backend {
+            tty.add_lease(node, lease);
+        }
+    }
+
+    fn lease_destroyed(&mut self, node: smithay::backend::drm::DrmNode, lease_id: u32) {
+        if let crate::backend::Backend::Tty(tty) = &mut self.backend {
+            tty.remove_lease(node, lease_id);
+        }
+    }
+}
 
 impl DrmSyncobjHandler for State {
     fn drm_syncobj_state(&mut self) -> Option<&mut DrmSyncobjState> {

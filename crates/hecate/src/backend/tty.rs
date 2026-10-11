@@ -39,6 +39,7 @@ use smithay::reexports::wayland_protocols::wp::presentation_time::server::wp_pre
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
 use smithay::utils::DeviceFd;
 use smithay::wayland::dmabuf::{DmabufFeedbackBuilder, DmabufGlobal};
+use smithay::wayland::drm_lease::{DrmLease, DrmLeaseBuilder, DrmLeaseRequest, DrmLeaseState, LeaseRejected};
 use smithay::wayland::presentation::Refresh;
 use smithay_drm_extras::display_info;
 use smithay_drm_extras::drm_scanner::{DrmScanEvent, DrmScanner};
@@ -91,6 +92,10 @@ struct Device {
     scanner: DrmScanner,
     surfaces: HashMap<crtc::Handle, Surface>,
     gbm: GbmDevice<DrmDeviceFd>,
+    /// drm-lease for non-desktop connectors (VR headsets).
+    lease_state: Option<DrmLeaseState>,
+    non_desktop: Vec<(connector::Handle, crtc::Handle)>,
+    active_leases: Vec<DrmLease>,
 }
 
 pub struct Tty {
@@ -172,6 +177,9 @@ impl Tty {
                     if let crate::backend::Backend::Tty(tty) = &mut state.backend {
                         for device in tty.devices.values_mut() {
                             device.manager.pause();
+                            if let Some(lease_state) = &mut device.lease_state {
+                                lease_state.suspend();
+                            }
                         }
                     }
                 }
@@ -184,6 +192,9 @@ impl Tty {
                         for device in tty.devices.values_mut() {
                             if let Err(err) = device.manager.lock().activate(false) {
                                 tracing::warn!("error re-activating DRM device: {err:?}");
+                            }
+                            if let Some(lease_state) = &mut device.lease_state {
+                                lease_state.resume::<State>();
                             }
                             // Another session may have changed gamma.
                             let drm = device.manager.device();
@@ -373,6 +384,9 @@ impl Tty {
             SUPPORTED_FORMATS.iter().copied(),
             render_formats,
         );
+        let lease_state = DrmLeaseState::new::<State>(&hecate.display_handle, &node)
+            .inspect_err(|err| tracing::debug!("no DRM leasing on {node}: {err:?}"))
+            .ok();
         self.devices.insert(
             node,
             Device {
@@ -381,6 +395,9 @@ impl Tty {
                 scanner: DrmScanner::new(),
                 surfaces: HashMap::new(),
                 gbm,
+                lease_state,
+                non_desktop: Vec::new(),
+                active_leases: Vec::new(),
             },
         );
         self.device_changed(hecate, node);
@@ -425,7 +442,10 @@ impl Tty {
         for (connector, crtc) in crtcs {
             self.connector_disconnected(hecate, node, connector, crtc);
         }
-        if let Some(device) = self.devices.remove(&node) {
+        if let Some(mut device) = self.devices.remove(&node) {
+            if let Some(lease_state) = &mut device.lease_state {
+                lease_state.disable_global::<State>();
+            }
             self.event_loop.remove(device.token);
         }
     }
@@ -440,6 +460,18 @@ impl Tty {
         let Some(device) = self.devices.get_mut(&node) else {
             return;
         };
+        if is_non_desktop(device.manager.device(), connector.handle()) {
+            // VR headsets and the like: offered through drm-lease, never part of the desktop.
+            let name = connector_name(&connector);
+            if !device.non_desktop.contains(&(connector.handle(), crtc)) {
+                tracing::info!("non-desktop connector {name} available for leasing");
+                if let Some(lease_state) = &mut device.lease_state {
+                    lease_state.add_connector::<State>(connector.handle(), name.clone(), name);
+                }
+                device.non_desktop.push((connector.handle(), crtc));
+            }
+            return;
+        }
         let Some(renderer) = self.renderer.as_mut() else {
             return;
         };
@@ -572,6 +604,59 @@ impl Tty {
         if let Some(surface) = device.surfaces.remove(&crtc) {
             tracing::info!("output {} disconnected", surface.output.name());
             hecate.remove_output(&surface.output);
+        } else if let Some(idx) = device.non_desktop.iter().position(|(_, c)| *c == crtc) {
+            let (conn, _) = device.non_desktop.remove(idx);
+            if let Some(lease_state) = &mut device.lease_state {
+                lease_state.withdraw_connector(conn);
+            }
+        }
+    }
+
+    /// Build a lease for a client's requested non-desktop connectors.
+    pub fn lease_request(
+        &self,
+        node: DrmNode,
+        request: DrmLeaseRequest,
+    ) -> Result<DrmLeaseBuilder, LeaseRejected> {
+        let device = self.devices.get(&node).ok_or_else(LeaseRejected::default)?;
+        let drm = device.manager.device();
+        let mut builder = DrmLeaseBuilder::new(drm);
+        for connector in request.connectors {
+            let (_, crtc) = device
+                .non_desktop
+                .iter()
+                .find(|(c, _)| *c == connector)
+                .copied()
+                .ok_or_else(|| {
+                    tracing::warn!("lease request for a desktop connector");
+                    LeaseRejected::default()
+                })?;
+            builder.add_connector(connector);
+            builder.add_crtc(crtc);
+            let planes = drm.planes(&crtc).map_err(LeaseRejected::with_cause)?;
+            let (plane, claim) = planes
+                .primary
+                .iter()
+                .find_map(|p| drm.claim_plane(p.handle, crtc).map(|claim| (p.handle, claim)))
+                .ok_or_else(LeaseRejected::default)?;
+            builder.add_plane(plane, claim);
+        }
+        Ok(builder)
+    }
+
+    pub fn lease_state(&mut self, node: DrmNode) -> Option<&mut DrmLeaseState> {
+        self.devices.get_mut(&node)?.lease_state.as_mut()
+    }
+
+    pub fn add_lease(&mut self, node: DrmNode, lease: DrmLease) {
+        if let Some(d) = self.devices.get_mut(&node) {
+            d.active_leases.push(lease);
+        }
+    }
+
+    pub fn remove_lease(&mut self, node: DrmNode, id: u32) {
+        if let Some(d) = self.devices.get_mut(&node) {
+            d.active_leases.retain(|l| l.id() != id);
         }
     }
 
@@ -767,7 +852,9 @@ impl Tty {
         let mut heads = Vec::new();
         for device in self.devices.values() {
             for (conn, crtc) in device.scanner.crtcs() {
-                if conn.state() != connector::State::Connected {
+                if conn.state() != connector::State::Connected
+                    || device.non_desktop.iter().any(|(c, _)| *c == conn.handle())
+                {
                     continue;
                 }
                 if let Some(surface) = device.surfaces.get(&crtc) {
@@ -914,6 +1001,19 @@ impl Tty {
 }
 
 /// Pick the DRM mode for a `WxH[@Hz]` string, else the preferred mode.
+fn is_non_desktop(drm: &DrmDevice, connector: connector::Handle) -> bool {
+    use smithay::reexports::drm::control::Device as _;
+    let Ok(props) = drm.get_properties(connector) else {
+        return false;
+    };
+    props.into_iter().any(|(handle, value)| {
+        drm.get_property(handle).is_ok_and(|info| {
+            info.name().to_str() == Ok("non-desktop")
+                && info.value_type().convert_value(value).as_boolean() == Some(true)
+        })
+    })
+}
+
 fn connector_name(connector: &connector::Info) -> String {
     format!("{}-{}", connector.interface().as_str(), connector.interface_id())
 }
