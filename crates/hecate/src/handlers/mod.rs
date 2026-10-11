@@ -12,6 +12,7 @@ use smithay::input::keyboard::LedState;
 use smithay::input::pointer::{CursorImageStatus, Focus, PointerHandle};
 use smithay::input::tablet::TabletSeatHandler;
 use smithay::input::{Seat, SeatHandler, SeatState};
+use smithay::output::Output;
 use smithay::reexports::wayland_protocols::xdg::decoration::zv1::server::zxdg_toplevel_decoration_v1::Mode as XdgDecoMode;
 use smithay::reexports::wayland_server::Resource;
 use smithay::reexports::wayland_server::protocol::wl_output::WlOutput;
@@ -170,7 +171,11 @@ impl ShmHandler for State {
     }
 }
 
-impl OutputHandler for State {}
+impl OutputHandler for State {
+    fn output_bound(&mut self, output: Output, wl_output: WlOutput) {
+        crate::protocols::foreign_toplevel::on_output_bound(self, &output, &wl_output);
+    }
+}
 
 impl DmabufHandler for State {
     fn dmabuf_state(&mut self) -> &mut DmabufState {

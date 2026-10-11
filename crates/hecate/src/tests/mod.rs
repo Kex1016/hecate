@@ -5,6 +5,7 @@
 mod client;
 mod decorations;
 mod fixture;
+mod foreign_toplevel;
 mod ipc;
 mod layers;
 mod render;

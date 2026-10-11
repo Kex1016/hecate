@@ -118,6 +118,7 @@ pub struct Hecate {
     pub presentation_state: PresentationState,
     pub xdg_activation_state: XdgActivationState,
     pub xdg_foreign_state: XdgForeignState,
+    pub foreign_toplevel_state: crate::protocols::foreign_toplevel::ForeignToplevelManagerState,
     pub cursor_shape_state: CursorShapeManagerState,
     pub single_pixel_buffer_state: SinglePixelBufferState,
     pub idle_notifier_state: IdleNotifierState<State>,
@@ -231,6 +232,7 @@ impl State {
             self.hecate.queue_redraw_all();
         }
         self.hecate.redraw_queued_outputs(&mut self.backend);
+        crate::protocols::foreign_toplevel::refresh(self);
         self.ipc_refresh();
         self.ipc_flush();
         if let Err(err) = self.hecate.display_handle.flush_clients() {
@@ -301,6 +303,8 @@ impl Hecate {
         let presentation_state = PresentationState::new::<State>(&dh, Monotonic::ID as u32);
         let xdg_activation_state = XdgActivationState::new::<State>(&dh);
         let xdg_foreign_state = XdgForeignState::new::<State>(&dh);
+        let foreign_toplevel_state =
+            crate::protocols::foreign_toplevel::ForeignToplevelManagerState::new(&dh, client_is_unrestricted);
         let cursor_shape_state = CursorShapeManagerState::new::<State>(&dh);
         let single_pixel_buffer_state = SinglePixelBufferState::new::<State>(&dh);
         let idle_notifier_state = IdleNotifierState::new(&dh, event_loop.clone());
@@ -429,6 +433,7 @@ impl Hecate {
             presentation_state,
             xdg_activation_state,
             xdg_foreign_state,
+            foreign_toplevel_state,
             cursor_shape_state,
             single_pixel_buffer_state,
             idle_notifier_state,
@@ -599,6 +604,8 @@ pub fn advertised_globals() -> Vec<String> {
         "zwp_primary_selection_device_manager_v1",
         "zwlr_data_control_manager_v1",
         "ext_data_control_manager_v1",
+        "ext_foreign_toplevel_list_v1",
+        "zwlr_foreign_toplevel_manager_v1",
     ]
     .iter()
     .map(|s| s.to_string())

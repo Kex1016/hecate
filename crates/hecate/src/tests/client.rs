@@ -30,6 +30,10 @@ use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_lay
 use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_surface_v1::{
     self, ZwlrLayerSurfaceV1,
 };
+use smithay::reexports::wayland_protocols::ext::foreign_toplevel_list::v1::client::ext_foreign_toplevel_handle_v1::{self, ExtForeignToplevelHandleV1};
+use smithay::reexports::wayland_protocols::ext::foreign_toplevel_list::v1::client::ext_foreign_toplevel_list_v1::{self, ExtForeignToplevelListV1};
+use smithay::reexports::wayland_protocols_wlr::foreign_toplevel::v1::client::zwlr_foreign_toplevel_handle_v1::{self, ZwlrForeignToplevelHandleV1};
+use smithay::reexports::wayland_protocols_wlr::foreign_toplevel::v1::client::zwlr_foreign_toplevel_manager_v1::{self, ZwlrForeignToplevelManagerV1};
 use smithay::reexports::wayland_protocols_wlr::virtual_pointer::v1::client::zwlr_virtual_pointer_manager_v1::ZwlrVirtualPointerManagerV1;
 use smithay::reexports::wayland_protocols_wlr::virtual_pointer::v1::client::zwlr_virtual_pointer_v1::ZwlrVirtualPointerV1;
 use wayland_backend::client::Backend;
@@ -75,6 +79,12 @@ pub struct State {
     pub spbm: Option<WpSinglePixelBufferManagerV1>,
     pub viewporter: Option<WpViewporter>,
     pub ksim: Option<ZwpKeyboardShortcutsInhibitManagerV1>,
+    pub wlr_toplevel_manager: Option<ZwlrForeignToplevelManagerV1>,
+    pub ext_toplevel_list: Option<ExtForeignToplevelListV1>,
+    /// Toplevels announced over wlr-foreign-toplevel-management, in announcement order.
+    pub wlr_toplevels: Vec<(ZwlrForeignToplevelHandleV1, ForeignToplevel)>,
+    /// Toplevels announced over ext-foreign-toplevel-list, in announcement order.
+    pub ext_toplevels: Vec<(ExtForeignToplevelHandleV1, ForeignToplevel)>,
 
     pub windows: Vec<Window>,
     pub layers: Vec<LayerSurface>,
@@ -108,6 +118,48 @@ pub struct LayerSurface {
     pub close_requested: bool,
 
     pub configures_looked_at: usize,
+}
+
+/// Committed (after `done`) and pending state of a foreign toplevel handle.
+#[derive(Debug, Default, Clone)]
+pub struct ForeignToplevel {
+    pub identifier: String,
+    pub title: String,
+    pub app_id: String,
+    pub states: Vec<u32>,
+    pub outputs: usize,
+    pub closed: bool,
+    pub done_count: usize,
+    pending: Option<Box<ForeignToplevel>>,
+}
+
+impl ForeignToplevel {
+    fn pending(&mut self) -> &mut ForeignToplevel {
+        if self.pending.is_none() {
+            let mut p = self.clone();
+            p.pending = None;
+            self.pending = Some(Box::new(p));
+        }
+        self.pending.as_mut().unwrap()
+    }
+
+    fn done(&mut self) {
+        if let Some(p) = self.pending.take() {
+            let done_count = self.done_count;
+            *self = *p;
+            self.done_count = done_count;
+        }
+        self.done_count += 1;
+    }
+
+    pub fn activated(&self) -> bool {
+        self.states
+            .contains(&(zwlr_foreign_toplevel_handle_v1::State::Activated as u32))
+    }
+
+    pub fn has_state(&self, st: zwlr_foreign_toplevel_handle_v1::State) -> bool {
+        self.states.contains(&(st as u32))
+    }
 }
 
 #[derive(Debug, Default)]
@@ -280,6 +332,10 @@ impl Client {
             spbm: None,
             viewporter: None,
             ksim: None,
+            wlr_toplevel_manager: None,
+            ext_toplevel_list: None,
+            wlr_toplevels: Vec::new(),
+            ext_toplevels: Vec::new(),
             windows: Vec::new(),
             layers: Vec::new(),
         };
@@ -697,6 +753,12 @@ impl Dispatch<WlRegistry, ()> for State {
                     state
                         .seats
                         .insert(registry.bind(name, version, qh, ()), Seat::default());
+                } else if interface == ZwlrForeignToplevelManagerV1::interface().name {
+                    let version = min(version, ZwlrForeignToplevelManagerV1::interface().version);
+                    state.wlr_toplevel_manager = Some(registry.bind(name, version, qh, ()));
+                } else if interface == ExtForeignToplevelListV1::interface().name {
+                    let version = min(version, ExtForeignToplevelListV1::interface().version);
+                    state.ext_toplevel_list = Some(registry.bind(name, version, qh, ()));
                 } else if interface == ZwpKeyboardShortcutsInhibitManagerV1::interface().name {
                     let version = min(version, ZwpKeyboardShortcutsInhibitManagerV1::interface().version);
                     state.ksim = Some(registry.bind(name, version, qh, ()));
@@ -1148,6 +1210,127 @@ impl Dispatch<ZwpKeyboardShortcutsInhibitorV1, ()> for State {
         match event {
             zwp_keyboard_shortcuts_inhibitor_v1::Event::Active => (),
             zwp_keyboard_shortcuts_inhibitor_v1::Event::Inactive => (),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl State {
+    pub fn wlr_toplevel(&self, app_id: &str) -> Option<&(ZwlrForeignToplevelHandleV1, ForeignToplevel)> {
+        self.wlr_toplevels
+            .iter()
+            .find(|(_, t)| !t.closed && t.app_id == app_id)
+    }
+
+    pub fn ext_toplevel(&self, app_id: &str) -> Option<&(ExtForeignToplevelHandleV1, ForeignToplevel)> {
+        self.ext_toplevels
+            .iter()
+            .find(|(_, t)| !t.closed && t.app_id == app_id)
+    }
+}
+
+impl Dispatch<ZwlrForeignToplevelManagerV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        _proxy: &ZwlrForeignToplevelManagerV1,
+        event: zwlr_foreign_toplevel_manager_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        match event {
+            zwlr_foreign_toplevel_manager_v1::Event::Toplevel { toplevel } => {
+                state.wlr_toplevels.push((toplevel, ForeignToplevel::default()));
+            }
+            zwlr_foreign_toplevel_manager_v1::Event::Finished => (),
+            _ => unreachable!(),
+        }
+    }
+
+    wayland_client::event_created_child!(State, ZwlrForeignToplevelManagerV1, [
+        zwlr_foreign_toplevel_manager_v1::EVT_TOPLEVEL_OPCODE => (ZwlrForeignToplevelHandleV1, ()),
+    ]);
+}
+
+impl Dispatch<ZwlrForeignToplevelHandleV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        proxy: &ZwlrForeignToplevelHandleV1,
+        event: zwlr_foreign_toplevel_handle_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        let Some((_, t)) = state.wlr_toplevels.iter_mut().find(|(h, _)| h == proxy) else {
+            return;
+        };
+        match event {
+            zwlr_foreign_toplevel_handle_v1::Event::Title { title } => t.pending().title = title,
+            zwlr_foreign_toplevel_handle_v1::Event::AppId { app_id } => t.pending().app_id = app_id,
+            zwlr_foreign_toplevel_handle_v1::Event::State { state } => {
+                t.pending().states = state
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|c| u32::from_ne_bytes(*c))
+                    .collect();
+            }
+            zwlr_foreign_toplevel_handle_v1::Event::OutputEnter { .. } => t.pending().outputs += 1,
+            zwlr_foreign_toplevel_handle_v1::Event::OutputLeave { .. } => {
+                let p = t.pending();
+                p.outputs = p.outputs.saturating_sub(1);
+            }
+            zwlr_foreign_toplevel_handle_v1::Event::Done => t.done(),
+            zwlr_foreign_toplevel_handle_v1::Event::Closed => t.closed = true,
+            zwlr_foreign_toplevel_handle_v1::Event::Parent { .. } => (),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl Dispatch<ExtForeignToplevelListV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        _proxy: &ExtForeignToplevelListV1,
+        event: ext_foreign_toplevel_list_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        match event {
+            ext_foreign_toplevel_list_v1::Event::Toplevel { toplevel } => {
+                state.ext_toplevels.push((toplevel, ForeignToplevel::default()));
+            }
+            ext_foreign_toplevel_list_v1::Event::Finished => (),
+            _ => unreachable!(),
+        }
+    }
+
+    wayland_client::event_created_child!(State, ExtForeignToplevelListV1, [
+        ext_foreign_toplevel_list_v1::EVT_TOPLEVEL_OPCODE => (ExtForeignToplevelHandleV1, ()),
+    ]);
+}
+
+impl Dispatch<ExtForeignToplevelHandleV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        proxy: &ExtForeignToplevelHandleV1,
+        event: ext_foreign_toplevel_handle_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        let Some((_, t)) = state.ext_toplevels.iter_mut().find(|(h, _)| h == proxy) else {
+            return;
+        };
+        match event {
+            ext_foreign_toplevel_handle_v1::Event::Identifier { identifier } => {
+                t.pending().identifier = identifier
+            }
+            ext_foreign_toplevel_handle_v1::Event::Title { title } => t.pending().title = title,
+            ext_foreign_toplevel_handle_v1::Event::AppId { app_id } => t.pending().app_id = app_id,
+            ext_foreign_toplevel_handle_v1::Event::Done => t.done(),
+            ext_foreign_toplevel_handle_v1::Event::Closed => t.closed = true,
             _ => unreachable!(),
         }
     }
