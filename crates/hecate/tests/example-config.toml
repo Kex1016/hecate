@@ -1,0 +1,159 @@
+# top-level keys must come before the first [table]
+include = ["shell.toml"]   # optional; written by the bundled shell's settings UI, so the Nix-made file stays read-only
+autostart = [            # the bundled shell starts as a user service, not from here
+  ["sh", "-c", "QT_STYLE_OVERRIDE=Fusion QT_QPA_PLATFORM=xcb synology-drive autostart"],
+]
+
+[border]
+width = 0                 # your niri look: no visible border...
+clip_content = true       # ...but clipped rounded corners
+keep_on_maximize = false
+
+# a number for all corners, or a table per corner
+[border.radius]
+top_left = 15
+top_right = 15
+bottom_right = 15
+bottom_left = 15
+
+[border.color]
+active = "#89b4fa"
+inactive = "#45475a"
+urgent = "#f38ba8"
+
+[general]
+decorations = "server"    # "server" (ask clients to drop CSD) | "client"
+gaps = 0
+error_command = ["notify-send", "hecate", "config error: {error}"]
+
+[outputs."DP-1"]
+mode = "2560x1080@200.007"
+position = [3000, 180]
+adaptive_sync = "fullscreen"   # "off" | "on" | "fullscreen"
+focus_at_startup = true
+
+[outputs."DP-2"]
+mode = "1920x1080@60"
+position = [1920, 0]
+transform = "90"
+
+[outputs."HDMI-A-1"]
+mode = "1920x1080@60"
+position = [0, 0]
+
+[gaming]
+allow_tearing = "fullscreen"   # "never" | "fullscreen" | "always"
+direct_scanout = true
+fullscreen_inhibits_idle = true
+
+[xwayland]
+enable = true
+path = "xwayland-satellite"    # spawned on first X11 connection
+
+[workspaces]
+scope = "per_output"           # "global" (labwc) | "per_output" (niri/Hyprland)
+kind = "fixed"                 # "fixed" | "auto" (niri-style, one empty at the end)
+count = 9                      # fixed only, 1..=32
+# names = ["web", "code", "chat"]   # optional, fixed only, length <= count
+# min = 1                      # auto only: kept even when empty
+auto_back_and_forth = true
+
+[focus]
+follow_mouse = false
+raise_on_focus = true
+steal = "smart"                # "never" | "smart" (needs xdg-activation token) | "always"
+
+[placement]
+policy = "center"              # "center" | "cursor" | "cascade" | "automatic"
+
+[sizing]
+width_presets = [0.3333, 0.5, 0.6667]
+height_presets = [0.5, 1.0]
+
+[snapping]
+range = { inner = 10, outer = 10 }
+corner_range = 50
+top_maximize = true
+
+[blur]                         # used by layer_rules and ext-background-effect
+enable = true
+passes = 3
+radius = 6
+noise = 0.02
+
+[animations]                   # see animations.md for every key and the curve list
+enable = true
+window_open = { style = "popin", from = 0.8, ms = 300, curve = "emphasized_decel" }
+workspace_switch = { style = "slide", ms = 700, curve = "menu_decel" }
+
+[keyboard]
+layout = "us"
+repeat_rate = 25
+repeat_delay = 600
+numlock = true
+
+[input."*"]
+accel_profile = "flat"
+
+[input."type:touchpad"]
+tap = true
+natural_scroll = true
+disable_while_typing = true
+
+[environment]
+NIXOS_OZONE_WL = "1"
+QT_QPA_PLATFORM = "wayland"
+
+# binds: key combo -> action. Bare string for argument-less actions,
+# inline table for actions with arguments.
+[binds]
+"Mod+Q" = "close"
+"Mod+Return" = { spawn = ["kitty"] }
+"Mod+B" = { spawn = ["zen-beta"] }
+"Mod+Backspace" = { spawn = ["loginctl", "lock-session"] }
+"Mod+D" = "toggle_maximize"
+"Mod+F" = "toggle_fullscreen"
+"Mod+R" = "cycle_width_preset"
+"Mod+Left" = { focus_direction = "left" }
+"Mod+Ctrl+Left" = { snap_to_edge = "left" }
+"Mod+1" = { workspace = 1 }
+"Mod+Shift+1" = { move_to_workspace = 1 }
+"XF86AudioRaiseVolume" = { spawn = ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "2%+", "-l", "1.5"], allow_when_locked = true }
+"Mod+Shift+Escape" = { action = "toggle_keybinds", allow_when_inhibited = true }
+# press/release pair and a modifier-only tap (end-4 style)
+"Super_L" = { on_press = { spawn = ["qs", "-c", "end4-pC", "ipc", "call", "shortcut", "press", "workspaceNumber"] }, on_release = { spawn = ["qs", "-c", "end4-pC", "ipc", "call", "shortcut", "release", "workspaceNumber"] }, transparent = true }
+"Super" = { tap = { spawn = ["qs", "-c", "end4-pC", "ipc", "call", "shortcut", "press", "searchToggleRelease"] } }
+
+[mouse_binds]
+"Mod+BTN_LEFT" = { action = "move", context = "window" }
+"Mod+BTN_RIGHT" = { action = "resize", context = "window" }
+
+# layer rules (the shell profile adds end-4's set; these are a sample)
+[[layer_rules]]
+match = { namespace = "quickshell:.*" }
+blur = true
+blur_popups = true
+ignore_alpha = 0.79
+xray = true
+
+[[layer_rules]]
+match = { namespace = "quickshell:background" }
+blur = false
+
+[[layer_rules]]
+match = { namespace = "quickshell:bar" }
+animation = "slide"
+
+[[window_rules]]
+match = { app_id = "zen-beta", title = "Picture-in-Picture" }
+always_on_top = true
+omnipresent = true
+
+[[window_rules]]
+match = { app_id = "steam_app_*" }
+border = { width = 0, radius = 0 }
+tearing = true
+
+[[window_rules]]
+match = { app_id = "kitty" }
+border = { radius = { top_left = 15, top_right = 15, bottom_right = 4, bottom_left = 4 } }
