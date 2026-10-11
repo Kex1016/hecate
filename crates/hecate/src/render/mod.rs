@@ -1,6 +1,8 @@
 //! Building the list of render elements for an output.
 
 pub mod border;
+pub mod capture;
+pub mod screencopy;
 
 use smithay::backend::renderer::element::memory::MemoryRenderBufferRenderElement;
 use smithay::backend::renderer::element::solid::{SolidColorBuffer, SolidColorRenderElement};
@@ -62,6 +64,16 @@ pub fn layer_rules_for(config: &Config, namespace: &str) -> LayerRule {
 impl Hecate {
     /// Render elements for an output, topmost first.
     pub fn render_elements(&self, renderer: &mut GlesRenderer, output: &Output) -> Vec<HecateElement> {
+        self.render_elements_for(renderer, output, true)
+    }
+
+    /// Render elements for an output, topmost first, optionally without the cursor (captures).
+    pub fn render_elements_for(
+        &self,
+        renderer: &mut GlesRenderer,
+        output: &Output,
+        include_cursor: bool,
+    ) -> Vec<HecateElement> {
         let mut out: Vec<HecateElement> = Vec::new();
         let scale = Scale::from(output.current_scale().fractional_scale());
         let output_geo = Wm::output_geometry(output);
@@ -71,7 +83,9 @@ impl Hecate {
         let state = self.output_state.get(output);
 
         // Cursor on top.
-        self.push_cursor(renderer, output, &mut out);
+        if include_cursor {
+            self.push_cursor(renderer, output, &mut out);
+        }
 
         if self.wm.is_locked() {
             if let Some(lock) = self.wm.lock_surface(output) {

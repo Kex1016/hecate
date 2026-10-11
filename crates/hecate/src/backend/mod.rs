@@ -349,6 +349,7 @@ impl Hecate {
     pub fn remove_output(&mut self, output: &Output) {
         self.gamma_control_state.output_removed(output);
         self.output_power_state.output_removed(output);
+        self.screencopy_state.remove_output(output);
         self.wm.remove_output(output);
         if let Some(global) = self.output_state.remove(output).and_then(|s| s.global) {
             // Disable first so clients stop binding, remove once they had time to notice.

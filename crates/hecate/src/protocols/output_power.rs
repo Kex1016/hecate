@@ -1,8 +1,5 @@
 //! wlr-output-power-management-unstable-v1 (wlopm, swayidle-style DPMS from shells).
 
-// `Output` hashes by identity; its interior mutability does not affect the key.
-#![allow(clippy::mutable_key_type)]
-
 use std::collections::HashMap;
 
 use smithay::output::Output;

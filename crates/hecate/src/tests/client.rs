@@ -39,6 +39,8 @@ use smithay::reexports::wayland_protocols_wlr::foreign_toplevel::v1::client::zwl
 use smithay::reexports::wayland_protocols_wlr::foreign_toplevel::v1::client::zwlr_foreign_toplevel_manager_v1::{self, ZwlrForeignToplevelManagerV1};
 use smithay::reexports::wayland_protocols_wlr::gamma_control::v1::client::zwlr_gamma_control_manager_v1::ZwlrGammaControlManagerV1;
 use smithay::reexports::wayland_protocols_wlr::output_power_management::v1::client::zwlr_output_power_manager_v1::ZwlrOutputPowerManagerV1;
+use smithay::reexports::wayland_protocols_wlr::screencopy::v1::client::zwlr_screencopy_frame_v1::{self, ZwlrScreencopyFrameV1};
+use smithay::reexports::wayland_protocols_wlr::screencopy::v1::client::zwlr_screencopy_manager_v1::ZwlrScreencopyManagerV1;
 use smithay::reexports::wayland_protocols_wlr::output_power_management::v1::client::zwlr_output_power_v1::{self, ZwlrOutputPowerV1};
 use smithay::reexports::wayland_protocols_wlr::output_management::v1::client::zwlr_output_configuration_head_v1::ZwlrOutputConfigurationHeadV1;
 use smithay::reexports::wayland_protocols_wlr::output_management::v1::client::zwlr_output_configuration_v1::{self, ZwlrOutputConfigurationV1};
@@ -104,6 +106,8 @@ pub struct State {
     pub gamma_manager: Option<ZwlrGammaControlManagerV1>,
     pub output_manager: Option<ZwlrOutputManagerV1>,
     pub power_manager: Option<ZwlrOutputPowerManagerV1>,
+    pub screencopy_manager: Option<ZwlrScreencopyManagerV1>,
+    pub screencopy_frames: Vec<(ZwlrScreencopyFrameV1, CopyFrame)>,
     /// Per power control: modes received in order, and whether it failed.
     pub power_controls: Vec<(ZwlrOutputPowerV1, Vec<zwlr_output_power_v1::Mode>, bool)>,
     pub output_serial: Option<u32>,
@@ -186,6 +190,39 @@ impl ForeignToplevel {
 
     pub fn has_state(&self, st: zwlr_foreign_toplevel_handle_v1::State) -> bool {
         self.states.contains(&(st as u32))
+    }
+}
+
+/// Events received for a screencopy frame.
+#[derive(Debug, Default, Clone)]
+pub struct CopyFrame {
+    /// (format, width, height, stride) of the shm buffer the compositor wants.
+    pub shm: Option<(u32, u32, u32, u32)>,
+    pub buffer_done: bool,
+    pub damage: Vec<(u32, u32, u32, u32)>,
+    pub ready: bool,
+    pub failed: bool,
+}
+
+/// A client-side shm buffer we can read back.
+pub struct CaptureBuffer {
+    pub buffer: WlBuffer,
+    file: std::fs::File,
+    pub width: i32,
+    pub height: i32,
+    stride: i32,
+}
+
+impl CaptureBuffer {
+    /// RGB at (x, y) of an XRGB8888 buffer.
+    pub fn rgb(&self, x: i32, y: i32) -> [u8; 3] {
+        use std::os::unix::fs::FileExt;
+        let mut px = [0u8; 4];
+        self.file
+            .read_exact_at(&mut px, (y * self.stride + x * 4) as u64)
+            .unwrap();
+        // Little-endian B, G, R, X.
+        [px[2], px[1], px[0]]
     }
 }
 
@@ -425,6 +462,8 @@ impl Client {
             gamma_manager: None,
             output_manager: None,
             power_manager: None,
+            screencopy_manager: None,
+            screencopy_frames: Vec::new(),
             power_controls: Vec::new(),
             output_serial: None,
             heads: Vec::new(),
@@ -851,6 +890,9 @@ impl Dispatch<WlRegistry, ()> for State {
                 } else if interface == ZwlrForeignToplevelManagerV1::interface().name {
                     let version = min(version, ZwlrForeignToplevelManagerV1::interface().version);
                     state.wlr_toplevel_manager = Some(registry.bind(name, version, qh, ()));
+                } else if interface == ZwlrScreencopyManagerV1::interface().name {
+                    let version = min(version, ZwlrScreencopyManagerV1::interface().version);
+                    state.screencopy_manager = Some(registry.bind(name, version, qh, ()));
                 } else if interface == ZwlrOutputPowerManagerV1::interface().name {
                     let version = min(version, ZwlrOutputPowerManagerV1::interface().version);
                     state.power_manager = Some(registry.bind(name, version, qh, ()));
@@ -1776,6 +1818,109 @@ impl Dispatch<ZwlrOutputPowerV1, ()> for State {
             zwlr_output_power_v1::Event::Mode { mode } => entry.1.push(mode.into_result().unwrap()),
             zwlr_output_power_v1::Event::Failed => entry.2 = true,
             _ => unreachable!(),
+        }
+    }
+}
+
+impl State {
+    pub fn capture_output(&mut self, output: &WlOutput, cursor: bool) -> ZwlrScreencopyFrameV1 {
+        let frame =
+            self.screencopy_manager
+                .as_ref()
+                .unwrap()
+                .capture_output(cursor as i32, output, &self.qh, ());
+        self.screencopy_frames.push((frame.clone(), CopyFrame::default()));
+        frame
+    }
+
+    pub fn capture_region(
+        &mut self,
+        output: &WlOutput,
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
+    ) -> ZwlrScreencopyFrameV1 {
+        let frame = self.screencopy_manager.as_ref().unwrap().capture_output_region(
+            0,
+            output,
+            x,
+            y,
+            w,
+            h,
+            &self.qh,
+            (),
+        );
+        self.screencopy_frames.push((frame.clone(), CopyFrame::default()));
+        frame
+    }
+
+    pub fn copy_frame(&self, frame: &ZwlrScreencopyFrameV1) -> CopyFrame {
+        self.screencopy_frames
+            .iter()
+            .find(|(f, _)| f == frame)
+            .unwrap()
+            .1
+            .clone()
+    }
+
+    /// An XRGB8888 shm buffer matching what the compositor asked for.
+    pub fn capture_buffer(&self, frame: &ZwlrScreencopyFrameV1) -> CaptureBuffer {
+        use std::os::fd::{AsFd, FromRawFd, OwnedFd};
+        let (_, w, h, stride) = self.copy_frame(frame).shm.expect("no buffer event");
+        let (w, h, stride) = (w as i32, h as i32, stride as i32);
+        let size = stride * h;
+        // SAFETY: memfd_create with a valid NUL-terminated name.
+        let fd = unsafe { libc::memfd_create(c"hecate-capture".as_ptr(), libc::MFD_CLOEXEC) };
+        assert!(fd >= 0, "memfd_create failed");
+        // SAFETY: fd is a fresh, owned descriptor.
+        let file = std::fs::File::from(unsafe { OwnedFd::from_raw_fd(fd) });
+        file.set_len(size as u64).unwrap();
+        let pool: WlShmPool = self
+            .shm
+            .as_ref()
+            .unwrap()
+            .create_pool(file.as_fd(), size, &self.qh, ());
+        let buffer = pool.create_buffer(0, w, h, stride, wl_shm::Format::Xrgb8888, &self.qh, ());
+        pool.destroy();
+        CaptureBuffer {
+            buffer,
+            file,
+            width: w,
+            height: h,
+            stride,
+        }
+    }
+}
+
+wayland_client::delegate_noop!(State: ignore ZwlrScreencopyManagerV1);
+
+impl Dispatch<ZwlrScreencopyFrameV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        proxy: &ZwlrScreencopyFrameV1,
+        event: zwlr_screencopy_frame_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        let Some((_, f)) = state.screencopy_frames.iter_mut().find(|(p, _)| p == proxy) else {
+            return;
+        };
+        match event {
+            zwlr_screencopy_frame_v1::Event::Buffer {
+                format,
+                width,
+                height,
+                stride,
+            } => f.shm = Some((format.into(), width, height, stride)),
+            zwlr_screencopy_frame_v1::Event::BufferDone => f.buffer_done = true,
+            zwlr_screencopy_frame_v1::Event::Damage { x, y, width, height } => {
+                f.damage.push((x, y, width, height))
+            }
+            zwlr_screencopy_frame_v1::Event::Ready { .. } => f.ready = true,
+            zwlr_screencopy_frame_v1::Event::Failed => f.failed = true,
+            _ => (),
         }
     }
 }

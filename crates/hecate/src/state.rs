@@ -126,6 +126,7 @@ pub struct Hecate {
     pub gamma_control_state: crate::protocols::gamma_control::GammaControlManagerState,
     pub output_management_state: crate::protocols::output_management::OutputManagementState,
     pub output_power_state: crate::protocols::output_power::OutputPowerState,
+    pub screencopy_state: crate::protocols::screencopy::ScreencopyManagerState,
     pub cursor_shape_state: CursorShapeManagerState,
     pub single_pixel_buffer_state: SinglePixelBufferState,
     pub idle_notifier_state: IdleNotifierState<State>,
@@ -326,6 +327,8 @@ impl Hecate {
             crate::protocols::output_management::OutputManagementState::new(&dh, client_is_unrestricted);
         let output_power_state =
             crate::protocols::output_power::OutputPowerState::new(&dh, client_is_unrestricted);
+        let screencopy_state =
+            crate::protocols::screencopy::ScreencopyManagerState::new(&dh, client_is_unrestricted);
         let cursor_shape_state = CursorShapeManagerState::new::<State>(&dh);
         let single_pixel_buffer_state = SinglePixelBufferState::new::<State>(&dh);
         let idle_notifier_state = IdleNotifierState::new(&dh, event_loop.clone());
@@ -459,6 +462,7 @@ impl Hecate {
             gamma_control_state,
             output_management_state,
             output_power_state,
+            screencopy_state,
             cursor_shape_state,
             single_pixel_buffer_state,
             idle_notifier_state,
@@ -521,6 +525,9 @@ impl Hecate {
         }
         self.wm.advance_animations(output);
         let submitted = backend.render(self, output);
+        if self.screencopy_state.has_pending_for(output) {
+            backend.with_renderer(|r| self.render_for_screencopy_with_damage(r, output));
+        }
         if let Some(state) = self.output_state.get_mut(output) {
             if submitted {
                 state.waiting_for_vblank = backend.waits_for_vblank();
@@ -637,6 +644,7 @@ pub fn advertised_globals() -> Vec<String> {
         "zwlr_gamma_control_manager_v1",
         "zwlr_output_manager_v1",
         "zwlr_output_power_manager_v1",
+        "zwlr_screencopy_manager_v1",
     ]
     .iter()
     .map(|s| s.to_string())

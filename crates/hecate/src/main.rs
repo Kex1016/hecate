@@ -1,5 +1,8 @@
 //! hecate: a stacking Wayland compositor.
 
+// Wayland resources and outputs hash by identity; their interior mutability doesn't touch the key.
+#![allow(clippy::mutable_key_type)]
+
 mod actions;
 mod backend;
 mod check;

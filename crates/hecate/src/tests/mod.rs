@@ -13,5 +13,6 @@ mod layers;
 mod output_management;
 mod output_power;
 mod render;
+mod screencopy;
 mod windows;
 mod workspaces;
