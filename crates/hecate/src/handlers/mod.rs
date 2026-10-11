@@ -3,6 +3,7 @@
 mod compositor;
 pub mod image_copy_capture;
 mod layer_shell;
+mod sync;
 mod xdg_shell;
 
 use smithay::backend::allocator::dmabuf::Dmabuf;

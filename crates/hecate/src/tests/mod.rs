@@ -17,6 +17,7 @@ mod output_management;
 mod output_power;
 mod render;
 mod screencopy;
+mod sync;
 mod windows;
 mod workspaces;
 mod xwayland;

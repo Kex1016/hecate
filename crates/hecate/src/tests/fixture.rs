@@ -256,6 +256,10 @@ impl Fixture {
         self.hecate().hecate.queue_redraw_all();
         let HecateState { backend, hecate } = &mut self.state.server.state;
         hecate.redraw_queued_outputs(backend);
+        let outputs: Vec<_> = self.hecate().hecate.wm.outputs().cloned().collect();
+        for o in outputs {
+            self.hecate().post_repaint(&o);
+        }
         let (bytes, w, h) = self
             .hecate()
             .backend

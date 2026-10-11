@@ -94,6 +94,8 @@ struct Device {
 }
 
 pub struct Tty {
+    /// Explicit sync, when the primary GPU supports syncobj eventfds.
+    pub syncobj_state: Option<smithay::wayland::drm_syncobj::DrmSyncobjState>,
     session: LibSeatSession,
     libinput: Libinput,
     primary_node: DrmNode,
@@ -211,6 +213,7 @@ impl Tty {
             .map_err(|e| anyhow::anyhow!("inserting session source: {e}"))?;
 
         Ok(Tty {
+            syncobj_state: None,
             session,
             libinput,
             primary_node,
@@ -261,6 +264,18 @@ impl Tty {
                     );
                 }
                 Err(err) => tracing::warn!("error building dmabuf feedback: {err:?}"),
+            }
+        }
+
+        // Explicit sync (linux-drm-syncobj-v1) if the primary device can do it.
+        if let Some(device) = self.devices.get(&self.primary_node) {
+            let fd = device.manager.device().device_fd().clone();
+            if smithay::wayland::drm_syncobj::supports_syncobj_eventfd(&fd) {
+                self.syncobj_state = Some(smithay::wayland::drm_syncobj::DrmSyncobjState::new::<State>(
+                    &hecate.display_handle,
+                    fd,
+                ));
+                tracing::info!("explicit sync enabled");
             }
         }
 

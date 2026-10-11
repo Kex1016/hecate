@@ -132,6 +132,10 @@ pub struct Hecate {
     pub focus_grab_state: crate::protocols::focus_grab::FocusGrabState,
     pub tearing_control_state: crate::protocols::tearing_control::TearingControlState,
     pub content_type_state: smithay::wayland::content_type::ContentTypeState,
+    pub fifo_state: smithay::wayland::fifo::FifoManagerState,
+    pub commit_timing_state: smithay::wayland::commit_timing::CommitTimingManagerState,
+    /// A timer for the next commit-timing deadline is pending.
+    pub commit_timer_armed: bool,
     pub image_capture_source_state: smithay::wayland::image_capture_source::ImageCaptureSourceState,
     pub output_capture_source_state: smithay::wayland::image_capture_source::OutputCaptureSourceState,
     pub image_copy_capture_state: smithay::wayland::image_copy_capture::ImageCopyCaptureState,
@@ -253,17 +257,27 @@ impl State {
             self.hecate.identify_until = None;
             self.hecate.queue_redraw_all();
         }
-        self.hecate.redraw_queued_outputs(&mut self.backend);
+        self.redraw_queued_outputs();
         crate::protocols::foreign_toplevel::refresh(self);
         crate::protocols::ext_workspace::refresh(self);
         crate::protocols::output_management::refresh(self);
         self.refresh_image_copy_capture();
         self.refresh_focus_grab();
         self.refresh_vrr();
+        self.refresh_commit_timers();
         self.ipc_refresh();
         self.ipc_flush();
         if let Err(err) = self.hecate.display_handle.flush_clients() {
             tracing::warn!("error flushing clients: {err}");
+        }
+    }
+
+    /// Redraw queued outputs, releasing commit-timing and fifo barriers around each frame.
+    pub fn redraw_queued_outputs(&mut self) {
+        for output in self.hecate.queued_outputs() {
+            self.pre_repaint(&output);
+            self.hecate.redraw(&mut self.backend, &output);
+            self.post_repaint(&output);
         }
     }
 
@@ -345,6 +359,9 @@ impl Hecate {
         let focus_grab_state = crate::protocols::focus_grab::FocusGrabState::new(&dh, client_is_unrestricted);
         let tearing_control_state = crate::protocols::tearing_control::TearingControlState::new(&dh);
         let content_type_state = smithay::wayland::content_type::ContentTypeState::new::<State>(&dh);
+        let fifo_state = smithay::wayland::fifo::FifoManagerState::new::<State>(&dh);
+        let commit_timing_state =
+            smithay::wayland::commit_timing::CommitTimingManagerState::new::<State>(&dh);
         let image_capture_source_state =
             smithay::wayland::image_capture_source::ImageCaptureSourceState::new();
         let output_capture_source_state =
@@ -443,6 +460,7 @@ impl Hecate {
                 smithay::reexports::calloop::timer::Timer::from_duration(Duration::from_secs(1)),
                 |_, _, state| {
                     state.hecate.send_fallback_frame_callbacks();
+                    state.sync_fallback();
                     smithay::reexports::calloop::timer::TimeoutAction::ToDuration(Duration::from_secs(1))
                 },
             )
@@ -500,6 +518,9 @@ impl Hecate {
             focus_grab_state,
             tearing_control_state,
             content_type_state,
+            fifo_state,
+            commit_timing_state,
+            commit_timer_armed: false,
             image_capture_source_state,
             output_capture_source_state,
             image_copy_capture_state,
@@ -549,19 +570,21 @@ impl Hecate {
         }
     }
 
-    pub fn redraw_queued_outputs(&mut self, backend: &mut Backend) {
-        let outputs: Vec<Output> = self
-            .output_state
+    pub fn queued_outputs(&self) -> Vec<Output> {
+        self.output_state
             .iter()
             .filter(|(_, s)| s.redraw_queued && !s.waiting_for_vblank)
             .map(|(o, _)| o.clone())
-            .collect();
-        for output in outputs {
+            .collect()
+    }
+
+    pub fn redraw_queued_outputs(&mut self, backend: &mut Backend) {
+        for output in self.queued_outputs() {
             self.redraw(backend, &output);
         }
     }
 
-    fn redraw(&mut self, backend: &mut Backend, output: &Output) {
+    pub fn redraw(&mut self, backend: &mut Backend, output: &Output) {
         if let Some(state) = self.output_state.get_mut(output) {
             state.redraw_queued = false;
         }
@@ -632,6 +655,14 @@ impl Hecate {
         }
     }
 
+    /// Popup surfaces of the given roots.
+    pub fn popups_for(&self, roots: &[WlSurface]) -> Vec<WlSurface> {
+        roots
+            .iter()
+            .flat_map(|r| PopupManager::popups_for_surface(r).map(|(p, _)| p.wl_surface().clone()))
+            .collect()
+    }
+
     pub fn window_for_surface(&self, surface: &WlSurface) -> Option<Window> {
         self.wm.window_for_surface(surface)
     }
@@ -693,6 +724,8 @@ pub fn advertised_globals() -> Vec<String> {
         "hyprland_focus_grab_manager_v1",
         "wp_tearing_control_manager_v1",
         "wp_content_type_manager_v1",
+        "wp_fifo_manager_v1",
+        "wp_commit_timing_manager_v1",
     ]
     .iter()
     .map(|s| s.to_string())

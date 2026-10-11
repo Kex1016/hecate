@@ -29,6 +29,10 @@ impl CompositorHandler for State {
         &client.get_data::<ClientState>().unwrap().compositor_state
     }
 
+    fn new_surface(&mut self, surface: &WlSurface) {
+        self.add_commit_blockers(surface);
+    }
+
     fn commit(&mut self, surface: &WlSurface) {
         on_commit_buffer_handler::<Self>(surface);
         self.backend.early_import(surface);

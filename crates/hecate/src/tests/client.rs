@@ -16,7 +16,11 @@ use calloop_wayland_source::WaylandSource;
 use single_pixel_buffer::v1::client::wp_single_pixel_buffer_manager_v1::WpSinglePixelBufferManagerV1;
 use smithay::reexports::wayland_protocols::wp::keyboard_shortcuts_inhibit::zv1::client::zwp_keyboard_shortcuts_inhibit_manager_v1::ZwpKeyboardShortcutsInhibitManagerV1;
 use smithay::reexports::wayland_protocols::wp::keyboard_shortcuts_inhibit::zv1::client::zwp_keyboard_shortcuts_inhibitor_v1::{self, ZwpKeyboardShortcutsInhibitorV1};
+use smithay::reexports::wayland_protocols::wp::commit_timing::v1::client::wp_commit_timer_v1::WpCommitTimerV1;
+use smithay::reexports::wayland_protocols::wp::commit_timing::v1::client::wp_commit_timing_manager_v1::WpCommitTimingManagerV1;
 use smithay::reexports::wayland_protocols::wp::content_type::v1::client::wp_content_type_manager_v1::WpContentTypeManagerV1;
+use smithay::reexports::wayland_protocols::wp::fifo::v1::client::wp_fifo_manager_v1::WpFifoManagerV1;
+use smithay::reexports::wayland_protocols::wp::fifo::v1::client::wp_fifo_v1::WpFifoV1;
 use smithay::reexports::wayland_protocols::wp::content_type::v1::client::wp_content_type_v1::WpContentTypeV1;
 use smithay::reexports::wayland_protocols::wp::single_pixel_buffer;
 use smithay::reexports::wayland_protocols::wp::tearing_control::v1::client::wp_tearing_control_manager_v1::WpTearingControlManagerV1;
@@ -121,6 +125,8 @@ pub struct State {
     pub screencopy_manager: Option<ZwlrScreencopyManagerV1>,
     pub focus_grab_manager: Option<HyprlandFocusGrabManagerV1>,
     pub tearing_manager: Option<WpTearingControlManagerV1>,
+    pub fifo_manager: Option<WpFifoManagerV1>,
+    pub commit_timing_manager: Option<WpCommitTimingManagerV1>,
     pub content_type_manager: Option<WpContentTypeManagerV1>,
     /// Grabs that received `cleared`, once per event.
     pub focus_grabs_cleared: Vec<HyprlandFocusGrabV1>,
@@ -518,6 +524,8 @@ impl Client {
             screencopy_manager: None,
             focus_grab_manager: None,
             tearing_manager: None,
+            fifo_manager: None,
+            commit_timing_manager: None,
             content_type_manager: None,
             focus_grabs_cleared: Vec::new(),
             output_source_manager: None,
@@ -958,6 +966,10 @@ impl Dispatch<WlRegistry, ()> for State {
                     state.toplevel_source_manager = Some(registry.bind(name, 1, qh, ()));
                 } else if interface == ExtImageCopyCaptureManagerV1::interface().name {
                     state.copy_capture_manager = Some(registry.bind(name, 1, qh, ()));
+                } else if interface == WpFifoManagerV1::interface().name {
+                    state.fifo_manager = Some(registry.bind(name, 1, qh, ()));
+                } else if interface == WpCommitTimingManagerV1::interface().name {
+                    state.commit_timing_manager = Some(registry.bind(name, 1, qh, ()));
                 } else if interface == WpTearingControlManagerV1::interface().name {
                     state.tearing_manager = Some(registry.bind(name, 1, qh, ()));
                 } else if interface == WpContentTypeManagerV1::interface().name {
@@ -2138,3 +2150,8 @@ wayland_client::delegate_noop!(State: ignore WpTearingControlManagerV1);
 wayland_client::delegate_noop!(State: ignore WpTearingControlV1);
 wayland_client::delegate_noop!(State: ignore WpContentTypeManagerV1);
 wayland_client::delegate_noop!(State: ignore WpContentTypeV1);
+
+wayland_client::delegate_noop!(State: ignore WpFifoManagerV1);
+wayland_client::delegate_noop!(State: ignore WpFifoV1);
+wayland_client::delegate_noop!(State: ignore WpCommitTimingManagerV1);
+wayland_client::delegate_noop!(State: ignore WpCommitTimerV1);
