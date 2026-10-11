@@ -41,7 +41,7 @@ Scope {
             id: panelWindow
             readonly property var monitor: WM.monitorFor(panelWindow.screen)
             property bool monitorIsFocused: WM.compositor === "hyprland"
-                ? (Hyprland.focusedMonitor?.name == monitor?.name)
+                ? (WM.focusedMonitor?.name == monitor?.name)
                 : (WM.focusedMonitor?.name == monitor?.name)
 
             exclusionMode: ExclusionMode.Ignore

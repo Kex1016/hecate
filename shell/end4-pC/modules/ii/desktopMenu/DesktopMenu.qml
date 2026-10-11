@@ -21,7 +21,7 @@ Scope {
             GlobalStates.desktopMenuOpen = false
             return
         }
-        const focusedName = Hyprland.focusedMonitor?.name
+        const focusedName = WM.focusedMonitor?.name
         const screen = Quickshell.screens.find(s => s.name === focusedName) ?? Quickshell.screens[0]
         GlobalStates.desktopMenuScreen = screen
         GlobalStates.desktopMenuX = screen.width / 2

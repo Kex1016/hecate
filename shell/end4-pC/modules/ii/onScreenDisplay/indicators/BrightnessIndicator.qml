@@ -7,7 +7,7 @@ import qs.modules.ii.onScreenDisplay
 OsdValueIndicator {
     id: root
     property var focusedScreen: WM.compositor === "hyprland"
-            ? Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
+            ? Quickshell.screens.find(s => s.name === WM.focusedMonitor?.name)
             : Quickshell.screens.find(s => s.name === WM.focusedMonitor?.name)
     property var brightnessMonitor: Brightness.getMonitorForScreen(focusedScreen)
 

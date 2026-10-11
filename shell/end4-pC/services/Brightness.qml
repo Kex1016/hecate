@@ -34,14 +34,14 @@ Singleton {
             return;
         }
 
-        const focusedName = Hyprland.focusedMonitor.name;
+        const focusedName = (WM.focusedMonitor?.name ?? "");
         const monitor = monitors.find(m => focusedName === m.screen.name);
         if (monitor)
             monitor.setBrightness(monitor.brightness + 0.05);
     }
 
     function decreaseBrightness(): void {
-        const focusedName = Hyprland.focusedMonitor.name;
+        const focusedName = (WM.focusedMonitor?.name ?? "");
         const monitor = monitors.find(m => focusedName === m.screen.name);
         if (monitor && monitor.brightness > 0) 
             monitor.setBrightness(monitor.brightness - 0.05);

@@ -18,7 +18,7 @@ RowLayout {
     spacing: 6
 
     readonly property var focusedScreen: WM.compositor === "hyprland"
-        ? Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name)
+        ? Quickshell.screens.find(s => s.name === WM.focusedMonitor?.name)
         : Quickshell.screens.find(s => s.name === WM.focusedMonitor?.name)
     readonly property var brightnessMonitor: Brightness.getMonitorForScreen(focusedScreen)
 
