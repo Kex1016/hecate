@@ -23,6 +23,10 @@ use smithay::reexports::wayland_protocols::wp::fifo::v1::client::wp_fifo_manager
 use smithay::reexports::wayland_protocols::wp::fifo::v1::client::wp_fifo_v1::WpFifoV1;
 use smithay::reexports::wayland_protocols::wp::content_type::v1::client::wp_content_type_v1::WpContentTypeV1;
 use smithay::reexports::wayland_protocols::wp::single_pixel_buffer;
+use smithay::reexports::wayland_protocols::ext::background_effect::v1::client::ext_background_effect_manager_v1::{
+    self, ExtBackgroundEffectManagerV1,
+};
+use smithay::reexports::wayland_protocols::ext::background_effect::v1::client::ext_background_effect_surface_v1::ExtBackgroundEffectSurfaceV1;
 use smithay::reexports::wayland_protocols::wp::tearing_control::v1::client::wp_tearing_control_manager_v1::WpTearingControlManagerV1;
 use smithay::reexports::wayland_protocols::wp::tearing_control::v1::client::wp_tearing_control_v1::WpTearingControlV1;
 use smithay::reexports::wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
@@ -125,6 +129,9 @@ pub struct State {
     pub screencopy_manager: Option<ZwlrScreencopyManagerV1>,
     pub focus_grab_manager: Option<HyprlandFocusGrabManagerV1>,
     pub tearing_manager: Option<WpTearingControlManagerV1>,
+    pub background_effect_manager: Option<ExtBackgroundEffectManagerV1>,
+    /// Last `capabilities` from the background effect manager.
+    pub background_effect_caps: Option<u32>,
     pub fifo_manager: Option<WpFifoManagerV1>,
     pub commit_timing_manager: Option<WpCommitTimingManagerV1>,
     pub content_type_manager: Option<WpContentTypeManagerV1>,
@@ -525,6 +532,8 @@ impl Client {
             screencopy_manager: None,
             focus_grab_manager: None,
             tearing_manager: None,
+            background_effect_manager: None,
+            background_effect_caps: None,
             fifo_manager: None,
             commit_timing_manager: None,
             content_type_manager: None,
@@ -980,6 +989,8 @@ impl Dispatch<WlRegistry, ()> for State {
                     state.fifo_manager = Some(registry.bind(name, 1, qh, ()));
                 } else if interface == WpCommitTimingManagerV1::interface().name {
                     state.commit_timing_manager = Some(registry.bind(name, 1, qh, ()));
+                } else if interface == ExtBackgroundEffectManagerV1::interface().name {
+                    state.background_effect_manager = Some(registry.bind(name, 1, qh, ()));
                 } else if interface == WpTearingControlManagerV1::interface().name {
                     state.tearing_manager = Some(registry.bind(name, 1, qh, ()));
                 } else if interface == WpContentTypeManagerV1::interface().name {
@@ -2157,6 +2168,48 @@ impl Dispatch<HyprlandFocusGrabV1, ()> for State {
 }
 
 wayland_client::delegate_noop!(State: ignore WpTearingControlManagerV1);
+wayland_client::delegate_noop!(State: ignore ExtBackgroundEffectSurfaceV1);
+wayland_client::delegate_noop!(State: ignore wayland_client::protocol::wl_region::WlRegion);
+
+impl Dispatch<ExtBackgroundEffectManagerV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        _proxy: &ExtBackgroundEffectManagerV1,
+        event: ext_background_effect_manager_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        if let ext_background_effect_manager_v1::Event::Capabilities { flags } = event {
+            state.background_effect_caps = Some(u32::from(flags));
+        }
+    }
+}
+
+impl State {
+    /// Ask for blur behind `rects` (surface-local x, y, w, h) of a surface; None clears it.
+    /// Takes effect on the surface's next commit.
+    pub fn set_blur_region(
+        &self,
+        surface: &WlSurface,
+        rects: Option<&[(i32, i32, i32, i32)]>,
+    ) -> ExtBackgroundEffectSurfaceV1 {
+        let effect = self
+            .background_effect_manager
+            .as_ref()
+            .unwrap()
+            .get_background_effect(surface, &self.qh, ());
+        let region = rects.map(|rects| {
+            let region = self.compositor.as_ref().unwrap().create_region(&self.qh, ());
+            for &(x, y, w, h) in rects {
+                region.add(x, y, w, h);
+            }
+            region
+        });
+        effect.set_blur_region(region.as_ref());
+        effect
+    }
+}
 wayland_client::delegate_noop!(State: ignore WpTearingControlV1);
 wayland_client::delegate_noop!(State: ignore WpContentTypeManagerV1);
 wayland_client::delegate_noop!(State: ignore WpContentTypeV1);

@@ -14,9 +14,9 @@ use smithay::backend::renderer::gles::{
 use smithay::backend::renderer::utils::{CommitCounter, DamageSet, OpaqueRegions};
 use smithay::backend::renderer::{Bind, Color32F, Frame, Offscreen, Renderer, Texture};
 use smithay::utils::user_data::UserDataMap;
-use smithay::utils::{Buffer, Physical, Rectangle, Scale, Size, Transform};
+use smithay::utils::{Buffer, Logical, Physical, Rectangle, Scale, Size, Transform};
 
-use crate::config::Blur;
+use crate::config::{Blur, Corners};
 
 const HEADER: &str = r#"
 //_DEFINES_
@@ -68,16 +68,29 @@ void main() {
 }
 "#;
 
-/// Blurred texture, cropped by the vertex shader, with noise against banding.
+/// Blurred texture, cropped by the vertex shader, with noise against banding, optionally
+/// clipped to a rounded rectangle (a window's corners).
 const FINISH: &str = r#"
 uniform float noise;
+uniform vec4 src_rect;
+uniform vec2 elem_size;
+uniform vec4 round_rect;
+uniform vec4 corner_radius;
+uniform float hecate_scale;
+float hecate_rounding_alpha(vec2 coords, vec2 size, vec4 r, float scale);
 float hecate_hash(vec2 p) {
     return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
 }
 void main() {
+    vec2 local = (v_coords - src_rect.xy) / src_rect.zw * elem_size;
+    vec2 rc = local - round_rect.xy;
+    float r = 0.0;
+    if (rc.x >= 0.0 && rc.y >= 0.0 && rc.x <= round_rect.z && rc.y <= round_rect.w) {
+        r = hecate_rounding_alpha(rc, round_rect.zw, corner_radius, hecate_scale);
+    }
     vec4 color = texture2D(tex, v_coords);
     color.rgb += (hecate_hash(gl_FragCoord.xy) - 0.5) * noise;
-    gl_FragColor = vec4(color.rgb, 1.0) * alpha;
+    gl_FragColor = vec4(color.rgb, 1.0) * alpha * r;
 }
 "#;
 
@@ -128,7 +141,20 @@ impl BlurShaders {
             Some(BlurShaders {
                 down: compile(renderer, DOWN, &pass)?,
                 up: compile(renderer, UP, &pass)?,
-                finish: compile(renderer, FINISH, &[UniformName::new("noise", UniformType::_1f)])?,
+                finish: renderer
+                    .compile_custom_texture_shader(
+                        format!("{HEADER}\n{FINISH}\n{}", super::border::ROUNDING_ALPHA),
+                        &[
+                            UniformName::new("noise", UniformType::_1f),
+                            UniformName::new("src_rect", UniformType::_4f),
+                            UniformName::new("elem_size", UniformType::_2f),
+                            UniformName::new("round_rect", UniformType::_4f),
+                            UniformName::new("corner_radius", UniformType::_4f),
+                            UniformName::new("hecate_scale", UniformType::_1f),
+                        ],
+                    )
+                    .map_err(|e| tracing::warn!("error compiling blur shader: {e:?}"))
+                    .ok()?,
                 mask: compile(
                     renderer,
                     MASK,
@@ -340,6 +366,9 @@ pub struct BlurElement {
     noise: f32,
     alpha: f32,
     programs: (GlesTexProgram, GlesTexProgram),
+    /// Clip to this rounded rectangle (logical, relative to the element).
+    rounding: Option<(Rectangle<f64, Logical>, Corners)>,
+    scale: f64,
 }
 
 impl BlurElement {
@@ -363,7 +392,16 @@ impl BlurElement {
             noise,
             alpha,
             programs,
+            rounding: None,
+            scale: 1.0,
         }
+    }
+
+    /// Clip to a rounded rectangle given relative to the element, in logical pixels.
+    pub fn with_rounding(mut self, rect: Rectangle<f64, Logical>, radius: Corners, scale: f64) -> Self {
+        self.rounding = Some((rect, radius));
+        self.scale = scale;
+        self
     }
 }
 
@@ -396,7 +434,7 @@ impl Element for BlurElement {
     }
 
     fn opaque_regions(&self, _scale: Scale<f64>) -> OpaqueRegions<i32, Physical> {
-        if self.mask.is_none() && self.alpha >= 1.0 {
+        if self.mask.is_none() && self.rounding.is_none() && self.alpha >= 1.0 {
             OpaqueRegions::from_slice(&[Rectangle::from_size(self.geometry.size)])
         } else {
             OpaqueRegions::default()
@@ -425,17 +463,44 @@ impl RenderElement<GlesRenderer> for BlurElement {
         let (finish, mask_program) = &self.programs;
         let size = self.blurred.size();
         match &self.mask {
-            None => frame.render_texture_from_to(
-                &self.blurred,
-                self.src(),
-                dst,
-                damage,
-                &[],
-                Transform::Normal,
-                self.alpha,
-                Some(finish),
-                &[Uniform::new("noise", self.noise)],
-            ),
+            None => {
+                let src = self.src();
+                let src_rect = [
+                    src.loc.x as f32 / size.w as f32,
+                    src.loc.y as f32 / size.h as f32,
+                    src.size.w as f32 / size.w as f32,
+                    src.size.h as f32 / size.h as f32,
+                ];
+                let elem_size = (
+                    (self.geometry.size.w as f64 / self.scale) as f32,
+                    (self.geometry.size.h as f64 / self.scale) as f32,
+                );
+                let (round_rect, radius) = match &self.rounding {
+                    Some((r, c)) => (
+                        [r.loc.x as f32, r.loc.y as f32, r.size.w as f32, r.size.h as f32],
+                        c.as_array(),
+                    ),
+                    None => ([0., 0., elem_size.0, elem_size.1], [0.; 4]),
+                };
+                frame.render_texture_from_to(
+                    &self.blurred,
+                    src,
+                    dst,
+                    damage,
+                    &[],
+                    Transform::Normal,
+                    self.alpha,
+                    Some(finish),
+                    &[
+                        Uniform::new("noise", self.noise),
+                        Uniform::new("src_rect", src_rect),
+                        Uniform::new("elem_size", elem_size),
+                        Uniform::new("round_rect", round_rect),
+                        Uniform::new("corner_radius", radius),
+                        Uniform::new("hecate_scale", self.scale as f32),
+                    ],
+                )
+            }
             Some((mask, threshold)) => {
                 let blurred = self.blurred.tex_id();
                 frame.with_context(|gl| unsafe {

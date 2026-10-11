@@ -132,6 +132,7 @@ pub struct Hecate {
     pub screencopy_state: crate::protocols::screencopy::ScreencopyManagerState,
     pub focus_grab_state: crate::protocols::focus_grab::FocusGrabState,
     pub tearing_control_state: crate::protocols::tearing_control::TearingControlState,
+    pub background_effect_state: crate::protocols::background_effect::BackgroundEffectState,
     pub content_type_state: smithay::wayland::content_type::ContentTypeState,
     pub fifo_state: smithay::wayland::fifo::FifoManagerState,
     pub commit_timing_state: smithay::wayland::commit_timing::CommitTimingManagerState,
@@ -359,6 +360,8 @@ impl Hecate {
             crate::protocols::screencopy::ScreencopyManagerState::new(&dh, client_is_unrestricted);
         let focus_grab_state = crate::protocols::focus_grab::FocusGrabState::new(&dh, client_is_unrestricted);
         let tearing_control_state = crate::protocols::tearing_control::TearingControlState::new(&dh);
+        let background_effect_state =
+            crate::protocols::background_effect::BackgroundEffectState::new(&dh, config.blur.enable);
         let content_type_state = smithay::wayland::content_type::ContentTypeState::new::<State>(&dh);
         let fifo_state = smithay::wayland::fifo::FifoManagerState::new::<State>(&dh);
         let commit_timing_state =
@@ -518,6 +521,7 @@ impl Hecate {
             screencopy_state,
             focus_grab_state,
             tearing_control_state,
+            background_effect_state,
             content_type_state,
             fifo_state,
             commit_timing_state,
@@ -740,6 +744,7 @@ pub fn advertised_globals() -> Vec<String> {
         "ext_foreign_toplevel_image_capture_source_manager_v1",
         "hyprland_focus_grab_manager_v1",
         "wp_tearing_control_manager_v1",
+        "ext_background_effect_manager_v1",
         "wp_content_type_manager_v1",
         "wp_fifo_manager_v1",
         "wp_commit_timing_manager_v1",

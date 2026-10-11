@@ -42,15 +42,75 @@ render_elements! {
 struct BlurMarker {
     /// Index in the element list just below the surface's elements.
     index: usize,
-    surface: smithay::desktop::LayerSurface,
+    /// Stable element id (damage tracking).
+    id: smithay::backend::renderer::element::Id,
+    /// The layer surface, for its `ignore_alpha` mask.
+    surface: Option<smithay::desktop::LayerSurface>,
     geometry: Rectangle<i32, Physical>,
     alpha: f32,
     xray: bool,
     ignore_alpha: Option<f32>,
+    /// Clip to a rounded rectangle, logical and relative to `geometry`.
+    rounding: Option<(Rectangle<f64, Logical>, crate::config::Corners)>,
 }
 
-/// Stable element id for a layer surface's blur.
-struct BlurId(smithay::backend::renderer::element::Id);
+#[allow(clippy::too_many_arguments)]
+/// Blur markers for a surface's ext-background-effect region (surface-local, placed at
+/// `origin` in output logical coordinates), clipped to `clip`.
+fn region_markers(
+    surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
+    origin: Point<i32, Logical>,
+    clip: Rectangle<i32, Logical>,
+    scale: Scale<f64>,
+    index: usize,
+    layer: Option<&smithay::desktop::LayerSurface>,
+    alpha: f32,
+    rounding: Option<crate::config::Corners>,
+) -> Vec<BlurMarker> {
+    let Some(region) = crate::protocols::background_effect::blur_region(surface) else {
+        return Vec::new();
+    };
+    region
+        .into_iter()
+        .filter_map(|r| Rectangle::new(r.loc + origin, r.size).intersection(clip))
+        .enumerate()
+        .map(|(i, r)| {
+            let geometry = r.to_physical_precise_round(scale);
+            BlurMarker {
+                id: blur_id(surface, i + 1),
+                index,
+                surface: layer.cloned(),
+                geometry,
+                alpha,
+                xray: false,
+                ignore_alpha: None,
+                rounding: rounding.filter(|c| !c.is_zero()).map(|c| {
+                    // The clip rect relative to this piece of the region.
+                    let rel = Rectangle::new((clip.loc - r.loc).to_f64(), clip.size.to_f64());
+                    (rel, c)
+                }),
+            }
+        })
+        .collect()
+}
+
+/// Stable element ids for a surface's blur: one per layer rule, or per region piece.
+#[derive(Default)]
+struct BlurIds(std::sync::Mutex<Vec<smithay::backend::renderer::element::Id>>);
+
+fn blur_id(
+    surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
+    i: usize,
+) -> smithay::backend::renderer::element::Id {
+    with_states(surface, |states| {
+        let ids = states.data_map.get_or_insert_threadsafe(BlurIds::default);
+        let mut ids = ids.0.lock().unwrap();
+        while ids.len() <= i {
+            ids.push(smithay::backend::renderer::element::Id::new());
+        }
+        ids[i].clone()
+    })
+}
 
 render_elements! {
     /// What a window (or its snapshot) is drawn with; scaled as a whole by animations.
@@ -206,15 +266,31 @@ impl Hecate {
                     center.to_physical_precise_round(scale),
                     anim_scale,
                 );
-                if self.config.blur.enable && rules.blur == Some(true) {
+                if !self.config.blur.enable {
+                    continue;
+                }
+                if rules.blur == Some(true) {
                     markers.push(BlurMarker {
+                        id: blur_id(surface.wl_surface(), 0),
                         index: out.len(),
-                        surface: surface.clone(),
+                        surface: Some(surface.clone()),
                         geometry: Rectangle::new(geo_loc, geo.size).to_physical_precise_round(scale),
                         alpha,
                         xray: rules.xray.unwrap_or(false),
                         ignore_alpha: rules.ignore_alpha,
+                        rounding: None,
                     });
+                } else if rules.blur != Some(false) {
+                    markers.extend(region_markers(
+                        surface.wl_surface(),
+                        geo_loc,
+                        Rectangle::new(geo_loc, geo.size),
+                        scale,
+                        out.len(),
+                        Some(surface),
+                        alpha,
+                        None,
+                    ));
                 }
             }
         };
@@ -254,6 +330,7 @@ impl Hecate {
                 (in_offset, 0.).into(),
                 output,
                 now,
+                &mut markers,
             );
         }
         if let Some(s) = &switch
@@ -271,6 +348,7 @@ impl Hecate {
                     (out_offset, 0.).into(),
                     output,
                     now,
+                    &mut markers,
                 );
             }
         }
@@ -327,44 +405,40 @@ impl Hecate {
             };
             let context = smithay::backend::renderer::Renderer::context_id(renderer);
             let mut mask = None;
-            if let Some(threshold) = m.ignore_alpha {
-                let (texture, single_pixel_alpha) =
-                    with_renderer_surface_state(m.surface.wl_surface(), |s| {
-                        let texture = s.texture::<GlesTexture>(context.clone()).cloned();
-                        // Single-pixel buffers are drawn without a texture: their alpha decides.
-                        let alpha = s.buffer().and_then(|b| {
-                            smithay::wayland::single_pixel_buffer::get_single_pixel_buffer(b)
-                                .ok()
-                                .map(|d| d.a as f64 / u32::MAX as f64)
-                        });
-                        (texture, alpha)
-                    })
-                    .unwrap_or_default();
+            if let Some(threshold) = m.ignore_alpha
+                && let Some(surface) = &m.surface
+            {
+                let (texture, single_pixel_alpha) = with_renderer_surface_state(surface.wl_surface(), |s| {
+                    let texture = s.texture::<GlesTexture>(context.clone()).cloned();
+                    // Single-pixel buffers are drawn without a texture: their alpha decides.
+                    let alpha = s.buffer().and_then(|b| {
+                        smithay::wayland::single_pixel_buffer::get_single_pixel_buffer(b)
+                            .ok()
+                            .map(|d| d.a as f64 / u32::MAX as f64)
+                    });
+                    (texture, alpha)
+                })
+                .unwrap_or_default();
                 match single_pixel_alpha {
                     Some(a) if a <= threshold as f64 => continue,
                     Some(_) => {}
                     None => mask = texture.map(|t| (t, threshold)),
                 }
             }
-            let id = m
-                .surface
-                .user_data()
-                .get_or_insert(|| BlurId(smithay::backend::renderer::element::Id::new()))
-                .0
-                .clone();
-            out.insert(
-                m.index,
-                HecateElement::Blur(blur::BlurElement::new(
-                    programs.clone(),
-                    id,
-                    commit,
-                    texture,
-                    m.geometry,
-                    mask,
-                    config.noise,
-                    m.alpha,
-                )),
+            let mut elem = blur::BlurElement::new(
+                programs.clone(),
+                m.id,
+                commit,
+                texture,
+                m.geometry,
+                mask,
+                config.noise,
+                m.alpha,
             );
+            if let Some((rect, radius)) = m.rounding {
+                elem = elem.with_rounding(rect, radius, scale.x);
+            }
+            out.insert(m.index, HecateElement::Blur(elem));
             if m.index <= xray_start {
                 xray_start += 1;
             }
@@ -383,6 +457,7 @@ impl Hecate {
         offset: Point<f64, Logical>,
         output: &Output,
         now: std::time::Duration,
+        markers: &mut Vec<BlurMarker>,
     ) {
         let output_geo = Wm::output_geometry(output);
         let scale = Scale::from(output.current_scale().fractional_scale());
@@ -461,6 +536,19 @@ impl Hecate {
             alpha,
             &style,
         );
+        if self.config.blur.enable {
+            let local = Rectangle::new(rect.loc - output_geo.loc, rect.size);
+            markers.extend(region_markers(
+                window.toplevel_surface().wl_surface(),
+                local.loc - window.geometry().loc,
+                local,
+                scale,
+                out.len() + elems.len(),
+                None,
+                alpha,
+                Some(style.radius),
+            ));
+        }
         let center = (rect.loc - output_geo.loc).to_f64() + rect.size.to_f64().downscale(2.);
         push_scaled(out, elems, center.to_physical_precise_round(scale), anim_scale);
     }

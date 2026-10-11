@@ -16,8 +16,12 @@ const BLUE: [u8; 4] = [0, 0, 255, 255];
 const CLEAR: [u8; 4] = [0, 0, 0, 0];
 
 fn fixture(rules: &str) -> Option<(Fixture, ClientId)> {
+    fixture_with_border("", rules)
+}
+
+fn fixture_with_border(border: &str, rules: &str) -> Option<(Fixture, ClientId)> {
     let toml = format!(
-        "[general]\nbackground_color = \"#00ff00\"\n[border]\nwidth = 0\n[animations]\nenable = false\n\
+        "[general]\nbackground_color = \"#00ff00\"\n[border]\nwidth = 0\n{border}\n[animations]\nenable = false\n\
          [blur]\npasses = 2\nradius = 3\nnoise = 0\n{rules}"
     );
     let mut f = Fixture::with_toml(&toml);
@@ -214,4 +218,93 @@ fn ignore_alpha_masks_by_the_buffer_contents() {
             frame.assert_rgb(200, 52, [0, 255, 0], "transparent buffer: no blur");
         }
     }
+}
+
+// ---------------------------------------------------------------- ext-background-effect
+
+fn region_fixture(extra: &str) -> Option<(Fixture, ClientId, WlSurface)> {
+    let (mut f, id) = fixture_with_border("radius = 20\nclip_content = true", extra)?;
+    // Red over x = 0..155: just right of the transparent window's left edge (150).
+    let l = f.client(id).create_layer(None, Layer::Background, "wallpaper");
+    let surface = l.surface.clone();
+    l.set_configure_props(LayerConfigureProps {
+        size: Some((155, 0)),
+        anchor: Some(Anchor::Left | Anchor::Top | Anchor::Bottom),
+        ..Default::default()
+    });
+    l.commit();
+    f.double_roundtrip(id);
+    let l = f.client(id).layer(&surface);
+    let (w, h) = l.configures_received.last().unwrap().1.size;
+    l.attach_color(RED);
+    l.set_size(w as u16, h as u16);
+    l.ack_last_and_commit();
+    f.double_roundtrip(id);
+    let window = f.map_shm_window(id, (100, 100), CLEAR);
+    Some((f, id, window))
+}
+
+#[test]
+fn background_effect_advertises_blur() {
+    let Some((mut f, id)) = fixture("") else { return };
+    f.roundtrip(id);
+    assert_eq!(f.client(id).state.background_effect_caps, Some(1));
+    let mut config = f.hecate().hecate.config.clone();
+    config.blur.enable = false;
+    f.hecate().apply_config(config);
+    f.roundtrip(id);
+    assert_eq!(
+        f.client(id).state.background_effect_caps,
+        Some(0),
+        "capabilities resent when blur is switched off"
+    );
+}
+
+#[test]
+fn window_blur_region_blurs_behind_it_inside_its_corners() {
+    let Some((mut f, id, window)) = region_fixture("") else {
+        return;
+    };
+    let frame = f.render("headless-1");
+    frame.assert_rgb(152, 150, [255, 0, 0], "no region yet: sharp");
+
+    f.client(id)
+        .state
+        .set_blur_region(&window, Some(&[(0, 0, 100, 100)]));
+    f.client(id).window(&window).commit();
+    f.double_roundtrip(id);
+    let frame = f.render("headless-1");
+    let p = rgb(&frame, 152, 150);
+    assert!(
+        p[1] > 20 && p[0] > 20,
+        "blurred across x = 155 behind the window: {p:?}"
+    );
+    // The rounded corner is outside the window: the wallpaper shows through unblurred.
+    frame.assert_rgb(151, 101, [255, 0, 0], "corner left alone");
+    // Outside the window, nothing changes.
+    frame.assert_rgb(148, 150, [255, 0, 0], "left of the window");
+}
+
+#[test]
+fn blur_region_is_clipped_to_its_rectangles_and_can_be_cleared() {
+    let Some((mut f, id, window)) = region_fixture("") else {
+        return;
+    };
+    // Only the bottom half of the window.
+    let effect = f
+        .client(id)
+        .state
+        .set_blur_region(&window, Some(&[(0, 50, 100, 50)]));
+    f.client(id).window(&window).commit();
+    f.double_roundtrip(id);
+    let frame = f.render("headless-1");
+    frame.assert_rgb(152, 120, [255, 0, 0], "top half: not in the region");
+    let p = rgb(&frame, 152, 170);
+    assert!(p[1] > 20, "bottom half blurred: {p:?}");
+
+    effect.set_blur_region(None);
+    f.client(id).window(&window).commit();
+    f.double_roundtrip(id);
+    f.render("headless-1")
+        .assert_rgb(152, 170, [255, 0, 0], "cleared");
 }

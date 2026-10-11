@@ -28,7 +28,7 @@ use crate::wm::{Maximized, WindowExt};
 
 pub type BorderElement = PixelShaderElement;
 
-const ROUNDING_ALPHA: &str = r#"
+pub(super) const ROUNDING_ALPHA: &str = r#"
 float hecate_rounding_alpha(vec2 coords, vec2 size, vec4 r, float scale) {
     vec2 center;
     float radius;

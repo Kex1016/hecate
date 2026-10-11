@@ -1,5 +1,6 @@
 //! Protocol implementations not provided by Smithay.
 
+pub mod background_effect;
 pub mod ext_workspace;
 pub mod focus_grab;
 pub mod foreign_toplevel;

@@ -477,6 +477,9 @@ impl State {
             self.hecate.cursor_manager = crate::cursor::CursorManager::new(&c.theme, c.size);
         }
         self.hecate.wm.anim = self.hecate.config.animations.clone();
+        self.hecate
+            .background_effect_state
+            .set_blur(self.hecate.config.blur.enable);
         if old.workspaces != self.hecate.config.workspaces {
             let cfg = self.hecate.config.clone();
             self.hecate.wm.ensure_workspaces(&cfg);
