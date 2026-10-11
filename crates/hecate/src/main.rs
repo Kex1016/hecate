@@ -2,6 +2,7 @@
 
 mod actions;
 mod backend;
+mod check;
 mod cli;
 mod config;
 mod cursor;

@@ -40,6 +40,8 @@ pub enum Command {
     Schema,
     /// Print the default config as TOML
     PrintDefaultConfig,
+    /// Diagnose the environment: GPU, outputs, session, tools, config
+    Check,
     /// Generate shell completions
     Completions { shell: clap_complete::Shell },
 }
@@ -62,6 +64,13 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
             config.binds = crate::config::defaults::base_binds().clone();
             config.mouse_binds = crate::config::defaults::base_mouse_binds().clone();
             print!("{}", toml::to_string_pretty(&config)?);
+            Ok(())
+        }
+        Some(Command::Check) => {
+            let findings = crate::check::run(cli.config);
+            if !crate::check::print(&findings) {
+                std::process::exit(1);
+            }
             Ok(())
         }
         Some(Command::Completions { shell }) => {
@@ -156,6 +165,22 @@ fn run_compositor(
     crate::utils::set_child_env("XDG_SESSION_TYPE", Some("wayland"));
     for (k, v) in state.hecate.config.environment.clone() {
         crate::utils::set_child_env(&k, Some(&v));
+    }
+
+    if let Some(path) = state.hecate.config_path.clone() {
+        match crate::config::watch::watch(&path, &state.hecate.event_loop) {
+            Ok(w) => state.hecate.config_watcher = Some(w),
+            Err(err) => tracing::warn!("not watching the config for changes: {err}"),
+        }
+    }
+    // SIGHUP reloads the config.
+    if let Ok(signals) = smithay::reexports::calloop::signals::Signals::new(&[
+        smithay::reexports::calloop::signals::Signal::SIGHUP,
+    ]) {
+        let _ = state
+            .hecate
+            .event_loop
+            .insert_source(signals, |_, _, state| state.reload_config());
     }
 
     state.start_session();
