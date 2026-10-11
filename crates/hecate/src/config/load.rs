@@ -179,9 +179,11 @@ pub fn validate(config: &Config) -> Result<(), LoadError> {
         ));
     }
 
-    for k in config.binds.keys() {
-        if let Err(e) = k.parse::<KeyCombo>() {
-            errors.push(format!("binds.{k:?}: {e}"));
+    for (section, binds) in [("binds", &config.binds), ("shell_binds", &config.shell_binds)] {
+        for k in binds.keys() {
+            if let Err(e) = k.parse::<KeyCombo>() {
+                errors.push(format!("{section}.{k:?}: {e}"));
+            }
         }
     }
     for k in config.mouse_binds.keys() {
@@ -276,6 +278,9 @@ pub fn resolved_binds(config: &Config) -> Vec<Bind> {
         for (k, v) in base_binds() {
             insert(k, v, "base");
         }
+    }
+    for (k, v) in &config.shell_binds {
+        insert(k, v, "shell");
     }
     for (k, v) in &config.binds {
         insert(k, v, "config");
@@ -378,5 +383,22 @@ mod tests {
             .collect();
         assert_eq!(q.len(), 1);
         assert_eq!(q[0].source, "config");
+    }
+
+    #[test]
+    fn shell_binds_sit_between_base_and_config() {
+        let c = from_toml_str(
+            "[shell_binds]\n\"Mod+J\" = \"close\"\n\"Mod+K\" = \"close\"\n[binds]\n\"Mod+K\" = \"kill\"",
+        )
+        .unwrap();
+        let binds = resolved_binds(&c);
+        let source = |k: &str| {
+            let combo: KeyCombo = k.parse().unwrap();
+            binds.iter().find(|b| b.combo == combo).map(|b| b.source.clone())
+        };
+        assert_eq!(source("Mod+J").as_deref(), Some("shell"), "shell overrides base");
+        assert_eq!(source("Mod+K").as_deref(), Some("config"), "yours override shell");
+        assert_eq!(source("Mod+Q").as_deref(), Some("base"));
+        assert!(from_toml_str("[shell_binds]\n\"Mod+Nope+X\" = \"close\"").is_err());
     }
 }

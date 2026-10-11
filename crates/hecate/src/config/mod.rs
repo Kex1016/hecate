@@ -46,6 +46,9 @@ pub struct Config {
     pub input: BTreeMap<String, InputDevice>,
     pub environment: BTreeMap<String, String>,
     pub binds: BTreeMap<String, BindValue>,
+    /// Binds of the bundled shell, between the base binds and yours. Set by the Home Manager
+    /// module when `shell.enable = true`; leave it to that.
+    pub shell_binds: BTreeMap<String, BindValue>,
     pub mouse_binds: BTreeMap<String, MouseBind>,
     pub window_rules: Vec<WindowRule>,
     pub layer_rules: Vec<LayerRule>,
@@ -78,6 +81,7 @@ impl Default for Config {
             input: BTreeMap::new(),
             environment: BTreeMap::new(),
             binds: BTreeMap::new(),
+            shell_binds: BTreeMap::new(),
             mouse_binds: BTreeMap::new(),
             window_rules: Vec::new(),
             layer_rules: Vec::new(),
