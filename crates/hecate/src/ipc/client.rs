@@ -144,6 +144,12 @@ pub enum MsgCommand {
     Config,
     /// VRR, tearing and direct scanout status per output
     Gaming,
+    /// Frame timing per output: render time, presentation latency, missed frames
+    Frames {
+        /// Only this output
+        #[arg(long)]
+        output: Option<String>,
+    },
     /// Connected clients
     Clients,
     /// Globals hecate advertises
@@ -662,6 +668,22 @@ pub fn run(args: MsgArgs) -> anyhow::Result<()> {
                         Some(Value::String(b)) => format!("no ({b})"),
                         _ => "yes".into(),
                     }
+                );
+            }
+        }),
+        MsgCommand::Frames { output } => out(request(Request::Frames { output })?, &|v| {
+            for o in v.as_array().into_iter().flatten() {
+                let f = |k: &str| o[k].as_f64().unwrap_or(0.);
+                println!(
+                    "{}: {:.1} fps of {:.2} Hz | render {:.2} ms (max {:.2}) | latency {:.2} ms | {} frames, {} missed",
+                    s(o, "output"),
+                    f("fps"),
+                    f("refresh_hz"),
+                    f("avg_render_ms"),
+                    f("max_render_ms"),
+                    f("avg_latency_ms"),
+                    s(o, "frames"),
+                    s(o, "missed"),
                 );
             }
         }),

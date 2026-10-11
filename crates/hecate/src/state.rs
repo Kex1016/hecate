@@ -77,6 +77,7 @@ pub struct OutputState {
     pub powered_off: bool,
     /// VRR state last sent to the backend.
     pub vrr_applied: Option<bool>,
+    pub frame_stats: crate::frame_stats::FrameStats,
 }
 
 pub struct Hecate {
@@ -589,7 +590,18 @@ impl Hecate {
             state.redraw_queued = false;
         }
         self.wm.advance_animations(output);
+        let started = crate::utils::monotonic_time();
         let submitted = backend.render(self, output);
+        let now = crate::utils::monotonic_time();
+        if submitted && let Some(st) = self.output_state.get_mut(output) {
+            st.frame_stats.submitted(now, now.saturating_sub(started));
+            if !backend.waits_for_vblank() {
+                // No vblank to wait for: the frame is done now.
+                let refresh = output.current_mode().map(|m| m.refresh).unwrap_or(60_000).max(1);
+                st.frame_stats
+                    .presented(now, Duration::from_secs_f64(1000.0 / refresh as f64));
+            }
+        }
         if self.screencopy_state.has_pending_for(output) {
             backend.with_renderer(|r| self.render_for_screencopy_with_damage(r, output));
         }
@@ -606,9 +618,10 @@ impl Hecate {
     }
 
     /// Called by the backend once a submitted frame was presented.
-    pub fn on_vblank(&mut self, output: &Output) {
+    pub fn on_vblank(&mut self, output: &Output, presented: Duration, refresh: Duration) {
         if let Some(state) = self.output_state.get_mut(output) {
             state.waiting_for_vblank = false;
+            state.frame_stats.presented(presented, refresh);
         }
     }
 

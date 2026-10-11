@@ -60,6 +60,10 @@ pub enum Request {
     Clients,
     Protocols,
     Gaming,
+    Frames {
+        #[serde(default)]
+        output: Option<String>,
+    },
     LogLevel(String),
     EventStream,
     KeyStream,
@@ -125,6 +129,7 @@ pub enum Payload {
     Clients(Vec<ClientInfo>),
     Strings(Vec<String>),
     Gaming(Gaming),
+    Frames(Vec<FrameStats>),
     Value(serde_json::Value),
     Unit(Ack),
 }
@@ -340,6 +345,23 @@ pub struct GamingWindow {
     pub pointer_locked: bool,
     pub pointer_confined: bool,
     pub fullscreen: bool,
+}
+
+/// Frame timing of an output over the last few seconds of rendering.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FrameStats {
+    pub output: String,
+    pub refresh_hz: f64,
+    /// Frames presented since the output appeared.
+    pub frames: u64,
+    /// Vblanks missed while rendering continuously.
+    pub missed: u64,
+    pub avg_render_ms: f64,
+    pub max_render_ms: f64,
+    /// Submit to presentation.
+    pub avg_latency_ms: f64,
+    pub avg_interval_ms: f64,
+    pub fps: f64,
 }
 
 /// Events on an `event_stream` connection.

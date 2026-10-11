@@ -9,6 +9,7 @@ mod check;
 mod cli;
 mod config;
 mod cursor;
+mod frame_stats;
 mod gaming;
 mod handlers;
 mod input;

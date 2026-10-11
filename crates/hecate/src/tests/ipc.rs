@@ -221,3 +221,21 @@ fn real_socket_roundtrip_and_event_stream() {
     let _ = Payload::Unit(hecate_ipc::Ack {});
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn frame_stats() {
+    let (mut f, id) = setup();
+    for _ in 0..5 {
+        f.hecate().hecate.queue_redraw_all();
+        f.double_roundtrip(id);
+    }
+    let v = ok(f.hecate().ipc_request(Request::Frames { output: None }));
+    let o = &v.as_array().unwrap()[0];
+    assert_eq!(o["output"], "headless-1");
+    assert!(o["frames"].as_u64().unwrap() >= 5, "{o}");
+    assert!(o["refresh_hz"].as_f64().unwrap() > 59.0);
+    let bad = f.hecate().ipc_request(Request::Frames {
+        output: Some("nope".into()),
+    });
+    assert!(matches!(bad, Some(Reply::Error(_))), "{bad:?}");
+}

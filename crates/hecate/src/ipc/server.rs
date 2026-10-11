@@ -334,6 +334,23 @@ impl State {
             Request::Clients => Reply::ok(Payload::Clients(self.ipc_clients())),
             Request::Protocols => Reply::ok(Payload::Strings(crate::state::advertised_globals())),
             Request::Gaming => Reply::ok(Payload::Gaming(self.ipc_gaming())),
+            Request::Frames { output } => {
+                let stats: Vec<_> = self
+                    .hecate
+                    .output_state
+                    .iter()
+                    .filter(|(o, _)| output.as_ref().is_none_or(|n| *n == o.name()))
+                    .map(|(o, s)| {
+                        let hz = o.current_mode().map(|m| m.refresh as f64 / 1000.0).unwrap_or(0.0);
+                        s.frame_stats.ipc(o.name(), hz)
+                    })
+                    .collect();
+                if stats.is_empty() && output.is_some() {
+                    Reply::error("no such output")
+                } else {
+                    Reply::ok(Payload::Frames(stats))
+                }
+            }
             Request::LogLevel(level) => {
                 tracing::info!("log level change requested: {level} (restart with HECATE_LOG to persist)");
                 Reply::unit()

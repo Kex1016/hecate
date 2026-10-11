@@ -790,7 +790,7 @@ impl Tty {
             Ok(_) => {}
             Err(err) => tracing::warn!("frame_submitted error: {err:?}"),
         }
-        hecate.on_vblank(&output);
+        hecate.on_vblank(&output, time, frame_duration);
     }
 
     pub fn renderer_mut(&mut self) -> Option<&mut GlesRenderer> {
