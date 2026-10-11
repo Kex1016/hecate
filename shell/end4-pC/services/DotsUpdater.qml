@@ -7,7 +7,16 @@ import Quickshell
 Singleton {
     id: root
 
+    // Installed from a Nix store path (hecate's flake): read-only, updated with the system.
+    readonly property bool managedByNix: String(Quickshell.shellPath("")).includes("/nix/store/")
+
+    function notifyManaged() {
+        Quickshell.execDetached(["notify-send", "Updates", "This shell is installed by Nix. Update the flake and rebuild instead."])
+        Qt.callLater(() => GlobalStates.settingsOpen = false)
+    }
+
     function runSystemUpdate() {
+        if (root.managedByNix) return root.notifyManaged();
         Quickshell.execDetached([
             "kitty", "--hold",
             "fish", "-i", "-l", "-c",
@@ -17,6 +26,7 @@ Singleton {
     }
 
     function runUpdateDots() {
+        if (root.managedByNix) return root.notifyManaged();
         const updateScript = `
             set -e
             DIR="$HOME/.config/quickshell"

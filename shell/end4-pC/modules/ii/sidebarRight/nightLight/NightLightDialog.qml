@@ -82,6 +82,7 @@ WindowDialog {
             iconSize: Appearance.font.pixelSize.larger
             buttonIcon: "filter"
             text: Translation.tr("Content adjustment")
+            visible: WM.isHyprland
             checked: HyprlandAntiFlashbangShader.enabled
             onCheckedChanged: {
                 if (checked) HyprlandAntiFlashbangShader.enable()

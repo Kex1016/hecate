@@ -9,6 +9,8 @@ QuickToggleModel {
     tooltipText: `${Translation.tr("Anti-flashbang")}: ${HyprlandAntiFlashbangShader.enabled ? (HyprlandAntiFlashbangShader.weak ? Translation.tr("Weak") : Translation.tr("Strong")) : Translation.tr("Off")}`
     icon: HyprlandAntiFlashbangShader.enabled ? (!HyprlandAntiFlashbangShader.weak ? "flash_off" : "sunny_snowing") : "flash_on"
     toggled: HyprlandAntiFlashbangShader.enabled
+    // A Hyprland screen shader; nothing equivalent elsewhere.
+    available: WM.isHyprland
 
     mainAction: () => {
         HyprlandAntiFlashbangShader.cycle()
