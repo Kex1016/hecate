@@ -136,4 +136,98 @@ mod tests {
             k.parse::<KeyCombo>().unwrap_or_else(|e| panic!("{k}: {e}"));
         }
     }
+
+    /// The combos a row of docs/keybinds.md lists, in its notation: `Mod+Left/Down` (one each),
+    /// `Mod+1..9`, a bare `Right` after `Mod+Ctrl+Left` (same prefix), `XF86Audio*` (prefix).
+    fn documented(column: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        let mut prefix = String::new();
+        for tok in column.split('`').skip(1).step_by(2) {
+            let tok = if !tok.contains('+') && !tok.starts_with("XF86") && !tok.starts_with("BTN_") {
+                format!("{prefix}{tok}")
+            } else {
+                tok.to_string()
+            };
+            let (pre, last) = tok.rsplit_once('+').map_or(("", tok.as_str()), |(p, l)| (p, l));
+            prefix = if pre.is_empty() {
+                String::new()
+            } else {
+                format!("{pre}+")
+            };
+            if let Some((a, b)) = last.split_once("..") {
+                let (a, b): (u32, u32) = (a.parse().unwrap(), b.parse().unwrap());
+                out.extend((a..=b).map(|n| format!("{prefix}{n}")));
+            } else {
+                out.extend(last.split('/').map(|k| format!("{prefix}{k}")));
+            }
+        }
+        out
+    }
+
+    /// Bind-column cells of the base tables (`## base` up to the next `## `).
+    fn documented_base(mouse: bool) -> Vec<String> {
+        let doc = include_str!("../../../../docs/keybinds.md");
+        let base = doc.split("\n## ").find(|s| s.starts_with("base")).unwrap();
+        let mut in_mouse = false;
+        let mut out = Vec::new();
+        for line in base.lines() {
+            if line.starts_with("### ") {
+                in_mouse = line.contains("Mouse");
+            }
+            if in_mouse == mouse && line.starts_with("| `") {
+                out.extend(documented(line.split('|').nth(1).unwrap()));
+            }
+        }
+        out
+    }
+
+    fn matches(doc: &str, bind: &str) -> bool {
+        match doc.strip_suffix('*') {
+            Some(prefix) => bind.starts_with(prefix),
+            None => match (doc.parse::<KeyCombo>(), bind.parse::<KeyCombo>()) {
+                (Ok(a), Ok(b)) => a == b,
+                _ => doc == bind,
+            },
+        }
+    }
+
+    #[test]
+    fn keybinds_doc_matches_base_binds() {
+        for (mouse, binds) in [
+            (false, base_binds().keys().cloned().collect::<Vec<_>>()),
+            (true, base_mouse_binds().keys().cloned().collect::<Vec<_>>()),
+        ] {
+            let docs = documented_base(mouse);
+            assert!(!docs.is_empty());
+            for d in &docs {
+                assert!(
+                    binds.iter().any(|b| matches(d, b)),
+                    "docs/keybinds.md lists {d:?}, which isn't a base bind"
+                );
+            }
+            for b in &binds {
+                assert!(
+                    docs.iter().any(|d| matches(d, b)),
+                    "base bind {b:?} is missing from docs/keybinds.md"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn doc_notation_expands() {
+        assert_eq!(
+            documented("`Mod+Ctrl+Left` / `Right`"),
+            ["Mod+Ctrl+Left", "Mod+Ctrl+Right"]
+        );
+        assert_eq!(documented("`Mod+J/K`"), ["Mod+J", "Mod+K"]);
+        assert_eq!(
+            documented("`Mod+1..3`, `Mod+0` (=10)"),
+            ["Mod+1", "Mod+2", "Mod+3", "Mod+0"]
+        );
+        assert_eq!(
+            documented("`Mod+Shift+KP_5` / `KP_6`"),
+            ["Mod+Shift+KP_5", "Mod+Shift+KP_6"]
+        );
+    }
 }
