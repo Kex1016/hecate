@@ -17,9 +17,13 @@ let
   layerRules =
     lib.optionals (shellCfg.enable && shellCfg.layerRules) (import ./shell-layer-rules.nix)
     ++ (cfg.settings.layer_rules or [ ]);
-  # The shell's settings page writes ~/.config/hecate/shell.toml; included last-but-yours.
+  # Included in this order, later wins: the shell's wallpaper colours (matugen writes
+  # ~/.config/hecate/colors.toml), what its settings page writes (shell.toml), then yours.
   includes =
-    lib.optional shellCfg.enable "${config.xdg.configHome}/hecate/shell.toml"
+    lib.optional (
+      shellCfg.enable && shellCfg.theming.borders
+    ) "${config.xdg.configHome}/hecate/colors.toml"
+    ++ lib.optional shellCfg.enable "${config.xdg.configHome}/hecate/shell.toml"
     ++ map toString cfg.extraConfigFiles;
   configFile = toml.generate "hecate-config.toml" (
     lib.recursiveUpdate (
@@ -132,6 +136,39 @@ in
         '';
       };
 
+      theming = {
+        borders = lib.mkOption {
+          type = lib.types.bool;
+          default = !(cfg.settings ? border.color);
+          defaultText = lib.literalExpression "!(settings ? border.color)";
+          description = ''
+            Colour hecate's borders from the wallpaper: the shell's matugen run writes
+            `~/.config/hecate/colors.toml`, which the config includes. Off when
+            `settings.border.color` is set, since the include would override it.
+          '';
+        };
+
+        qt = lib.mkOption {
+          type = lib.types.bool;
+          default = true;
+          description = ''
+            Theme Qt apps from the wallpaper the way illogical-impulse does on Plasma: the KDE
+            platform theme (`QT_QPA_PLATFORMTHEME=kde`) with the Darkly style, reading the
+            colour scheme the shell writes into `~/.config/kdeglobals`. That file is seeded
+            once (writable) if it doesn't exist.
+          '';
+        };
+
+        folderIcons = lib.mkOption {
+          type = lib.types.bool;
+          default = true;
+          description = ''
+            Use Papirus with its folders recoloured to the wallpaper's primary colour as the
+            GTK and KDE icon theme (`~/.local/share/icons/Papirus-Hecate*`).
+          '';
+        };
+      };
+
       dotfiles = lib.mkOption {
         type = lib.types.listOf (
           lib.types.enum [
@@ -187,7 +224,12 @@ in
           adw-gtk3
           kdePackages.breeze-icons
           bibata-cursors
-        ]);
+        ])
+        ++ lib.optional shellCfg.theming.folderIcons pkgs.papirus-icon-theme
+        ++ lib.optionals shellCfg.theming.qt [
+          pkgs.darkly
+          pkgs.kdePackages.qqc2-desktop-style
+        ];
         fonts.fontconfig.enable = true;
 
         # `qs -c end4-pC` (used by the shell itself) finds the config here.
@@ -210,12 +252,36 @@ in
             ConditionEnvironment = "WAYLAND_DISPLAY";
           };
           Service = {
+            Environment = lib.optional (!shellCfg.theming.folderIcons) "HECATE_FOLDER_COLORS=0";
             ExecStart = lib.getExe shellCfg.finalPackage;
             Restart = "on-failure";
             RestartSec = 1;
           };
           Install.WantedBy = [ "hecate-session.target" ];
         };
+      })
+
+      (lib.mkIf (shellCfg.enable && shellCfg.theming.qt) {
+        # plasma-integration's platform theme reads kdeglobals and reloads on the shell's
+        # D-Bus signal, as on Plasma.
+        qt = {
+          enable = true;
+          platformTheme.name = lib.mkDefault "kde";
+        };
+
+        # The shell rewrites kdeglobals on every wallpaper change, so it can't be a store
+        # symlink. Seed it from illogical-impulse's, minus fonts and icons nixpkgs lacks.
+        home.activation.hecateKdeglobals = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+          kdeglobals="${config.xdg.configHome}/kdeglobals"
+          if [ ! -e "$kdeglobals" ]; then
+            run mkdir -p "${config.xdg.configHome}"
+            run sed -e 's/Google Sans Flex/Rubik/g' \
+              -e 's/^Theme=breeze-dark$/Theme=${
+                if shellCfg.theming.folderIcons then "Papirus-Dark" else "breeze-dark"
+              }/' \
+              ${dots}/kdeglobals > "$kdeglobals"
+          fi
+        '';
       })
     ]
   );

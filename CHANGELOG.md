@@ -56,6 +56,9 @@ workspace swipes, drawing tablets, keyboard layouts per window or global.
   with `shell.enable` for the system services the shell needs) and a Home Manager module
   (`wayland.windowManager.hecate`: config as Nix, validated at build time, the shell's
   keybind and layer-rule profiles, its dotfiles and user service).
+- Theming from the wallpaper without Plasma: GTK (adw-gtk3 + matugen), Qt (KDE platform
+  theme, Darkly, the colour scheme applied through kdeglobals), hecate's border colours, and
+  Papirus with folders in the wallpaper's colour.
 - Tests: unit and headless integration tests with real Wayland clients, pixel tests on
   Mesa llvmpipe, and NixOS VM tests that boot hecate with a QuickShell bar and with the
   full shell from Home Manager.

@@ -123,9 +123,35 @@ so `nixos-option` and editor completion work in Nix too.
                                    # your settings.layer_rules come after and win
     dotfiles = [ "matugen" "kde-material-you-colors" "Kvantum" "fuzzel" ];  # default; also fontconfig, kitty, foot, fish
     extraPackages = [ ];           # more tools on the shell's PATH (hecate itself is always there)
+    theming = {
+      borders = true;              # border colours from the wallpaper; default off if you set
+                                   # settings.border.color
+      qt = true;                   # Qt apps: KDE platform theme + Darkly, colours from the wallpaper
+      folderIcons = true;          # Papirus with folders in the wallpaper's colour
+    };
   };
 }
 ```
+
+### Theming from the wallpaper
+
+The shell recolours everything from the wallpaper when it changes (and once on first start,
+with its default wallpaper):
+
+- **GTK**: matugen writes `~/.config/gtk-{3,4}.0/gtk.css` over adw-gtk3, and the shell sets
+  `gtk-theme` and `color-scheme` through gsettings. Don't set `gtk.theme` or write those
+  `gtk.css` files from Home Manager, or they'll fight.
+- **Qt** (`theming.qt`): `QT_QPA_PLATFORMTHEME=kde` (plasma-integration, through Home
+  Manager's `qt` module) with the Darkly style. kde-material-you-colors writes a colour
+  scheme; without Plasma there's no `plasma-apply-colorscheme`, so the shell merges it into
+  `~/.config/kdeglobals` itself and sends the D-Bus signal that makes running Qt apps reload.
+  `kdeglobals` is seeded once from illogical-impulse's and stays writable.
+- **hecate's borders** (`theming.borders`): matugen writes `~/.config/hecate/colors.toml`
+  (`[border.color]` active = primary, inactive = outline variant, urgent = error), included
+  first, so `shell.toml` and `extraConfigFiles` override it. hecate reloads on the change.
+- **Icons** (`theming.folderIcons`): Papirus(-Dark) with its blue folders recoloured to the
+  primary colour, as a theme in `~/.local/share/icons/Papirus-Hecate` (or `-Alt`: the name
+  alternates so GTK and Qt reload it), set through gsettings and `kdeglobals`.
 
 On the NixOS side, `programs.hecate.shell.enable = true` turns on what the shell needs from
 the system (see below).
@@ -151,7 +177,8 @@ What `hecate-shell` is (`nix/shell-package.nix`):
 - Fonts (`fonts.packages` hint in the NixOS module, `home.packages` in HM):
   Material Symbols, Space Grotesk, Rubik, JetBrains Mono Nerd, Readex Pro,
   and the rest from the `illogical-impulse-fonts-themes` list.
-- Themes: adw-gtk3, Breeze, Darkly (Qt), Bibata cursor.
+- Themes: adw-gtk3, Breeze, Bibata cursor; Darkly, plasma-integration and Papirus with
+  `shell.theming` (below).
 
 What the HM module does with it:
 
