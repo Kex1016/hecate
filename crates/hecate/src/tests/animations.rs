@@ -337,3 +337,17 @@ fn layer_rule_none_disables_the_animation() {
     f.render("headless-1")
         .assert_rgb(200, 15, [0, 0, 255], "shown at once");
 }
+
+#[test]
+fn reloaded_config_switches_animations_off() {
+    // Game mode and config reloads change animations at runtime.
+    let Some((mut f, id)) = fixture(&anim("window_open", "fade")) else {
+        return;
+    };
+    let mut config = f.hecate().hecate.config.clone();
+    config.animations.enable = false;
+    f.hecate().apply_config(config);
+    f.map_shm_window(id, (100, 100), RED);
+    f.render("headless-1")
+        .assert_rgb(200, 150, [255, 0, 0], "no fade after the reload");
+}
