@@ -210,11 +210,34 @@ pub fn validate(config: &Config) -> Result<(), LoadError> {
         errors.push("animations.slowdown must be positive".into());
     }
 
+    const LAYER_ANIMATIONS: &[&str] = &[
+        "none",
+        "fade",
+        "popin",
+        "slide",
+        "slide_top",
+        "slide_bottom",
+        "slide_left",
+        "slide_right",
+    ];
     for (i, rule) in config.layer_rules.iter().enumerate() {
         if let Some(ns) = &rule.matches.namespace
             && let Err(e) = regex::Regex::new(ns)
         {
             errors.push(format!("layer_rules[{i}].match.namespace: {e}"));
+        }
+        if let Some(super::LayerAnimation::Named(name)) = &rule.animation
+            && !LAYER_ANIMATIONS.contains(&name.as_str())
+        {
+            errors.push(format!(
+                "layer_rules[{i}].animation: unknown {name:?} (one of {})",
+                LAYER_ANIMATIONS.join(", ")
+            ));
+        }
+        if let Some(a) = rule.ignore_alpha
+            && !(0.0..=1.0).contains(&a)
+        {
+            errors.push(format!("layer_rules[{i}].ignore_alpha must be 0..=1, got {a}"));
         }
     }
     for (i, rule) in config.window_rules.iter().enumerate() {
@@ -400,5 +423,17 @@ mod tests {
         assert_eq!(source("Mod+K").as_deref(), Some("config"), "yours override shell");
         assert_eq!(source("Mod+Q").as_deref(), Some("base"));
         assert!(from_toml_str("[shell_binds]\n\"Mod+Nope+X\" = \"close\"").is_err());
+    }
+
+    #[test]
+    fn layer_rule_animation_names_are_checked() {
+        let ok = "[[layer_rules]]\nmatch = { namespace = \"bar\" }\nanimation = \"slide_left\"";
+        assert!(from_toml_str(ok).is_ok());
+        let popin = "[[layer_rules]]\nanimation = { popin = 0.9 }";
+        assert!(from_toml_str(popin).is_ok());
+        let typo = "[[layer_rules]]\nanimation = \"slide-left\"";
+        let err = from_toml_str(typo).unwrap_err().to_string();
+        assert!(err.contains("slide-left"), "{err}");
+        assert!(from_toml_str("[[layer_rules]]\nignore_alpha = 1.5").is_err());
     }
 }
