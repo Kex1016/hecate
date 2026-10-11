@@ -1,40 +1,46 @@
-# Default keybinds
+# Keybinds
 
-Built from labwc's defaults (`README.md` usage table, `docs/rc.xml.all`)
-and your niri binds (`universe/modules/wms/niri/home/niri.nix`). niri is a
-scrolling tiler, so column actions are translated to their nearest stacking
-equivalent or dropped.
+Three layers, later wins:
+
+1. **base**: compositor defaults, built from labwc's defaults and your niri
+   binds. Shipped in the binary.
+2. **shell**: end-4's illogical-impulse binds, translated from
+   `dots-hyprland/dots/.config/hypr/hyprland/keybinds.lua`. Added by the
+   Home Manager module when `shell.enable = true`.
+3. **personal**: your own `settings.binds`.
 
 `Mod` = `Super` on a real session, `Alt` when running nested (like niri).
-`J K L M` mirror your niri layout (left, down, up, right).
 
-## Defaults (ship with the compositor)
+## base
+
+niri is a scrolling tiler, so column actions are translated to their
+nearest stacking equivalent or dropped.
 
 ### Windows
 
 | bind                         | action                         | origin |
 | ---------------------------- | ------------------------------ | ------ |
-| `Mod+Q`                      | `close`                        | niri |
+| `Mod+Q`                      | `close`                        | niri, end-4 |
 | `Alt+F4`                     | `close`                        | labwc |
-| `Mod+Left/Down/Up/Right`     | `focus_direction <dir>`        | niri `focus-column-left` / `focus-window-down` ... |
-| `Mod+J/K/L/M`                | `focus_direction <dir>`        | niri |
-| `Mod+Ctrl+Left` / `J`        | `snap_to_edge left`            | niri `move-column-left` → stacking: snap left half (labwc `Super+Left`) |
-| `Mod+Ctrl+Right` / `M`       | `snap_to_edge right`           | as above |
-| `Mod+Ctrl+Up` / `L`          | `toggle_maximize`              | labwc `Super+Up` snaps to top = maximize |
-| `Mod+Ctrl+Down` / `K`        | `unsnap` (restore size)        | labwc `Super+Down` |
-| `Mod+Shift+Left/Down/Up/Right` (+ `JKLM`) | `focus_output <dir>` | niri `focus-monitor-*` |
-| `Mod+Shift+Ctrl+Left/Down/Up/Right` (+ `JKLM`) | `move_to_output <dir>` | niri `move-window-to-monitor-*` |
-| `Mod+F`                      | `toggle_maximize`              | niri `maximize-column` |
+| `Mod+Left/Down/Up/Right`     | `focus_direction <dir>` (stops at the output edge) | niri `focus-column-left` ... |
+| `Mod+J/K/L/M`                | `focus_direction <dir>`        | niri. **Dropped in the shell profile**, see conflicts |
+| `Mod+Ctrl+Left` / `Right`    | `snap_to_edge left/right`      | niri `move-column-*` → snap half (labwc `Super+Left`) |
+| `Mod+Ctrl+Up`                | `toggle_maximize`              | labwc `Super+Up` |
+| `Mod+Ctrl+Down`              | `unsnap` (restore size)        | labwc `Super+Down` |
+| `Mod+Shift+Left/Down/Up/Right` | `focus_output <dir>`         | niri `focus-monitor-*` |
+| `Mod+Shift+Ctrl+Left/Down/Up/Right` | `move_to_output <dir>`  | niri `move-window-to-monitor-*` |
+| `Mod+F`                      | `toggle_maximize`              | niri `maximize-column`. **Shell profile changes it**, see conflicts |
 | `Mod+Shift+F`                | `toggle_fullscreen`            | niri |
 | `Mod+Ctrl+F`                 | `toggle_maximize horizontal`   | niri `expand-column-to-available-width` |
 | `Mod+C`                      | `center`                       | niri `center-column` |
 | `Mod+R`                      | `cycle_width_preset`           | niri `switch-preset-column-width` |
-| `Mod+Shift+R`                | `cycle_height_preset`          | niri `switch-preset-window-height` |
-| `Mod+Ctrl+R`                 | `reset_size`                   | niri `reset-window-height` |
+| `Mod+Semicolon`              | `cycle_height_preset`          | niri `switch-preset-window-height` (moved off `Mod+Shift+R`, see conflicts) |
+| `Mod+Apostrophe`             | `reset_size`                   | niri `reset-window-height` (moved off `Mod+Ctrl+R`) |
 | `Mod+KP_5` / `Mod+KP_6`      | `resize_relative width -10%/+10%` | niri `set-column-width` |
 | `Mod+Shift+KP_5` / `KP_6`    | `resize_relative height -10%/+10%` | niri `set-window-height` |
-| `Mod+G`                      | `toggle_always_on_top`         | niri `switch-focus-between-floating-and-tiling` (repurposed, no tiling here) |
-| `Mod+Shift+G`                | `toggle_omnipresent`           | niri `toggle-window-floating` (repurposed) |
+| `Mod+P`                      | `toggle_omnipresent`           | end-4 "pin" (Hyprland pin = visible on all workspaces) |
+| `Mod+Alt+Space`              | `toggle_always_on_top`         | end-4's float toggle slot; no floating/tiling split here |
+| `Mod+Shift+Alt+Q`            | `kill`                         | end-4 |
 | `Alt+Tab` / `Alt+Shift+Tab`  | `focus_next` / `focus_prev` (no OSD) | labwc |
 | `Mod+Shift+Escape`           | `toggle_keybinds` (works while a game inhibits shortcuts) | labwc `ToggleKeybinds` |
 
@@ -42,58 +48,114 @@ equivalent or dropped.
 
 | bind                         | action                         | origin |
 | ---------------------------- | ------------------------------ | ------ |
-| `Mod+1..9`                   | `workspace <n>`                | niri |
-| `Mod+Shift+1..9`             | `move_to_workspace <n>`        | niri `move-window-to-workspace` |
+| `Mod+1..9`, `Mod+0` (=10)    | `workspace <n>`                | niri, end-4 |
+| `Mod+Shift+1..9`, `Mod+Shift+0` | `move_to_workspace <n>`     | niri `move-window-to-workspace` |
 | `Mod+U` / `Mod+Page_Down` / `Mod+WheelScrollDown` | `workspace next` | niri |
-| `Mod+I` / `Mod+Page_Up` / `Mod+WheelScrollUp`     | `workspace prev` | niri |
-| `Mod+Ctrl+U` / `Page_Down`   | `move_to_workspace next`       | niri `move-window-to-workspace-down` |
-| `Mod+Ctrl+I` / `Page_Up`     | `move_to_workspace prev`       | niri |
-| `Mod+Shift+U` / `Mod+Shift+I` | `move_workspace_to_output next/prev` (only in `per_output` mode) | niri `move-workspace-down/up` reorders; fixed workspaces can't be reordered, so this moves the workspace across outputs instead |
-| `Mod+D` *(labwc)*            | not bound by default           | labwc's `Super+D` show-desktop clashes with your launcher; `toggle_show_desktop` stays available |
+| `Mod+I` / `Mod+Page_Up` / `Mod+WheelScrollUp`     | `workspace prev` | niri. `Mod+I` clashes with end-4, see conflicts |
+| `Mod+Ctrl+U` / `Mod+Ctrl+Page_Down` | `move_to_workspace next` | niri |
+| `Mod+Ctrl+I` / `Mod+Ctrl+Page_Up`   | `move_to_workspace prev` | niri |
+| `Mod+Shift+U` / `Mod+Shift+I` | `move_workspace_to_output next/prev` (`per_output` scope only) | niri `move-workspace-down/up` |
 
 ### Session and system
 
 | bind                         | action                         | origin |
 | ---------------------------- | ------------------------------ | ------ |
-| `Mod+Return`                 | `spawn $TERMINAL` (fallback `foot`, `kitty`, `alacritty`) | both |
+| `Mod+Return`                 | `spawn $TERMINAL` (fallback `foot`, `kitty`, `alacritty`) | all three |
 | `Mod+Shift+E`                | `exit`                         | niri default |
-| `Mod+Shift+C`                | `reload`                       | new |
-| `XF86AudioRaiseVolume` / `LowerVolume` / `Mute` / `MicMute` | `wpctl` | labwc (it uses `pactl`; `wpctl` fits PipeWire) |
-| `XF86MonBrightnessUp/Down`   | `brightnessctl set +10%/10%-`  | labwc |
-| `XF86AudioPlay/Pause/Next/Prev` | `playerctl`                 | new |
+| `Mod+Ctrl+Alt+R`             | `reload`                       | new; `Mod+Shift+C` is end-4's colour picker |
+| `Mod+L`                      | `loginctl lock-session`        | end-4 (your `Mod+Backspace` stays as a personal bind) |
+| `Mod+Shift+L`                | `systemctl suspend`            | end-4 |
+| `XF86Audio*`                 | `wpctl` / `playerctl`          | labwc, end-4 |
+| `XF86MonBrightness*`         | `brightnessctl`                | labwc, end-4 |
 
 ### Mouse
 
 | bind                         | context  | action      | origin |
 | ---------------------------- | -------- | ----------- | ------ |
-| `Mod+Left` drag              | window   | `move`      | labwc |
-| `Mod+Right` drag             | window   | `resize`    | labwc |
-| `Left` drag                  | border   | `resize`    | labwc |
-| `Left` click                 | window   | focus + raise | labwc |
+| `Mod+BTN_LEFT` drag          | window   | `move`      | labwc, end-4 |
+| `Mod+BTN_MIDDLE` drag        | window   | `move`      | end-4 |
+| `Mod+BTN_RIGHT` drag         | window   | `resize`    | labwc, end-4 |
+| `BTN_LEFT` drag              | border   | `resize`    | labwc |
+| `BTN_LEFT` click             | window   | focus + raise | labwc |
 
-## Dropped from your niri binds
+## shell (end-4 illogical-impulse)
 
-| niri bind | why |
-| --------- | --- |
-| `Mod+Home/End` (focus first/last column), `Mod+Ctrl+Home/End` | no columns |
-| `Mod+Comma` / `Mod+semicolon` (consume/expel) | no columns |
-| `Mod+Space` (tabbed column) | no columns. Free for the shell |
-| `Mod+A` (overview) | no built-in overview. The shell can build one from screencopy; bind it to `qs ipc call ...` |
-| `Mod+colon` (hotkey overlay) | no built-in overlay. `wl-hex msg binds` returns the bind list as JSON so the shell can draw a cheat sheet |
+end-4 uses Hyprland `global` shortcuts (`quickshell:<name>`). On hecate
+each becomes a spawn of
+`qs -c end4-pC ipc call shortcut press|release <name>` through the generic
+`shortcut` IPC target we add to the shell ([shell.md](shell.md)). Written
+below as `shell:<name>`.
 
-## Your personal binds (example config, not defaults)
+| bind                         | action                                  |
+| ---------------------------- | --------------------------------------- |
+| `Super` (tap)                | `shell:searchToggleRelease` (launcher / search) |
+| `Super_L`, `Super_R` (hold)  | press/release `shell:workspaceNumber` (shows workspace numbers) |
+| `Mod+Tab`                    | `shell:overviewWorkspacesToggle`        |
+| `Mod+V`                      | `shell:overviewClipboardToggle`         |
+| `Mod+Period`                 | `shell:overviewEmojiToggle`             |
+| `Mod+A`, `Mod+O`             | `shell:sidebarLeftToggle`               |
+| `Mod+Alt+A`                  | `shell:sidebarLeftToggleDetach`         |
+| `Mod+N`                      | `shell:sidebarRightToggle` (notifications, quick settings) |
+| `Mod+Slash`                  | `shell:cheatsheetToggle` (reads `hecate msg -j binds`) |
+| `Mod+K`                      | `shell:oskToggle`                       |
+| `Mod+M`                      | `shell:mediaControlsToggle`             |
+| `Mod+G`                      | `shell:overlayToggle`                   |
+| `Mod+J`                      | `shell:barToggle`                       |
+| `Ctrl+Alt+Delete`            | `shell:sessionToggle`                   |
+| `Mod+Ctrl+T` / `Mod+Ctrl+Alt+T` | `shell:wallpaperSelectorToggle` / `wallpaperSelectorRandom` |
+| `Mod+Ctrl+Shift+D`           | `shell:toggleLightDark`                 |
+| `Mod+Ctrl+P`                 | `shell:panelFamilyCycle`                |
+| `Mod+Escape`                 | `shell:settingsToggle` (end4-pC README) |
+| `Mod+Shift+S`, `Print`       | `shell:regionScreenshot`                |
+| `Mod+Shift+A`                | `shell:regionSearch` (Google Lens)      |
+| `Mod+Shift+X`                | `shell:regionOcr`                       |
+| `Mod+Shift+T`                | `shell:screenTranslate`                 |
+| `Mod+Shift+R`, `Mod+Alt+R`   | `shell:regionRecord`                    |
+| `Mod+Shift+C`                | colour picker (`hyprpicker` works on any wlr-screencopy compositor) |
+| `Mod+Ctrl+R`                 | restart the shell (`systemctl --user restart hecate-shell`) |
+| `Mod+Shift+N` / `B` / `P` / `M` | media next / previous / play-pause / mute |
+| `Mod+Alt+M`                  | mic mute                                |
 
-These go in your Home Manager `settings`, as in [config.md](config.md):
+end-4's app launchers (`Mod+T`, `Mod+E`, `Mod+W`, `Mod+X`, `Mod+I`, ...)
+are left out of the shell profile; apps are personal.
+
+## Conflicts
+
+Between base (labwc + niri), the shell profile and your niri personal binds.
+**Proposed** resolution in the last column; this is open question 1 in
+PLAN.md.
+
+| bind | niri / base | end-4 shell | your niri personal | proposal |
+| ---- | ----------- | ----------- | ------------------ | -------- |
+| `Mod+J/K/L/M` | focus left/down/up/right | bar / OSK / lock / media | | **shell**; directional focus stays on the arrow keys |
+| `Mod+Shift+J/K/L/M` | focus output | `Shift+L` suspend, `Shift+M` mute | | **shell**; arrows only for output focus |
+| `Mod+F` | maximize | fullscreen (`Mod+D` = maximize) | | **shell**: `F` fullscreen, `D` maximize. `Mod+Shift+F` stays fullscreen too |
+| `Mod+D` | | maximize | launcher | **shell** (launcher is `Super` tap now) |
+| `Mod+G` / `Mod+Shift+G` | always-on-top / omnipresent | widget overlay | | **shell**; those moved to `Mod+Alt+Space` / `Mod+P` |
+| `Mod+Shift+R` | height preset | region record | | **shell**; height preset moved to `Mod+Semicolon` |
+| `Mod+Ctrl+R` | reset size | restart shell | | **shell**; reset moved to `Mod+Apostrophe` |
+| `Mod+Shift+C` | (was reload) | colour picker | | **shell**; reload moved to `Mod+Ctrl+Alt+R` |
+| `Mod+A` | (niri overview, dropped) | left sidebar | | **shell** |
+| `Mod+N` | | right sidebar | notification history | **shell** (same intent) |
+| `Mod+V` | | clipboard | clipboard | **shell** (same intent) |
+| `Mod+S` | | Hyprland scratchpad | `hyprcap` screenshot | **personal**: map to `shell:regionScreenshot` (no scratchpad in hecate) |
+| `Mod+B` | | left sidebar (alias) | browser | **personal** (drop the alias, `Mod+A`/`Mod+O` remain) |
+| `Mod+X` | | text editor | session menu | **personal**: `shell:sessionToggle` |
+| `Mod+T` | | terminal | file manager | **personal** |
+| `Mod+E` | | file manager | editor (codium) | **personal** |
+| `Mod+I` | workspace prev | settings app | | **base** (`Mod+I` workspace prev); settings via `Mod+Escape` |
+| `Mod+C` | center window | VS Code | | **base** (your editor is on `Mod+E`) |
+| `Mod+Backspace` | | | lock | **personal**, alongside `Mod+L` |
+
+## Your personal binds (example, not defaults)
 
 | bind | action |
 | ---- | ------ |
 | `Mod+Return` | `spawn kitty` |
-| `Mod+D` | `noctalia-shell ipc call launcher toggle` |
 | `Mod+T` / `Mod+B` / `Mod+E` | `nautilus` / `zen-beta` / `codium` |
-| `Mod+Backspace` | `noctalia-shell ipc call lockScreen lock` |
-| `Mod+X` | `noctalia-shell ipc call sessionMenu toggle` |
-| `Mod+V` | `noctalia-shell ipc call launcher clipboard` |
-| `Mod+N` | `noctalia-shell ipc call notifications toggleHistory` |
-| `Mod+S` | `~/.local/bin/hyprcap shot region -zcw` |
-| `Mod+A` | your shell's overview, if it has one |
-| `XF86Audio*`, `XF86MonBrightness*` | `noctalia-shell ipc call volume ...` / `brightness ...` / `media ...` (overrides the defaults) |
+| `Mod+S` | `shell:regionScreenshot` |
+| `Mod+X` | `shell:sessionToggle` |
+| `Mod+Backspace` | `loginctl lock-session` |
+
+The Noctalia binds from your niri config (`noctalia-shell ipc call ...`)
+are replaced by their end-4 equivalents above.

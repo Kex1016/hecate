@@ -2,8 +2,8 @@
 
 Legend for **Source**: `smithay` = handler exists in Smithay 0.7
 (`src/wayland/`), `own` = we implement on top of the protocol crates.
-**Phase** refers to PLAN.md section 11. **Why** lists who needs it:
-QS = QuickShell (Noctalia 5.x binds the same set, see PLAN.md section 6), G = gaming, D = general desktop / ecosystem tools.
+**Phase** refers to PLAN.md section 12. **Why** lists who needs it:
+QS = QuickShell, including the bundled end4-pC shell (Noctalia 5.x binds the same set), G = gaming, D = general desktop / ecosystem tools.
 
 ## Core
 
@@ -37,15 +37,15 @@ QS = QuickShell (Noctalia 5.x binds the same set, see PLAN.md section 6), G = ga
 | ext-idle-notify-v1                    | smithay | 3     | QS `IdleMonitor`, swayidle |
 | idle-inhibit-unstable-v1              | smithay | 3     | QS `IdleInhibitor`, G, video |
 | keyboard-shortcuts-inhibit-v1         | smithay | 3     | QS `ShortcutInhibitor`, G, VMs |
-| ext-background-effect-v1              | smithay | 5     | QS `BackgroundEffect` (blur) |
+| ext-background-effect-v1              | smithay | 6     | QS `BackgroundEffect` (blur) |
 | hyprland-focus-grab-v1                | own     | 3     | QS `HyprlandFocusGrab`, Noctalia popups |
 | xdg-activation-v1                     | smithay | 3     | focus requests, notifications |
 | wlr-data-control / ext-data-control   | smithay | 3     | clipboard managers, QS |
 | xdg-foreign v1/v2                     | smithay | 3     | portals parent windows |
 | xdg-toplevel-icon-v1                  | smithay | 3     | QS/taskbar icons       |
-| xdg-toplevel-tag-v1                   | smithay | 5     | window rules matching  |
-| xdg-dialog-v1                         | smithay | 5     | modal hints            |
-| xdg-system-bell-v1                    | smithay | 5     | urgent border          |
+| xdg-toplevel-tag-v1                   | smithay | 6     | window rules matching  |
+| xdg-dialog-v1                         | smithay | 6     | modal hints            |
+| xdg-system-bell-v1                    | smithay | 6     | urgent border          |
 | security-context-v1                   | smithay | 3     | flatpak sandboxing, rule matching |
 
 ## Outputs
@@ -81,11 +81,11 @@ constraints, relative pointer, dmabuf) as normal Wayland requests.
 
 | protocol                          | source  | phase | why                    |
 | --------------------------------- | ------- | ----- | ---------------------- |
-| pointer-gestures-v1               | smithay | 5     | touchpad gestures      |
-| tablet-v2                         | smithay | 5     | drawing tablets        |
-| text-input-v3, input-method-v2    | smithay | 5     | fcitx5 / ibus          |
-| virtual-keyboard-v1               | smithay | 5     | wtype, on-screen kbd   |
-| virtual-pointer-v1                | smithay | 5     | wlrctl, remote desktop |
+| pointer-gestures-v1               | smithay | 6     | touchpad gestures      |
+| tablet-v2                         | smithay | 6     | drawing tablets        |
+| text-input-v3, input-method-v2    | smithay | 6     | fcitx5 / ibus          |
+| virtual-keyboard-v1               | smithay | 5     | end4-pC on-screen keyboard, wtype |
+| virtual-pointer-v1                | smithay | 6     | wlrctl, remote desktop |
 
 ## Not planned
 

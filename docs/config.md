@@ -6,10 +6,10 @@ Status: proposal. Names and defaults are up for review.
 
 Search order, first match wins:
 
-1. `--config <path>` / `$WL_HEX_CONFIG`
-2. `$XDG_CONFIG_HOME/wl-hex/config.toml`
-3. `$XDG_CONFIG_HOME/wl-hex/config.json`
-4. built-in defaults (`wl-hex --print-default-config` prints them as TOML)
+1. `--config <path>` / `$HECATE_CONFIG`
+2. `$XDG_CONFIG_HOME/hecate/config.toml`
+3. `$XDG_CONFIG_HOME/hecate/config.json`
+4. built-in defaults (`hecate --print-default-config` prints them as TOML)
 
 No separate autostart, shutdown, environment or theme files: those are keys
 in the config.
@@ -22,23 +22,25 @@ in the config.
   Validation also checks semantic errors: bad key names, unknown actions,
   colours, conflicting binds, impossible radii.
 - `include = ["binds.toml", "rules.toml"]` merges other files (relative to
-  the including file), later wins. Tables merge, arrays replace.
-- `wl-hex validate <file>` validates without starting. The Nix modules run
+  the including file), later wins. Tables merge, arrays replace. Missing
+  included files are skipped with a warning, so `shell.toml` can be listed
+  before the shell has ever written it.
+- `hecate validate <file>` validates without starting. The Nix modules run
   it at build time.
-- `wl-hex schema` prints a JSON Schema (via `schemars`). Point taplo / Even
+- `hecate schema` prints a JSON Schema (via `schemars`). Point taplo / Even
   Better TOML at it for completion and inline docs.
-- Reload: on file change (inotify), `SIGHUP`, or `wl-hex msg reload`. A
+- Reload: on file change (inotify), `SIGHUP`, or `hecate msg reload`. A
   failed load keeps the running config, logs the error and runs
   `error_command` if set.
 
 ## Example: config.toml
 
-This is roughly your niri setup translated.
+This is roughly your niri setup translated, with the bundled shell instead of Noctalia.
 
 ```toml
 # top-level keys must come before the first [table]
-autostart = [
-  ["noctalia-shell"],
+include = ["shell.toml"]   # optional; written by the bundled shell's settings UI, so the Nix-made file stays read-only
+autostart = [            # the bundled shell starts as a user service, not from here
   ["sh", "-c", "QT_STYLE_OVERRIDE=Fusion QT_QPA_PLATFORM=xcb synology-drive autostart"],
 ]
 
@@ -62,7 +64,7 @@ urgent = "#f38ba8"
 [general]
 decorations = "server"    # "server" (ask clients to drop CSD) | "client"
 gaps = 0
-error_command = ["notify-send", "wl-hex", "config error: {error}"]
+error_command = ["notify-send", "hecate", "config error: {error}"]
 
 [outputs."DP-1"]
 mode = "2560x1080@200.007"
@@ -89,8 +91,11 @@ enable = true
 path = "xwayland-satellite"    # spawned on first X11 connection
 
 [workspaces]
-mode = "per_output"            # "global" (labwc) | "per_output" (niri/Hyprland)
-names = ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+scope = "per_output"           # "global" (labwc) | "per_output" (niri/Hyprland)
+kind = "fixed"                 # "fixed" | "auto" (niri-style, one empty at the end)
+count = 9                      # fixed only, 1..=32
+# names = ["web", "code", "chat"]   # optional, fixed only, length <= count
+# min = 1                      # auto only: kept even when empty
 auto_back_and_forth = true
 
 [focus]
@@ -139,17 +144,20 @@ QT_QPA_PLATFORM = "wayland"
 [binds]
 "Mod+Q" = "close"
 "Mod+Return" = { spawn = ["kitty"] }
-"Mod+D" = { spawn = ["noctalia-shell", "ipc", "call", "launcher", "toggle"] }
-"Mod+Backspace" = { spawn_sh = "noctalia-shell ipc call lockScreen lock" }
-"Mod+F" = "toggle_maximize"
-"Mod+Shift+F" = "toggle_fullscreen"
+"Mod+B" = { spawn = ["zen-beta"] }
+"Mod+Backspace" = { spawn = ["loginctl", "lock-session"] }
+"Mod+D" = "toggle_maximize"
+"Mod+F" = "toggle_fullscreen"
 "Mod+R" = "cycle_width_preset"
 "Mod+Left" = { focus_direction = "left" }
 "Mod+Ctrl+Left" = { snap_to_edge = "left" }
 "Mod+1" = { workspace = 1 }
 "Mod+Shift+1" = { move_to_workspace = 1 }
-"XF86AudioRaiseVolume" = { spawn_sh = "noctalia-shell ipc call volume increase", allow_when_locked = true }
+"XF86AudioRaiseVolume" = { spawn = ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", "2%+", "-l", "1.5"], allow_when_locked = true }
 "Mod+Shift+Escape" = { action = "toggle_keybinds", allow_when_inhibited = true }
+# press/release pair and a modifier-only tap (end-4 style)
+"Super_L" = { on_press = { spawn = ["qs", "-c", "end4-pC", "ipc", "call", "shortcut", "press", "workspaceNumber"] }, on_release = { spawn = ["qs", "-c", "end4-pC", "ipc", "call", "shortcut", "release", "workspaceNumber"] }, transparent = true }
+"Super" = { tap = { spawn = ["qs", "-c", "end4-pC", "ipc", "call", "shortcut", "press", "searchToggleRelease"] } }
 
 [mouse_binds]
 "Mod+BTN_LEFT" = { action = "move", context = "window" }
@@ -173,29 +181,33 @@ border = { radius = { top_left = 15, top_right = 15, bottom_right = 4, bottom_le
 ## Same thing from Nix (Home Manager)
 
 ```nix
-wayland.windowManager.wl-hex.settings = {
-  border = {
-    width = 0;
-    clip_content = true;
-    radius = 15;
+wayland.windowManager.hecate = {
+  shell.enable = true;   # bundled end4-pC, adds the shell keybind profile
+  settings = {
+    border = {
+      width = 0;
+      clip_content = true;
+      radius = 15;
+    };
+    workspaces = {
+      scope = "per_output";
+      kind = "fixed";
+      count = 9;
+      auto_back_and_forth = true;
+    };
+    xwayland.enable = true;
+    binds = {
+      "Mod+Q" = "close";
+      "Mod+Return".spawn = [ "kitty" ];
+      "Mod+B".spawn = [ "zen-beta" ];
+    } // lib.listToAttrs (lib.concatMap (n: [
+      { name = "Mod+${toString n}";       value.workspace = n; }
+      { name = "Mod+Shift+${toString n}"; value.move_to_workspace = n; }
+    ]) (lib.range 1 9));
+    window_rules = [
+      { match = { app_id = "zen-beta"; title = "Picture-in-Picture"; }; always_on_top = true; }
+    ];
   };
-  workspaces = {
-    mode = "per_output";
-    auto_back_and_forth = true;
-  };
-  xwayland.enable = true;
-  autostart = [ [ "noctalia-shell" ] ];
-  binds = {
-    "Mod+Q" = "close";
-    "Mod+Return".spawn = [ "kitty" ];
-    "Mod+D".spawn_sh = "noctalia-shell ipc call launcher toggle";
-  } // lib.listToAttrs (lib.concatMap (n: [
-    { name = "Mod+${toString n}";       value.workspace = n; }
-    { name = "Mod+Shift+${toString n}"; value.move_to_workspace = n; }
-  ]) (lib.range 1 9));
-  window_rules = [
-    { match = { app_id = "zen-beta"; title = "Picture-in-Picture"; }; always_on_top = true; }
-  ];
 };
 ```
 
@@ -206,7 +218,12 @@ works unchanged once action names are mapped, because binds have the same
 ## Notes
 
 - **Binds**: value is either an action string, a single-key table
-  (`{ workspace = 3 }`), or a table with `action` plus flags. Flags (from
+  (`{ workspace = 3 }`), or a table with `action` plus flags. Instead of
+  `action`, a table can give `on_press` and/or `on_release` (separate
+  actions for hold-style binds), or `tap` for a modifier-only bind that
+  fires on release only if no other key was pressed meanwhile.
+  `transparent = true` lets the key event continue to other binds and the
+  client. Flags (from
   labwc): `layout_dependent`, `on_release`, `allow_when_locked`, plus
   `allow_when_inhibited` for the escape bind and `repeat` (default true for
   non-spawn actions).
@@ -215,6 +232,9 @@ works unchanged once action names are mapped, because binds have the same
 - `radius` accepts a number (all corners) or a table with the four named
   corners. Missing corners in a table default to 0.
 - Colours accept `#rrggbb` and `#rrggbbaa`.
+- **Workspaces**: `scope` and `kind` are independent. `count` and `min`
+  are capped at 32 (validation error above that). Switching `kind` or
+  `scope` on reload migrates windows to the nearest workspace by index.
 - Output `mode` accepts `WxH`, `WxH@Hz` (closest match) or exact decimals.
 - Window rule matching uses globs on `app_id`, `title`, `sandbox_engine`,
   `tag` (xdg-toplevel-tag), plus `is_x11` (via satellite). All given fields

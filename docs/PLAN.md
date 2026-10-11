@@ -1,43 +1,51 @@
-# wl-hex: plan
+# hecate: plan
 
 Status: **draft, planning only**. No code yet. This document is the source of
-truth and gets edited in place as we iterate on the PR. "wl-hex" is a
-placeholder name until one is picked (see [names.md](names.md)).
+truth and gets edited in place as we iterate on the PR.
+
+This repo is a **monorepo**: the hecate compositor plus a bundled desktop
+shell (illogical-impulse + end4-pC, patched for hecate) and the Nix flake
+that installs both.
 
 Companion docs:
 
 - [decisions.md](decisions.md): decisions made in review, with reasons
 - [labwc-survey.md](labwc-survey.md): what labwc does, what we keep and drop
-- [protocols.md](protocols.md): protocol matrix (QuickShell, Noctalia, gaming, desktop)
+- [protocols.md](protocols.md): protocol matrix (QuickShell / end4-pC, gaming, desktop)
 - [config.md](config.md): config format, schema, examples
-- [keybinds.md](keybinds.md): default binds (labwc + your niri setup)
+- [shell.md](shell.md): the bundled shell (end4-pC + illogical-impulse) and its port
+- [keybinds.md](keybinds.md): default binds (labwc + your niri setup + end-4's shell binds)
 - [ipc.md](ipc.md): control socket and CLI
 - [nix.md](nix.md): flake layout, NixOS and Home Manager modules
-- [names.md](names.md): name candidates
+- [names.md](names.md): the name (hecate) and where it applies
 
 ---
 
 ## 1. Goals
 
-wl-hex is a **stacking** Wayland compositor in the spirit of labwc: small,
+hecate is a **stacking** Wayland compositor in the spirit of labwc: small,
 predictable, config-file driven, and dependent on external clients for the
 shell (bar, launcher, notifications, wallpaper, lock screen).
 
 Hard requirements, in priority order:
 
-1. **QuickShell works fully**, and so does **Noctalia**. Every Wayland
-   protocol QuickShell's compositor-agnostic modules use is implemented
-   (layer-shell, foreign toplevel, ext-workspace, screencopy, session lock,
-   idle, shortcuts inhibit, background effect including blur). The IPC socket
+1. **QuickShell works fully**, and the **bundled end4-pC shell** runs on
+   hecate out of the box. Every Wayland protocol QuickShell's
+   compositor-agnostic modules use is implemented (layer-shell, foreign
+   toplevel, ext-workspace, screencopy, session lock, idle, shortcuts
+   inhibit, focus grab, background effect including blur). The IPC socket
    covers what protocols can't (focused output, window-to-workspace
-   mapping, keyboard layout, binds list). See [protocols.md](protocols.md).
+   mapping, keyboard layout, binds list). See [protocols.md](protocols.md)
+   and [shell.md](shell.md). Noctalia works through the same protocols but
+   isn't bundled.
 2. **Gaming works**: native Wayland/Vulkan, X11 via xwayland-satellite, Wine
    and Proton, Steam, gamescope nested. Pointer lock, relative motion, VRR,
    tearing, direct scanout, explicit sync.
 3. **Installs on NixOS via a flake**, configurable entirely from Nix:
    package, NixOS module (session entry, portals, polkit), Home Manager module
    with `settings` written as a Nix attrset (same style as niri-flake's
-   `programs.niri.settings`).
+   `programs.niri.settings`), and the shell with all its dependencies via
+   one `shell.enable` switch.
 4. **Borders, no decorations.** Configurable border width, colour and
    **per-corner radii**, with content clipped to the rounded shape (niri's
    `geometry-corner-radius` + `clip-to-geometry`, which you use today). No
@@ -75,14 +83,14 @@ have prior art in niri/cosmic-comp we can study):
 
 | protocol                          | needed for                                |
 | --------------------------------- | ----------------------------------------- |
-| wlr-foreign-toplevel-management   | QuickShell `ToplevelManager`, Noctalia, taskbars |
-| ext-workspace-v1                  | QuickShell/Noctalia workspaces, waybar    |
-| wlr-screencopy-v1                 | QuickShell fallback, Noctalia, grim, xdpw |
-| wlr-output-management-v1          | Noctalia, wlr-randr, kanshi               |
-| wlr-output-power-management-v1    | Noctalia (generic path), wlopm            |
-| wlr-gamma-control-v1              | Noctalia night light, wlsunset            |
+| wlr-foreign-toplevel-management   | QuickShell `ToplevelManager`, end4-pC dock/taskbar |
+| ext-workspace-v1                  | QuickShell/end4-pC workspaces, waybar     |
+| wlr-screencopy-v1                 | QuickShell fallback, grim, hyprpicker, xdpw |
+| wlr-output-management-v1          | wlr-randr, kanshi, shell display settings |
+| wlr-output-power-management-v1    | wlopm, idle display off                   |
+| wlr-gamma-control-v1              | end4-pC night light (via wlsunset)        |
 | wp-tearing-control-v1             | games (async page flip)                   |
-| hyprland-focus-grab-v1            | QuickShell + Noctalia popup dismissal     |
+| hyprland-focus-grab-v1            | end4-pC sidebars/menus close on outside click |
 | color-management-v1 (later)       | HDR                                       |
 
 Other crates (indicative): `calloop` (event loop, comes with Smithay),
@@ -207,15 +215,20 @@ Kept from labwc (adapted, no Openbox semantics):
   nearest visible window in that direction on the current output. Stops at
   the output edge; crossing outputs has its own binds (`Mod+Shift+dir`),
   as in your niri config.
-- **Workspaces, configurable** (`workspaces.mode`):
-  - `global`: labwc style, one set shared by all outputs; switching changes
-    every output.
-  - `per_output`: niri/Hyprland style, each output has its own set and
-    active workspace; windows can move between outputs.
-  Fixed named workspaces by default; `auto_back_and_forth` (you use it in
-  niri). Exposed via ext-workspace: one group spanning all outputs in
-  `global` mode, one group per output in `per_output` mode. Dynamic
-  workspaces (niri's empty-workspace behaviour) are a later option.
+- **Workspaces**, two independent settings:
+  - `scope`: `global` (labwc style, one set shared by all outputs;
+    switching changes every output) or `per_output` (niri/Hyprland style,
+    each output has its own set and active workspace).
+  - `kind`: `fixed` (`count` workspaces, default 9, max **32**, optional
+    `names`) or `auto` (niri style: always exactly one empty workspace at
+    the end; empty ones vanish when you leave them; `min` kept even when
+    empty, capped at the same max of 32).
+  The cap of 32 keeps bars, ext-workspace clients and `Mod+N` bind schemes
+  sane; it's a constant we can raise if anyone hits it. Plus
+  `auto_back_and_forth` (you use it in niri). Exposed via ext-workspace: one
+  group spanning all outputs in `global` scope, one group per output in
+  `per_output` scope; auto mode creates and removes ext-workspace handles
+  live.
 - Focus: click-to-focus or follow-mouse, raise-on-focus, focus-stealing
   rules, xdg-activation token checks.
 - Placement policies: center, cursor, cascade, automatic.
@@ -229,13 +242,13 @@ Kept from labwc (adapted, no Openbox semantics):
 - Output margins (labwc `<margin>`) on top of layer-shell exclusive zones.
 - Libinput per-device config, xkb layouts, repeat, numlock, touch, tablet.
 - Autostart commands and environment variables, from config.
-- Hot reload on file change, `wl-hex msg reload` and SIGHUP.
+- Hot reload on file change, `hecate msg reload` and SIGHUP.
 
 Dropped: menus, window switcher OSD (the shell can draw one), titlebars and
 buttons, shading, themerc, magnifier (maybe later), labnag (replace with a
 plain `spawn` of any notification/dialog tool).
 
-## 6. Shell support: QuickShell and Noctalia
+## 6. Shell support: QuickShell, bundled end4-pC, Noctalia
 
 ### QuickShell
 
@@ -257,29 +270,24 @@ checked against QuickShell's `src/wayland/*/CMakeLists.txt`:
 | dmabuf screencopy buffers              | linux-dmabuf-v1                              |
 | `HyprlandFocusGrab`                    | hyprland-focus-grab-v1                       |
 
+### Bundled shell: end4-pC
+
+The shell you'll run is end4-pC (a fork of end-4's illogical-impulse
+QuickShell config), bundled in this repo with hecate patches applied. It
+is Hyprland-heavy (`GlobalShortcut`, `Hyprland.dispatch`, `hyprctl`), but
+already has a compositor abstraction (`services/WM.qml` with Hyprland and
+niri backends). The port adds a hecate backend next to the niri one, using
+our IPC, which deliberately returns niri-shaped JSON. Full analysis and
+patch list in [shell.md](shell.md).
+
 ### Noctalia
 
-Your flake pins Noctalia (with `noctalia-qs`, its QuickShell fork). Noctalia
-5.x has since become a native C++ Wayland shell, no longer built on
-QuickShell. We target both. From reading Noctalia 5.2.1's
-`src/compositors/`:
+Not bundled, but should work. Noctalia 5.x is a native C++ shell; on an
+unknown compositor it uses only protocols, all of which we implement. It
+loses focused output, window-to-workspace mapping, keyboard layout and
+session exit until someone writes a hecate backend for it against our IPC.
 
-- It detects the compositor by env vars (`NIRI_SOCKET`, `LABWC_PID`,
-  `HYPRLAND_INSTANCE_SIGNATURE`, ...) and then `XDG_CURRENT_DESKTOP`.
-  wl-hex would be `Unknown`, which still gets everything protocol-based:
-  layer-shell, wlr-foreign-toplevel, ext-workspace, screencopy (ext + wlr),
-  session lock, idle, data-control, gamma, output-management,
-  output power, focus-grab, background-effect, cursor-shape,
-  virtual-keyboard, text-input.
-- `Unknown` misses **focused output, window-to-workspace mapping,
-  keyboard layout and session exit**, which Noctalia gets from compositor
-  IPC (niri, Hyprland, Sway backends). Our IPC socket provides all four.
-  Plan: once the IPC is stable, upstream a small wl-hex backend to Noctalia
-  (detect `WL_HEX_SOCKET`), modelled on its niri backend.
-- Same story for the legacy QuickShell-based Noctalia: its niri/Hyprland
-  services are IPC-based; we'd add a wl-hex service if you stay on it.
-
-### Things neither shell gets from a single protocol
+### Things no shell gets from a single protocol
 
 - **Layer-shell correctness** is the big one: exclusive zones per edge,
   `keyboard_interactivity` none/exclusive/on_demand, margin, layer changes
@@ -290,9 +298,10 @@ QuickShell. We target both. From reading Noctalia 5.2.1's
   config for passes/radius/noise and a global off switch. The only "bling"
   we add, opt-in by the client.
 - **Global shortcuts**: QuickShell's `GlobalShortcut` is Hyprland-only. Our
-  answer is compositor keybinds that `spawn` `qs ipc call <target> <fn>` /
-  `noctalia-shell ipc call ...` exactly like your niri binds.
-- `XDG_CURRENT_DESKTOP=wl-hex` and systemd/dbus activation environment
+  answer is compositor keybinds that `spawn` `qs ipc call <target> <fn>`,
+  with separate press and release actions and modifier-only taps (end-4's
+  "tap Super for search, hold Super for workspace numbers").
+- `XDG_CURRENT_DESKTOP=hecate` and systemd/dbus activation environment
   exported at startup so tray, portals and notifications work.
 
 ## 7. Gaming support
@@ -344,34 +353,60 @@ like niri, no built-in XWM.
   which only matters for a few old apps. If it turns out to break games,
   Smithay's XWM is the fallback; the `View` abstraction keeps that door open.
 
-## 9. NixOS (flake)
+## 9. Monorepo and NixOS (flake)
 
-Full detail in [nix.md](nix.md). Summary:
+Layout:
+
+```
+Cargo.toml                 workspace
+crates/
+  hecate/                  the compositor (+ `hecate msg`, `hecate validate`)
+  hecate-ipc/              IPC types, shared with tests and future clients
+shell/
+  end4-pC/                 git subtree, hecate patches as commits on top
+  dots-hyprland/           git subtree, pruned to what we package
+  UPSTREAM.md              pinned commits, update procedure, patch list
+nix/
+  package.nix              hecate
+  shell.nix                hecate-shell (end4-pC + QuickShell wrapper + deps)
+  python.nix               shell Python env (packages nixpkgs lacks)
+  nixos-module.nix
+  hm-module.nix
+  tests/                   VM tests
+flake.nix
+docs/
+LICENSE                    GPL-3.0-or-later (shell/ keeps its own GPL-3.0 files)
+```
+
+Full Nix detail in [nix.md](nix.md). Summary:
 
 - `flake.nix` outputs: `packages.<system>.default` (built with `crane`),
   `overlays.default`, `nixosModules.default`, `homeManagerModules.default`,
   `devShells.default`, `checks` (build, clippy, tests, config schema check,
   `nixos` VM test that starts the compositor and connects a client).
-- NixOS module `programs.wl-hex`: installs the package (wrapped with
+- NixOS module `programs.hecate`: installs the package (wrapped with
   `xwayland-satellite` on `PATH`), registers the session, enables
   `hardware.graphics`, polkit, dconf, xdg portals with a
-  `wl-hex-portals.conf`.
-- Home Manager module `wayland.windowManager.wl-hex`: `settings` is a plain
+  `hecate-portals.conf`.
+- Home Manager module `wayland.windowManager.hecate`: `settings` is a plain
   Nix attrset serialised to TOML. Pure Nix, no strings of another language.
-  Build-time validation with `wl-hex validate`. `systemd.enable` creates
-  `wl-hex-session.target` bound to `graphical-session.target`.
+  Build-time validation with `hecate validate`. `systemd.enable` creates
+  `hecate-session.target` bound to `graphical-session.target`.
 - Portals: your niri config uses `xdg-desktop-portal-gnome` for ScreenCast.
   That relies on Mutter's D-Bus API, which niri emulates and we won't.
-  wl-hex uses `xdg-desktop-portal-wlr` for ScreenCast/Screenshot (it
+  hecate uses `xdg-desktop-portal-wlr` for ScreenCast/Screenshot (it
   supports ext-image-copy-capture, including window capture) and keeps gtk
   for FileChooser and gnome-keyring for Secret.
+- `packages.hecate-shell` + `wayland.windowManager.hecate.shell.enable`:
+  the bundled shell with its Qt modules, CLI tools, fonts, Python env and
+  dotfiles, started as a user service. See [shell.md](shell.md).
 - Supported systems: `x86_64-linux`, `aarch64-linux`.
 
 ## 10. Configuration
 
 Full detail in [config.md](config.md). Decision:
 
-- **TOML** (`~/.config/wl-hex/config.toml`) as the primary format, **JSON**
+- **TOML** (`~/.config/hecate/config.toml`) as the primary format, **JSON**
   accepted with the same schema. Pure data, no embedded interpreter.
 - Why not Lua (the earlier proposal): you configure everything from Nix, and
   Nix already gives you variables, loops and per-host conditionals. A second
@@ -401,13 +436,13 @@ Full detail in [config.md](config.md). Decision:
   runs `wayland-info` + a QuickShell smoke config.
 - CI: GitHub Actions running `nix flake check` (fmt, clippy `-D warnings`,
   tests, VM test).
-- Logging via `tracing`; `WL_HEX_LOG=debug`.
+- Logging via `tracing`; `HECATE_LOG=debug`.
 - License: **GPL-3.0-or-later**. Smithay is MIT (compatible). labwc is
   GPL-2.0-only; we study it but don't copy code.
 
 ## 12. Phases
 
-Each phase ends usable and merged. **v1.0 = phases 0 to 5.**
+Each phase ends usable and merged. **v1.0 = phases 0 to 6.**
 
 0. **Skeleton.** Cargo project, flake with package + devShell, CI, winit
    backend, one xdg-shell window rendered. `nix run` works.
@@ -421,25 +456,31 @@ Each phase ends usable and merged. **v1.0 = phases 0 to 5.**
    ext-foreign-toplevel-list, workspaces (both modes) + ext-workspace,
    session-lock, idle notify/inhibit, shortcuts inhibit, screencopy (ext +
    wlr), data-control, xdg-activation, output-management, output-power,
-   gamma, focus-grab. **IPC socket + `wl-hex msg`.** Home Manager module
-   with systemd target. Portals config. Test with QuickShell and Noctalia.
+   gamma, focus-grab. **IPC socket + `hecate msg`** (niri-shaped JSON).
+   Press/release and modifier-tap binds. Home Manager module with systemd
+   target. Portals config. Test with a plain QuickShell config.
 4. **Gaming.** xwayland-satellite integration, pointer constraints/relative
    pointer, direct scanout, VRR, tearing control, drm-syncobj,
    fifo/commit-timing, drm-lease, content-type. Run the test matrix.
-5. **WM polish + blur.** Interactive move/resize, snapping, regions,
+5. **Bundled shell.** Subtree end4-pC + pruned dots-hyprland, hecate
+   backend and patches ([shell.md](shell.md)), `hecate-shell` package,
+   Python env, Home Manager `shell.enable`, shell keybind profile. VM test
+   boots into the full desktop.
+6. **WM polish + blur.** Interactive move/resize, snapping, regions,
    resistance, size presets, placement policies, window rules, margins,
    minimize/maximize/fullscreen edge cases, libinput per-device config,
    touch, tablet, gestures, IME. **ext-background-effect blur.** Default
    keybinds finalised. v1.0 release.
-6. **After v1.** Upstream Noctalia backend, dynamic workspaces, HDR / color
-   management, border gradients, zoom, typed Nix options generated from the
-   JSON Schema.
+7. **After v1.** Noctalia backend, HDR / color management, border
+   gradients, zoom, typed Nix options generated from the JSON Schema.
 
 ## 13. Open questions
 
-1. **Name**: pick from [names.md](names.md) (or none of them).
-2. **Workspace count**: fixed 9 named, or start with dynamic like your
-   niri `empty-workspace-above-first`? (Plan: fixed for v1, dynamic after.)
-3. **Noctalia flavour**: are you staying on the QuickShell-based Noctalia
-   (`noctalia-qs`) or moving to 5.x native? Decides which one we test first
-   and where the wl-hex backend goes.
+1. **Bind conflicts** between your niri binds and end-4's shell binds
+   (see [keybinds.md](keybinds.md#conflicts)). Proposal: end-4's shell binds
+   win, since that's the desktop you picked, and your niri binds that clash
+   move or go.
+2. **Pruning dots-hyprland**: OK to vendor only the parts we package (keeps
+   the repo small), or do you want the whole tree in `shell/` for reference?
+3. **Repo rename**: rename `kex1016/wl-hex` to `hecate` on GitHub? (Your
+   call, I can't do it from here.)
