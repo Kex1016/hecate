@@ -114,6 +114,7 @@ backend, which is why it has to be explicit.
 | `GameMode.qml` (`hyprctl --batch keyword ...`, `getoption animations:enabled`) | hecate branch using runtime overrides: `hecate msg set animations.enable false`, `blur.enable false`, `border.radius 0`, `gaming.allow_tearing always`, ...; state from `hecate msg get` ([animations.md](animations.md#game-mode-runtime-overrides)) |
 | `scripts/colors/switchwall.sh` | without `plasma-apply-colorscheme`, apply the Qt colour scheme with `apply_kde_colors.py` (kdeglobals + D-Bus signal); recolour Papirus's folders with `folder_icons.py` |
 | matugen `templates/hecate/colors.toml` (dots-hyprland) | new: hecate's border colours, included by the Nix config |
+| per-monitor wallpapers (`background.monitorWallpapers`, Background, Wallpapers, wallpaper selector, Settings → Background → Per monitor) | new: a monitor can have its own image; the rest show the main wallpaper, which alone drives the colour theme |
 | `DotsUpdater` / `Updates` (git pull into `~/.config`) | disabled in the Nix build, updates come from the flake |
 | `ConflictKiller` (kills other bars/notification daemons) | review; keep but make it Nix-aware |
 

@@ -74,7 +74,15 @@ MouseArea {
 
     function selectWallpaperPath(filePath) {
         if (filePath && filePath.length > 0) {
-            if (GlobalStates.wallpaperSelectorTarget === "lockWall") {
+            const target = GlobalStates.wallpaperSelectorTarget;
+            if (target.startsWith("monitor:")) {
+                // One monitor's own wallpaper: no recolouring, the main wallpaper keeps the theme.
+                Wallpapers.select(filePath, root.useDarkMode, finalPath => {
+                    Wallpapers.setMonitorWallpaper(target.slice("monitor:".length), finalPath);
+                    GlobalStates.wallpaperSelectorTarget = "wallpaper";
+                    GlobalStates.wallpaperSelectorOpen = false;
+                });
+            } else if (target === "lockWall") {
                 Wallpapers.select(filePath, root.useDarkMode, finalPath => {
                     Config.options.background.lockWall = finalPath;
                     GlobalStates.wallpaperSelectorTarget = "wallpaper";

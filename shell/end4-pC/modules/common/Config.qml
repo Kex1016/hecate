@@ -473,6 +473,9 @@ Singleton {
                 }
                 property list<string> screenList: [] 
                 property string wallpaperPath: ""
+                // Monitors with a wallpaper of their own: [{ monitor: "DP-1", path: "/..." }].
+                // The rest show wallpaperPath, which also drives the colour theme.
+                property list<var> monitorWallpapers: []
                 property bool centeredWallpaper: false
                 property string centeredWallpaperShape: "Cookie7Sided"
                 property int centeredWallpaperSize: 400

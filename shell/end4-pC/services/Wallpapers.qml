@@ -47,6 +47,21 @@ Singleton {
 
     function load () {} // For forcing initialization
 
+    function isVideo(path) {
+        return /\.(mp4|webm|mkv|avi|mov)$/i.test(path ?? "");
+    }
+
+    // A monitor's own wallpaper, or "" when it shows the main one.
+    function monitorWallpaper(name) {
+        return Config.options.background.monitorWallpapers.find(e => e.monitor === name)?.path ?? "";
+    }
+
+    // Give a monitor its own wallpaper; "" puts it back on the main one.
+    function setMonitorWallpaper(name, path) {
+        const rest = Config.options.background.monitorWallpapers.filter(e => e.monitor !== name);
+        Config.options.background.monitorWallpapers = path ? rest.concat([{ monitor: name, path: path }]) : rest;
+    }
+
     function startPreview(path) {
         if (!path || path.length === 0) return;
         root.previewPath = path;

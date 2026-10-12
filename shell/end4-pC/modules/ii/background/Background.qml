@@ -54,6 +54,11 @@ Variants {
         property string effectiveWallpaperPath: {
             if (GlobalStates.screenLocked && Config.options.background.lockWall !== "")
                 return Config.options.background.lockWall;
+            // This monitor's own wallpaper, unless one is being previewed. Images only: video
+            // wallpapers share a single generated thumbnail.
+            const own = Wallpapers.monitorWallpaper(bgRoot.modelData.name);
+            if (own !== "" && Wallpapers.previewPath === "" && !Wallpapers.isVideo(own))
+                return own;
             return Wallpapers.previewPath || Wallpapers.confirmedPath || Config.options.background.wallpaperPath;
         }
 

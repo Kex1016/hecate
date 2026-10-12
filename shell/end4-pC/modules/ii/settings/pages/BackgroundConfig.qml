@@ -5,6 +5,7 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
+import Quickshell
 import Quickshell.Hyprland
 
 
@@ -172,6 +173,54 @@ ContentPage {
                                 color: Appearance.colors.colOnLayer1
                                 elide: Text.ElideMiddle
                             }
+                        }
+                    }
+                }
+            }
+
+            ContentSubsection {
+                title: Translation.tr("Per monitor")
+                tooltip: Translation.tr("Give a monitor its own wallpaper. The main wallpaper still sets the colour theme.")
+
+                Repeater {
+                    model: Quickshell.screens
+
+                    RowLayout {
+                        id: monitorRow
+                        required property var modelData
+                        readonly property string own: Wallpapers.monitorWallpaper(modelData.name)
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 8
+                        Layout.rightMargin: 8
+                        spacing: 10
+
+                        MaterialSymbol {
+                            text: "monitor"
+                            iconSize: Appearance.font.pixelSize.larger
+                            color: Appearance.colors.colOnSecondaryContainer
+                        }
+                        StyledText {
+                            Layout.fillWidth: true
+                            elide: Text.ElideMiddle
+                            color: Appearance.colors.colOnSecondaryContainer
+                            text: monitorRow.modelData.name + "  ·  "
+                                + (monitorRow.own !== "" ? page.displayPathFor(monitorRow.own) : Translation.tr("Main wallpaper"))
+                        }
+                        RippleButtonWithIcon {
+                            buttonRadius: Appearance.rounding.small
+                            materialIcon: "wallpaper"
+                            mainText: Translation.tr("Choose…")
+                            onClicked: {
+                                GlobalStates.wallpaperSelectorTarget = `monitor:${monitorRow.modelData.name}`;
+                                GlobalStates.wallpaperSelectorOpen = true;
+                            }
+                        }
+                        RippleButtonWithIcon {
+                            visible: monitorRow.own !== ""
+                            buttonRadius: Appearance.rounding.small
+                            materialIcon: "undo"
+                            mainText: Translation.tr("Use main")
+                            onClicked: Wallpapers.setMonitorWallpaper(monitorRow.modelData.name, "")
                         }
                     }
                 }
