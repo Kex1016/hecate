@@ -378,6 +378,27 @@ ContentPage {
                     }
                     ConfigComboBox {
                         Layout.fillWidth: true
+                        buttonIcon: "screen_rotation"
+                        text: Translation.tr("Orientation")
+                        fieldWidth: 220
+                        fixedWidth: true
+                        model: [
+                            { displayName: Translation.tr("Landscape"), value: "normal" },
+                            { displayName: Translation.tr("Portrait (90°)"), value: "90" },
+                            { displayName: Translation.tr("Landscape, upside down"), value: "180" },
+                            { displayName: Translation.tr("Portrait (270°)"), value: "270" },
+                            { displayName: Translation.tr("Mirrored"), value: "flipped" },
+                            { displayName: Translation.tr("Mirrored, 90°"), value: "flipped-90" },
+                            { displayName: Translation.tr("Mirrored, 180°"), value: "flipped-180" },
+                            { displayName: Translation.tr("Mirrored, 270°"), value: "flipped-270" },
+                        ]
+                        // hecate reports "flipped90" where the config spells "flipped-90".
+                        currentValue: page.value(`${outputSection.base}.transform`,
+                            (outputSection.modelData.logical?.transform ?? "normal").replace(/^flipped(\d+)$/, "flipped-$1"))
+                        onSelected: newValue => page.set(`${outputSection.base}.transform`, newValue)
+                    }
+                    ConfigComboBox {
+                        Layout.fillWidth: true
                         visible: outputSection.modelData.vrr_supported
                         buttonIcon: "speed"
                         text: Translation.tr("Variable refresh rate")
