@@ -371,3 +371,45 @@ fn resizing_from_left_and_top_edges_moves_the_window() {
         }
     }
 }
+
+#[test]
+fn interactive_resize_waits_for_the_client_to_draw_each_step() {
+    let (mut f, id) = setup("");
+    let surface = f.map_window(id, (400, 300), RED, None);
+    f.double_roundtrip(id);
+    let w = f.windows()[0].clone();
+    w.data().resizing = true;
+    let sizes = |f: &mut Fixture| -> Vec<(i32, i32)> {
+        f.client(id)
+            .window(&surface)
+            .recent_configures()
+            .map(|c| c.size)
+            .collect()
+    };
+    sizes(&mut f);
+
+    // Pointer motion is far faster than redraws: only the first step goes out.
+    for s in [(450, 320), (480, 340), (500, 350)] {
+        w.resize_step(s.into());
+    }
+    f.double_roundtrip(id);
+    assert_eq!(sizes(&mut f), vec![(450, 320)]);
+
+    // The client drew it: the latest size follows, the ones in between are skipped.
+    f.ack_and_resize(id, &surface, RED);
+    assert_eq!(sizes(&mut f), vec![(500, 350)]);
+
+    // Drawn too, and nothing newer: no more configures.
+    f.ack_and_resize(id, &surface, RED);
+    assert!(sizes(&mut f).is_empty());
+
+    // A client that never draws doesn't freeze the drag.
+    w.resize_step((520, 360).into());
+    w.resize_step((540, 370).into());
+    f.double_roundtrip(id);
+    assert_eq!(sizes(&mut f), vec![(520, 360)]);
+    std::thread::sleep(crate::wm::window::RESIZE_STEP_TIMEOUT + std::time::Duration::from_millis(20));
+    w.resize_step((560, 380).into());
+    f.double_roundtrip(id);
+    assert_eq!(sizes(&mut f), vec![(560, 380)]);
+}

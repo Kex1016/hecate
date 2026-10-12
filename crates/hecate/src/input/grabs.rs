@@ -438,7 +438,7 @@ impl PointerGrab<State> for ResizeGrab {
         let delta = event.location - self.start_data.location;
         let (w, h) = resized(self.initial, self.edge, delta);
         let size = clamp_size(&self.window, (w, h).into());
-        self.window.request_size(Some(size));
+        self.window.resize_step(size);
         data.hecate.queue_redraw_all();
     }
 
@@ -457,7 +457,12 @@ impl PointerGrab<State> for ResizeGrab {
 
     fn unset(&mut self, data: &mut State) {
         data.hecate.cursor_status = CursorImageStatus::default_named();
-        self.window.data().resizing = false;
+        {
+            let mut d = self.window.data();
+            d.resizing = false;
+            d.resize_inflight = None;
+        }
+        // Sends the final size along with dropping the resizing state.
         let toplevel = self.window.toplevel_surface();
         toplevel.with_pending_state(|s| s.states.unset(xdg_toplevel::State::Resizing));
         if toplevel.is_initial_configure_sent() {

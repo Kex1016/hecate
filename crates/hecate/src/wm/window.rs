@@ -2,10 +2,11 @@
 
 use std::cell::{RefCell, RefMut};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 
 use smithay::desktop::Window;
 use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
-use smithay::utils::{Logical, Point, Rectangle, Size};
+use smithay::utils::{Logical, Point, Rectangle, Serial, Size};
 use smithay::wayland::compositor::with_states;
 use smithay::wayland::shell::xdg::{ToplevelSurface, XdgToplevelSurfaceData};
 
@@ -121,6 +122,9 @@ pub struct WindowData {
     pub resize_initial: Option<Rectangle<i32, Logical>>,
     /// An interactive resize grab is active.
     pub resizing: bool,
+    /// The configure for an interactive resize step the client hasn't drawn yet, and when it
+    /// was sent. Later steps wait for it (see [`WindowExt::resize_step`]).
+    pub resize_inflight: Option<(Serial, Instant)>,
     /// Index into the width/height presets for cycling.
     pub width_preset: Option<usize>,
     pub height_preset: Option<usize>,
@@ -182,6 +186,7 @@ impl WindowData {
             resize_edge: None,
             resize_initial: None,
             resizing: false,
+            resize_inflight: None,
             width_preset: None,
             height_preset: None,
             rules: ResolvedRules::default(),
@@ -203,6 +208,13 @@ pub trait WindowExt {
     fn max_size(&self) -> Size<i32, Logical>;
     /// Ask the client for a new size (and send the configure).
     fn request_size(&self, size: Option<Size<i32, Logical>>);
+    /// One step of an interactive resize: record the size, but send it only once the client
+    /// has drawn the previous step (or that one is [`RESIZE_STEP_TIMEOUT`] old). Pointer
+    /// motion comes far faster than a client can redraw, and a configure per event leaves
+    /// slow redrawers like GTK4 working through a growing backlog.
+    fn resize_step(&self, size: Size<i32, Logical>);
+    /// After a commit: if it drew the resize step in flight, send the latest one.
+    fn resize_step_committed(&self);
     fn set_activated_state(&self, activated: bool);
 }
 
@@ -271,6 +283,43 @@ impl WindowExt for Window {
         }
     }
 
+    fn resize_step(&self, size: Size<i32, Logical>) {
+        let toplevel = self.toplevel_surface();
+        toplevel.with_pending_state(|state| state.size = Some(size));
+        if !toplevel.is_initial_configure_sent() {
+            return;
+        }
+        let mut d = self.data();
+        if d.resize_inflight
+            .is_some_and(|(_, sent)| sent.elapsed() < RESIZE_STEP_TIMEOUT)
+        {
+            return;
+        }
+        d.resize_inflight = toplevel.send_pending_configure().map(|s| (s, Instant::now()));
+    }
+
+    fn resize_step_committed(&self) {
+        let Some((serial, _)) = self.data().resize_inflight else {
+            return;
+        };
+        let toplevel = self.toplevel_surface();
+        let drawn = with_states(toplevel.wl_surface(), |states| {
+            states
+                .data_map
+                .get::<XdgToplevelSurfaceData>()
+                .and_then(|d| d.lock().ok()?.last_acked.as_ref().map(|c| c.serial >= serial))
+                .unwrap_or(false)
+        });
+        if !drawn {
+            return;
+        }
+        let mut d = self.data();
+        d.resize_inflight = None;
+        if d.resizing {
+            d.resize_inflight = toplevel.send_pending_configure().map(|s| (s, Instant::now()));
+        }
+    }
+
     fn set_activated_state(&self, activated: bool) {
         if self.set_activated(activated) {
             let toplevel = self.toplevel_surface();
@@ -280,6 +329,10 @@ impl WindowExt for Window {
         }
     }
 }
+
+/// How long an interactive resize step may wait for the client to draw the previous one before
+/// the next is sent anyway, so a client that stops answering can't freeze the drag.
+pub const RESIZE_STEP_TIMEOUT: Duration = Duration::from_millis(100);
 
 /// Clamp a requested size to the client's min/max hints.
 pub fn clamp_size(window: &Window, size: Size<i32, Logical>) -> Size<i32, Logical> {

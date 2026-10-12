@@ -286,6 +286,7 @@ impl State {
 
     /// Commit on a mapped window: keep resize anchors in place.
     pub fn on_window_commit(&mut self, window: &Window) {
+        window.resize_step_committed();
         let new_size = window.geometry().size;
         let mut d = window.data();
         // Keep the edges opposite the dragged one where they were. Recomputed on every commit
