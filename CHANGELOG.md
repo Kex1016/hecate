@@ -64,6 +64,13 @@ workspace swipes, drawing tablets, keyboard layouts per window or global.
   Mesa llvmpipe, and NixOS VM tests that boot hecate with a QuickShell bar and with the
   full shell from Home Manager.
 
+### Performance
+
+- Direct scanout uses the primary plane (fullscreen windows) and the cursor plane only. Trying
+  overlay planes cost a test-only atomic commit per element per frame, which on amdgpu came to
+  ~9 ms a frame on an idle desktop and dragging stuttered at high refresh rates.
+- Interactive resizes send a new size only once the client has drawn the previous one.
+
 ### Known limitations
 
 - Outputs that only a secondary GPU can drive are skipped.

@@ -712,8 +712,13 @@ impl Tty {
         let direct_scanout = hecate.config.gaming.direct_scanout;
         let submitted = match self.surface_for(output) {
             Some(surface) => {
+                // Primary-plane scanout is what direct scanout is for (a fullscreen game or
+                // video skips composition), plus the cursor plane. Not overlay planes:
+                // Smithay tries every element on them with a test-only atomic commit per
+                // frame, and on amdgpu each test costs milliseconds, about 9 ms a frame on a
+                // plain desktop, over budget at 200 Hz.
                 let flags = if direct_scanout {
-                    FrameFlags::DEFAULT
+                    FrameFlags::ALLOW_PRIMARY_PLANE_SCANOUT_ANY | FrameFlags::ALLOW_CURSOR_PLANE_SCANOUT
                 } else {
                     FrameFlags::empty()
                 };

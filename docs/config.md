@@ -83,7 +83,7 @@ position = [0, 0]
 
 [gaming]
 allow_tearing = "fullscreen"   # "never" | "fullscreen" | "always"
-direct_scanout = true
+direct_scanout = true          # fullscreen windows go straight to the display (primary plane) and the cursor uses the cursor plane; overlay planes are never used
 fullscreen_inhibits_idle = true
 
 [xwayland]
