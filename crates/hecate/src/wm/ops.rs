@@ -426,7 +426,13 @@ impl State {
         use smithay::wayland::shell::wlr_layer::{KeyboardInteractivity, Layer};
         for output in self.hecate.wm.outputs() {
             let map = smithay::desktop::layer_map_for_output(output);
-            for layer in [Layer::Overlay, Layer::Top] {
+            // A fullscreen window covers the Top layer, so it keeps the keyboard there.
+            let layers: &[Layer] = if self.fullscreen_window_on(output).is_some() {
+                &[Layer::Overlay]
+            } else {
+                &[Layer::Overlay, Layer::Top]
+            };
+            for &layer in layers {
                 if let Some(l) = map.layers_on(layer).rev().find(|l| {
                     l.cached_state().keyboard_interactivity == KeyboardInteractivity::Exclusive
                         && crate::utils::is_mapped(l.wl_surface())

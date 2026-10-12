@@ -113,7 +113,12 @@ impl State {
                     || (interactivity == wlr_layer::KeyboardInteractivity::OnDemand
                         && !layer.user_data().get::<LayerSeen>().is_some());
                 layer.user_data().insert_if_missing(|| LayerSeen);
-                if can_focus && is_newly_focusable && !self.hecate.wm.is_locked() {
+                // Layers drawn under a fullscreen window (everything but Overlay: the bar,
+                // its popups, notifications) don't take the keyboard from it, or a
+                // notification mid-game sends the game's input to the shell.
+                let under_fullscreen = layer.layer() != wlr_layer::Layer::Overlay
+                    && self.fullscreen_window_on(&output).is_some();
+                if can_focus && is_newly_focusable && !under_fullscreen && !self.hecate.wm.is_locked() {
                     let keyboard = self.hecate.seat.get_keyboard().unwrap();
                     keyboard.set_focus(
                         self,

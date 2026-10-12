@@ -6,7 +6,7 @@ use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_lay
 use super::client::LayerConfigureProps;
 use super::fixture::Fixture;
 use crate::config::action::Action;
-use crate::wm::Wm;
+use crate::wm::{WindowExt, Wm};
 
 const BLUE: [u8; 4] = [0, 0, 255, 255];
 const RED: [u8; 4] = [255, 0, 0, 255];
@@ -194,4 +194,55 @@ fn layers_close_when_their_output_goes_away() {
         f.client(id).layer(&surface).close_requested,
         "closed with its output"
     );
+}
+
+/// Map a layer surface that asks for keyboard focus; returns whether it took the keyboard.
+fn layer_takes_focus(
+    f: &mut Fixture,
+    id: super::client::ClientId,
+    layer_kind: Layer,
+    ki: KeyboardInteractivity,
+) -> bool {
+    let layer = f.client(id).create_layer(None, layer_kind, "popup");
+    let surface = layer.surface.clone();
+    layer.set_configure_props(LayerConfigureProps {
+        size: Some((300, 200)),
+        kb_interactivity: Some(ki),
+        ..Default::default()
+    });
+    layer.commit();
+    f.double_roundtrip(id);
+    let layer = f.client(id).layer(&surface);
+    layer.attach_color(BLUE);
+    layer.set_size(300, 200);
+    layer.ack_last_and_commit();
+    f.double_roundtrip(id);
+    f.focused().is_none()
+}
+
+#[test]
+fn layers_under_a_fullscreen_window_do_not_take_its_keyboard() {
+    let mut f = Fixture::new();
+    f.add_output("headless-1", (1920, 1080));
+    let id = f.add_client();
+    let surface = f.map_window(id, (400, 300), RED, None);
+    f.client(id).window(&surface).set_fullscreen(None);
+    f.double_roundtrip(id);
+    f.ack_and_resize(id, &surface, RED);
+    assert!(f.windows()[0].data().fullscreen);
+
+    for ki in [KeyboardInteractivity::OnDemand, KeyboardInteractivity::Exclusive] {
+        assert!(
+            !layer_takes_focus(&mut f, id, Layer::Top, ki),
+            "a Top layer ({ki:?}) took the keyboard from the fullscreen window"
+        );
+        assert!(f.focused().is_some());
+    }
+    // Overlay draws above fullscreen (launchers, the lock screen): still focusable.
+    assert!(layer_takes_focus(
+        &mut f,
+        id,
+        Layer::Overlay,
+        KeyboardInteractivity::Exclusive
+    ));
 }

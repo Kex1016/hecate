@@ -52,6 +52,16 @@ impl State {
                 argv.extend(assignments.iter().map(String::as_str));
                 run_quiet(&argv);
             }
+            // Portals started before this import (D-Bus activation by an early client) have no
+            // WAYLAND_DISPLAY or XDG_CURRENT_DESKTOP, so they never pick hecate's backends.
+            // Restart the ones that are already running.
+            run_quiet(&[
+                "systemctl",
+                "--user",
+                "try-restart",
+                "xdg-desktop-portal.service",
+                "xdg-desktop-portal-wlr.service",
+            ]);
             if run_quiet(&["systemctl", "--user", "cat", "hecate-session.target"]) {
                 run_quiet(&["systemctl", "--user", "start", "hecate-session.target"]);
             }
