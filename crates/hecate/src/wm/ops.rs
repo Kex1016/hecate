@@ -227,8 +227,10 @@ impl State {
         if fullscreen {
             self.hecate.wm.restack();
         }
-        let visible = self.hecate.wm.is_workspace_active(ws_id);
-        if visible {
+        let activate = std::mem::take(&mut window.data().activate_on_map);
+        if activate {
+            self.activate_window(&window);
+        } else if self.hecate.wm.is_workspace_active(ws_id) {
             self.focus_window(&window);
         }
         self.on_window_opened(&window);
@@ -367,6 +369,13 @@ impl State {
 
     /// Focus a window from an activation request: switch to its workspace, unminimize.
     pub fn activate_window(&mut self, window: &Window) {
+        // Launchers hand new apps an activation token, and apps use it before their first
+        // buffer, while they have no workspace yet: switching to "its" workspace then showed an
+        // empty screen. Do it once the window is placed instead.
+        if self.hecate.wm.workspace_of(window).is_none() {
+            window.data().activate_on_map = true;
+            return;
+        }
         if window.data().minimized {
             self.set_minimized(window, false);
         }

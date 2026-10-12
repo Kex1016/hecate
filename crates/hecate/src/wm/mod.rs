@@ -549,6 +549,9 @@ impl Wm {
 
     /// Activate a workspace on an output. Returns false if nothing changed.
     pub fn activate_workspace(&mut self, output: &Output, id: u64) -> bool {
+        if self.workspace(id).is_none() {
+            return false;
+        }
         let key = self.key(output);
         let cur = self.active.get(&key).copied();
         let id = if cur == Some(id) && self.auto_back_and_forth {

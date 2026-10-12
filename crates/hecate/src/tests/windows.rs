@@ -413,3 +413,31 @@ fn interactive_resize_waits_for_the_client_to_draw_each_step() {
     f.double_roundtrip(id);
     assert_eq!(sizes(&mut f), vec![(560, 380)]);
 }
+
+#[test]
+fn activating_a_window_before_it_maps_keeps_the_workspace() {
+    let (mut f, id) = setup("");
+    f.map_window(id, (300, 200), RED, None);
+    let output = f.hecate().hecate.wm.outputs().next().cloned().unwrap();
+    let ws = f.hecate().hecate.wm.active_workspace_id(&output);
+
+    // A launcher's new app uses its activation token before its first buffer.
+    let window = f.client(id).create_window();
+    let surface = window.surface.clone();
+    window.commit();
+    f.double_roundtrip(id);
+    let pending = f.hecate().hecate.wm.pending.last().cloned().unwrap();
+    f.hecate().activate_window(&pending);
+    assert_eq!(f.hecate().hecate.wm.active_workspace_id(&output), ws);
+    assert_eq!(f.hecate().hecate.wm.windows_on_output(&output).len(), 1);
+
+    // Once it maps, the activation goes through: it lands here, focused.
+    let window = f.client(id).window(&surface);
+    window.attach_color(RED);
+    window.set_size(200, 100);
+    window.ack_last_and_commit();
+    f.double_roundtrip(id);
+    assert_eq!(f.hecate().hecate.wm.active_workspace_id(&output), ws);
+    assert_eq!(f.hecate().hecate.wm.windows_on_output(&output).len(), 2);
+    assert_eq!(f.focused(), Some(pending));
+}

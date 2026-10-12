@@ -101,7 +101,10 @@ pub enum Snap {
 #[derive(Debug)]
 pub struct WindowData {
     pub id: u64,
+    /// Meaningless until the window is mapped: unmapped windows wait in `Wm::pending`.
     pub workspace: u64,
+    /// An activation request came before the window was mapped; honour it on map.
+    pub activate_on_map: bool,
     /// Top-left of the window geometry in global logical coordinates.
     pub loc: Point<i32, Logical>,
     /// Outputs this window has entered (for wl_surface.enter/leave).
@@ -172,6 +175,7 @@ impl WindowData {
         WindowData {
             id: NEXT_WINDOW_ID.fetch_add(1, Ordering::Relaxed),
             workspace: 0,
+            activate_on_map: false,
             loc: Point::from((0, 0)),
             entered_outputs: Vec::new(),
             maximized: Maximized::No,
