@@ -125,6 +125,25 @@ fn setup_connection(tmp: &Path) -> anyhow::Result<X11Connection> {
     Err(anyhow!("no free X11 display"))
 }
 
+/// Log xwayland-satellite's output line by line, under hecate's own target so the default
+/// `hecate=info` filter shows it.
+fn forward_output(stream: Option<impl std::io::Read + Send + 'static>) {
+    let Some(stream) = stream else {
+        return;
+    };
+    let res = std::thread::Builder::new()
+        .name("satellite-log".into())
+        .spawn(move || {
+            use std::io::BufRead;
+            for line in std::io::BufReader::new(stream).lines().map_while(Result::ok) {
+                tracing::info!(target: "hecate::xwayland_satellite", "{line}");
+            }
+        });
+    if let Err(err) = res {
+        tracing::warn!("error starting the satellite log thread: {err}");
+    }
+}
+
 /// Whether `path` is an xwayland-satellite that can take listening sockets.
 fn supports_listenfd(path: &str) -> bool {
     let status = Command::new(crate::utils::expand_home(path))
@@ -255,8 +274,9 @@ impl State {
             .env_remove("DISPLAY")
             .env_remove("RUST_BACKTRACE")
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
+            // Its messages (which X11 windows it maps, why it drops one) go into hecate's log.
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
         for (k, v) in crate::utils::child_env() {
             if k == "DISPLAY" {
                 continue;
@@ -286,6 +306,8 @@ impl State {
                 match command.spawn() {
                     Ok(mut child) => {
                         drop((abstract_fd, unix_fd));
+                        forward_output(child.stdout.take());
+                        forward_output(child.stderr.take());
                         match child.wait() {
                             Ok(status) => tracing::info!("xwayland-satellite exited: {status}"),
                             Err(err) => tracing::warn!("error waiting for xwayland-satellite: {err}"),
