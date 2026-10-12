@@ -103,5 +103,4 @@ ones:
 | ------- | ---- |
 | `hecate msg exit` | quit the session cleanly (stops `hecate-session.target`) |
 | `hecate msg spawn -- <cmd...>` | run a command with the compositor's environment (`WAYLAND_DISPLAY`, `DISPLAY`, ...) |
-| `hecate msg lock` | `loginctl lock-session` shortcut, works with the shell's lock screen |
 | `hecate msg power-outputs on\|off` | DPMS all outputs (idle scripts) |

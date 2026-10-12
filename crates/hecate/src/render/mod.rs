@@ -191,6 +191,7 @@ pub fn layer_rules_for(config: &Config, namespace: &str) -> LayerRule {
             ignore_alpha,
             xray,
             no_keyboard_focus,
+            show_when_locked,
             opacity,
             animation
         );
@@ -239,6 +240,28 @@ impl Hecate {
                     .map(HecateElement::Surface),
                 );
             }
+            // Layers that asked to stay visible (the shell's wallpaper and clock), in stacking order.
+            let map = layer_map_for_output(output);
+            for layer in [Layer::Overlay, Layer::Top, Layer::Bottom, Layer::Background] {
+                for surface in map.layers_on(layer).rev() {
+                    let rules = layer_rules_for(&self.config, surface.namespace());
+                    if rules.show_when_locked != Some(true) {
+                        continue;
+                    }
+                    let Some(geo) = map.layer_geometry(surface) else {
+                        continue;
+                    };
+                    let alpha = rules.opacity.unwrap_or(1.0).clamp(0., 1.);
+                    let elems: Vec<WaylandSurfaceRenderElement<GlesRenderer>> = surface.render_elements(
+                        renderer,
+                        geo.loc.to_physical_precise_round(scale),
+                        scale,
+                        alpha,
+                    );
+                    out.extend(elems.into_iter().map(HecateElement::Surface));
+                }
+            }
+            drop(map);
             if let Some(s) = state {
                 out.push(HecateElement::Solid(SolidColorRenderElement::from_buffer(
                     &s.lock_background,

@@ -17,6 +17,9 @@ in
     blur = false;
     animation = "none";
   })
+  # The lock screen is the wallpaper layer (blurred, with the clock) showing through the
+  # transparent lock surface, like Hyprland's session_lock_xray.
+  (rule "background" { show_when_locked = true; })
   (rule "bar" { animation = "slide"; })
   (rule "verticalBar" { animation = "slide"; })
   (rule "sidebarLeft" { animation = "slide_left"; })

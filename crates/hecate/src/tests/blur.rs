@@ -308,3 +308,17 @@ fn blur_region_is_clipped_to_its_rectangles_and_can_be_cleared() {
     f.render("headless-1")
         .assert_rgb(152, 170, [255, 0, 0], "cleared");
 }
+
+#[test]
+fn locked_screen_shows_only_layers_that_ask() {
+    let rule = "[[layer_rules]]\nmatch = { namespace = \"^wallpaper$\" }\nshow_when_locked = true\n";
+    let Some((mut f, id)) = fixture(rule) else { return };
+    wallpaper(&mut f, id);
+    layer(&mut f, id, Layer::Top, "panel", Anchor::Bottom, 50, BLUE);
+    f.map_window(id, (100, 100), BLUE, None);
+    f.hecate().hecate.wm.lock = crate::wm::LockState::Locked;
+    let frame = f.render("headless-1");
+    frame.assert_rgb(200, 20, [255, 0, 0], "wallpaper under the lock");
+    frame.assert_rgb(200, 280, [0, 0, 0], "panel hidden by the lock");
+    frame.assert_rgb(200, 150, [0, 0, 0], "window hidden by the lock");
+}

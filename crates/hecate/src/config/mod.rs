@@ -963,6 +963,9 @@ pub struct LayerRule {
     /// Blur only the background/bottom layers (cheap, the wallpaper).
     pub xray: Option<bool>,
     pub no_keyboard_focus: Option<bool>,
+    /// Keep drawing the surface below the lock screen, like Hyprland's `session_lock_xray` but
+    /// only for the layers that ask (a shell's wallpaper and clock). It gets no input.
+    pub show_when_locked: Option<bool>,
     pub opacity: Option<f32>,
     pub animation: Option<LayerAnimation>,
 }

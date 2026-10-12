@@ -18,6 +18,9 @@ The first release: phases 0 to 6 of [docs/PLAN.md](docs/PLAN.md).
   edge, fade, pop in). Cubic-bézier curves, a global slowdown, per-window opt-out.
 - Blur: dual Kawase behind layer surfaces per rule, with `xray` (wallpaper only, cached)
   and `ignore_alpha`; ext-background-effect for windows that ask, clipped to their corners.
+- Session lock: layer surfaces whose rule sets `show_when_locked` stay visible under the lock
+  screen (never receiving input), which is how the bundled shell shows its blurred wallpaper
+  and clock there.
 - DRM/KMS with libseat and VT switching and multiple outputs, a winit backend for nesting
   and a headless one for tests.
 

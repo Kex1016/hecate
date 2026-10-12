@@ -188,6 +188,8 @@ xray = true                    # blur only the wallpaper (background/bottom laye
 [[layer_rules]]
 match = { namespace = "quickshell:background" }
 blur = false
+show_when_locked = true        # keep drawing it under the lock screen (no input reaches it);
+                               # the shell's lock is its wallpaper layer seen through the lock
 
 [[layer_rules]]
 match = { namespace = "quickshell:bar" }

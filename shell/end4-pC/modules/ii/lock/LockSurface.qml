@@ -113,7 +113,8 @@ MouseArea {
     Loader {
         anchors.fill: parent
         z: -1
-        active: WM.niriLike
+        // hecate shows the shell's own wallpaper layer (blur, clock) under the lock instead.
+        active: WM.niriLike && WM.compositor !== "hecate"
 
         sourceComponent: Item {
             anchors.fill: parent

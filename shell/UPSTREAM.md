@@ -48,6 +48,8 @@ See `git log -- shell/end4-pC` for the full list. In short:
 - theming without Plasma: Qt colour schemes applied through kdeglobals, Papirus folders in
   the wallpaper's colour, a matugen template for hecate's border colours
 - per-monitor wallpapers (Settings → Background → Per monitor)
+- the lock screen shows the blurred wallpaper and clock (through a `show_when_locked` layer
+  rule) rather than the niri fallback
 - an image picker for the Custom Image and Image Card desktop widgets, which upstream only
   set by dropping a file on them
 - Hyprland-only features hidden or rerouted on hecate (night light, keybind list, game mode,
