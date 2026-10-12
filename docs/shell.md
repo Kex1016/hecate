@@ -115,6 +115,7 @@ backend, which is why it has to be explicit.
 | `scripts/colors/switchwall.sh` | without `plasma-apply-colorscheme`, apply the Qt colour scheme with `apply_kde_colors.py` (kdeglobals + D-Bus signal); recolour Papirus's folders with `folder_icons.py` |
 | matugen `templates/hecate/colors.toml` (dots-hyprland) | new: hecate's border colours, included by the Nix config |
 | per-monitor wallpapers (`background.monitorWallpapers`, Background, Wallpapers, wallpaper selector, Settings → Background → Per monitor) | new: a monitor can have its own image; the rest show the main wallpaper, which alone drives the colour theme |
+| Custom Image / Image Card widgets (Settings → Background) | new: a "Choose…" row picks the image (kdialog, else zenity); upstream could only drop a file on the widget. Dropped paths are URL-decoded, so names with spaces work |
 | `DotsUpdater` / `Updates` (git pull into `~/.config`) | disabled in the Nix build, updates come from the flake |
 | `ConflictKiller` (kills other bars/notification daemons) | review; keep but make it Nix-aware |
 

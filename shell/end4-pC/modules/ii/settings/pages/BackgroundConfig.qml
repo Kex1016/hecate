@@ -6,12 +6,66 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
 import Quickshell
+import Quickshell.Io
 import Quickshell.Hyprland
 
 
 ContentPage {
     id: page
     forceWidth: true
+
+    // The image a desktop image widget shows (hecate): pick it here, or drop a file on the widget.
+    component ImagePathRow: RowLayout {
+        id: imageRow
+        required property var entry
+        Layout.fillWidth: true
+        Layout.leftMargin: 8
+        Layout.rightMargin: 8
+        spacing: 10
+
+        MaterialSymbol {
+            text: "image"
+            iconSize: Appearance.font.pixelSize.larger
+            color: Appearance.colors.colOnSecondaryContainer
+        }
+        StyledText {
+            Layout.fillWidth: true
+            elide: Text.ElideMiddle
+            color: Appearance.colors.colOnSecondaryContainer
+            text: imageRow.entry.path !== ""
+                ? imageRow.entry.path.split("/").pop()
+                : Translation.tr("No image (or drop one on the widget)")
+        }
+        RippleButtonWithIcon {
+            buttonRadius: Appearance.rounding.small
+            materialIcon: "folder_open"
+            mainText: Translation.tr("Choose…")
+            enabled: !pickProc.running
+            onClicked: pickProc.running = true
+        }
+        RippleButtonWithIcon {
+            visible: imageRow.entry.path !== ""
+            buttonRadius: Appearance.rounding.small
+            materialIcon: "close"
+            mainText: Translation.tr("Clear")
+            onClicked: imageRow.entry.path = ""
+        }
+
+        Process {
+            id: pickProc
+            command: ["bash", "-c",
+                'if command -v kdialog >/dev/null 2>&1; then kdialog --title "$1" --getopenfilename "$2" "Images (*.png *.jpg *.jpeg *.webp *.avif *.bmp *.gif *.tif *.tiff)"; else zenity --file-selection --title="$1" --filename="$2/" --file-filter="Images | *.png *.jpg *.jpeg *.webp *.avif *.bmp *.gif *.tif *.tiff"; fi',
+                "pick", Translation.tr("Choose an image"),
+                imageRow.entry.path !== "" ? imageRow.entry.path.replace(/\/[^/]*$/, "") : `${Quickshell.env("HOME")}/Pictures`]
+            stdout: StdioCollector {
+                onStreamFinished: {
+                    const path = text.trim();
+                    if (path !== "")
+                        imageRow.entry.path = path;
+                }
+            }
+        }
+    }
 
     function displayPathFor(path) {
         return /\.(mp4|webm|mkv|avi|mov)$/i.test(path)
@@ -1079,6 +1133,9 @@ ContentPage {
                         Config.options.background.widgets.customImage.shape = newValue
                     }
                 }
+                ImagePathRow {
+                    entry: Config.options.background.widgets.customImage
+                }
                 ConfigSwitch {
                     Layout.fillWidth: true
                     buttonIcon: "photo_size_select_large"
@@ -1103,6 +1160,10 @@ ContentPage {
                     onSelected: newValue => {
                         Config.options.background.widgets.imageCard.sizeMode = newValue
                     }
+                }
+                ImagePathRow {
+                    visible: Config.options.background.widgets.imageCard.enable
+                    entry: Config.options.background.widgets.imageCard
                 }
             }
         }
