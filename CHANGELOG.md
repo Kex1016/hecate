@@ -66,9 +66,11 @@ workspace swipes, drawing tablets, keyboard layouts per window or global.
 
 ### Performance
 
-- Direct scanout uses the primary plane (fullscreen windows) and the cursor plane only. Trying
-  overlay planes cost a test-only atomic commit per element per frame, which on amdgpu came to
-  ~9 ms a frame on an idle desktop and dragging stuttered at high refresh rates.
+- Layer rule patterns are compiled once, not for every layer surface on every frame: with the
+  bundled shell's rules that took ~9 ms a frame, so dragging stuttered at high refresh rates.
+- Direct scanout uses the primary plane (fullscreen windows) and the cursor plane only, sparing
+  a test-only atomic commit per element per frame.
+- `hecate msg frames` splits render time into building the scene, drawing it and queueing it.
 - Interactive resizes send a new size only once the client has drawn the previous one.
 
 ### Known limitations

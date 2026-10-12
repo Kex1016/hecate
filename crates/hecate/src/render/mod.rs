@@ -151,6 +151,25 @@ fn lerp_color(a: Color, b: Color, t: f32) -> Color {
     }
 }
 
+/// Does `namespace` match `pattern`? Compiled patterns are kept: rules are looked up for every
+/// layer surface on every frame, and compiling them each time cost milliseconds per frame.
+fn namespace_matches(pattern: &str, namespace: &str) -> bool {
+    use std::collections::HashMap;
+    use std::sync::{LazyLock, Mutex};
+    static COMPILED: LazyLock<Mutex<HashMap<String, Option<regex::Regex>>>> = LazyLock::new(Default::default);
+    let mut compiled = COMPILED.lock().unwrap_or_else(|e| e.into_inner());
+    if !compiled.contains_key(pattern) {
+        // A config reload can bring any number of new patterns; old ones are cheap to rebuild.
+        if compiled.len() >= 256 {
+            compiled.clear();
+        }
+        compiled.insert(pattern.to_owned(), regex::Regex::new(pattern).ok());
+    }
+    compiled[pattern]
+        .as_ref()
+        .is_some_and(|re| re.is_match(namespace))
+}
+
 /// Effective layer rule properties for a namespace (later rules win).
 pub fn layer_rules_for(config: &Config, namespace: &str) -> LayerRule {
     let mut out = LayerRule::default();
@@ -159,7 +178,7 @@ pub fn layer_rules_for(config: &Config, namespace: &str) -> LayerRule {
             .matches
             .namespace
             .as_ref()
-            .is_none_or(|re| regex::Regex::new(re).is_ok_and(|re| re.is_match(namespace)));
+            .is_none_or(|re| namespace_matches(re, namespace));
         if !matches {
             continue;
         }
