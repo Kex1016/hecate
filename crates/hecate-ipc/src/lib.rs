@@ -364,6 +364,14 @@ pub struct FrameStats {
     pub avg_latency_ms: f64,
     pub avg_interval_ms: f64,
     pub fps: f64,
+    /// Where the render time goes (DRM backend only): building the scene, drawing it
+    /// (plane assignment and the GL render), and queueing the frame to KMS.
+    #[serde(default)]
+    pub avg_scene_ms: f64,
+    #[serde(default)]
+    pub avg_draw_ms: f64,
+    #[serde(default)]
+    pub avg_queue_ms: f64,
 }
 
 /// Events on an `event_stream` connection.

@@ -13,6 +13,9 @@ pub struct FrameStats {
     pub frames: u64,
     pub missed: u64,
     render: VecDeque<Duration>,
+    scene: VecDeque<Duration>,
+    draw: VecDeque<Duration>,
+    queue: VecDeque<Duration>,
     /// Submit to presentation.
     latency: VecDeque<Duration>,
     /// Between presentations.
@@ -46,6 +49,13 @@ impl FrameStats {
         self.submitted_at = Some(at);
     }
 
+    /// How a frame's render time split up (see [`ipc::FrameStats`]).
+    pub fn phases(&mut self, scene: Duration, draw: Duration, queue: Duration) {
+        push(&mut self.scene, scene);
+        push(&mut self.draw, draw);
+        push(&mut self.queue, queue);
+    }
+
     /// The submitted frame reached the screen at `at`. `refresh` is the nominal frame time.
     pub fn presented(&mut self, at: Duration, refresh: Duration) {
         self.frames += 1;
@@ -75,6 +85,9 @@ impl FrameStats {
             avg_latency_ms: avg(&self.latency),
             avg_interval_ms: interval,
             fps: if interval > 0.0 { 1000.0 / interval } else { 0.0 },
+            avg_scene_ms: avg(&self.scene),
+            avg_draw_ms: avg(&self.draw),
+            avg_queue_ms: avg(&self.queue),
         }
     }
 }

@@ -708,7 +708,11 @@ impl Tty {
         let Some(mut renderer) = self.renderer.take() else {
             return false;
         };
+        let started = std::time::Instant::now();
         let elements = hecate.render_elements(&mut renderer, output);
+        let scene = started.elapsed();
+        let mut draw = std::time::Duration::ZERO;
+        let mut queue = std::time::Duration::ZERO;
         let direct_scanout = hecate.config.gaming.direct_scanout;
         let submitted = match self.surface_for(output) {
             Some(surface) => {
@@ -722,17 +726,23 @@ impl Tty {
                 } else {
                     FrameFlags::empty()
                 };
-                match surface
-                    .drm_output
-                    .render_frame(&mut renderer, &elements, [0., 0., 0., 1.], flags)
-                {
+                let draw_started = std::time::Instant::now();
+                let rendered =
+                    surface
+                        .drm_output
+                        .render_frame(&mut renderer, &elements, [0., 0., 0., 1.], flags);
+                draw = draw_started.elapsed();
+                match rendered {
                     Ok(res) => {
                         hecate.update_primary_scanout_output(output, &res.states);
                         if res.is_empty {
                             false
                         } else {
                             let feedback = hecate.take_presentation_feedback(output, &res.states);
-                            match surface.drm_output.queue_frame(Some(feedback)) {
+                            let queue_started = std::time::Instant::now();
+                            let queued = surface.drm_output.queue_frame(Some(feedback));
+                            queue = queue_started.elapsed();
+                            match queued {
                                 Ok(()) => true,
                                 Err(err) => {
                                     tracing::warn!("error queueing frame: {err:?}");
@@ -750,6 +760,9 @@ impl Tty {
             None => false,
         };
         self.renderer = Some(renderer);
+        if submitted && let Some(st) = hecate.output_state.get_mut(output) {
+            st.frame_stats.phases(scene, draw, queue);
+        }
         submitted
     }
 

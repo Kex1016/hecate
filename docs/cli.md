@@ -87,7 +87,7 @@ ones:
 | `hecate msg keys` | while running, prints every key and button press as hecate sees it (keysym, keycode, modifiers, the bind string to write in the config, and which bind fired if any). Like `wev`, but in the compositor's own naming |
 | `hecate msg binds [--conflicts]` | resolved binds after base/shell/personal layering; `--conflicts` shows what overrode what |
 | `hecate msg gaming` | per output: refresh, VRR on/off, tearing active, direct scanout active (and why not if not: overlapping surface, rounded clip, animation, unsupported format), explicit sync in use; per window: content type, tearing request, pointer lock/confine. The first thing to check when a game feels off |
-| `hecate msg frames [--output DP-1]` | frame timing: render time, presentation latency, missed frames |
+| `hecate msg frames [--output DP-1]` | frame timing: render time (split into scene, draw and queue), presentation latency, missed frames |
 | `hecate msg debug damage\|opaque\|clip\|scanout on\|off` | visual overlays: damage regions, opaque regions, clip shapes, which planes are scanned out |
 | `hecate msg log-level debug\|info\|warn` | change log verbosity at runtime |
 | `hecate msg set <path> <value>` / `get <path>` / `unset <path>\|--all` | runtime config overrides (Game Mode uses these, see [animations.md](animations.md)) |

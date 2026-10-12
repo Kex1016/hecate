@@ -675,12 +675,15 @@ pub fn run(args: MsgArgs) -> anyhow::Result<()> {
             for o in v.as_array().into_iter().flatten() {
                 let f = |k: &str| o[k].as_f64().unwrap_or(0.);
                 println!(
-                    "{}: {:.1} fps of {:.2} Hz | render {:.2} ms (max {:.2}) | latency {:.2} ms | {} frames, {} missed",
+                    "{}: {:.1} fps of {:.2} Hz | render {:.2} ms (max {:.2}; scene {:.2}, draw {:.2}, queue {:.2}) | latency {:.2} ms | {} frames, {} missed",
                     s(o, "output"),
                     f("fps"),
                     f("refresh_hz"),
                     f("avg_render_ms"),
                     f("max_render_ms"),
+                    f("avg_scene_ms"),
+                    f("avg_draw_ms"),
+                    f("avg_queue_ms"),
                     f("avg_latency_ms"),
                     s(o, "frames"),
                     s(o, "missed"),
