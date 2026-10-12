@@ -103,4 +103,4 @@ ones:
 | ------- | ---- |
 | `hecate msg exit` | quit the session cleanly (stops `hecate-session.target`) |
 | `hecate msg spawn -- <cmd...>` | run a command with the compositor's environment (`WAYLAND_DISPLAY`, `DISPLAY`, ...) |
-| `hecate msg power-outputs on\|off` | DPMS all outputs (idle scripts) |
+| `hecate msg action power_off_outputs` / `power_on_outputs` | DPMS all outputs (idle scripts); any input turns them back on |

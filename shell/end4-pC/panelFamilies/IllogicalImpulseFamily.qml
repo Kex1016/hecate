@@ -27,6 +27,8 @@ import qs.modules.ii.wallpaperSelector
 import qs.modules.ii.desktopMenu
 import qs.modules.ii.dropover
 import qs.modules.ii.frame
+import qs.modules.ii.idle
+import qs.services
 
 Scope {
     PanelLoader { extraCondition: !Config.options.bar.vertical; component: Bar {} }
@@ -54,4 +56,5 @@ Scope {
     PanelLoader { extraCondition: GlobalStates.dropShelfOpen; component: DropShelfPanel {} }
     PanelLoader { component: NiriBackdrop {} }
     PanelLoader { component: ScreenFrame {} }
+    PanelLoader { extraCondition: WM.compositor === "hecate"; component: HecateIdle {} }
 }

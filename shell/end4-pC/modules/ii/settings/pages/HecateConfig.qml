@@ -469,6 +469,174 @@ ContentPage {
             }
         }
 
+        ContentSection {
+            id: idleSection
+            icon: "timer"
+            title: Translation.tr("Idle")
+
+            readonly property var idle: Config.options.hyprland.idle
+            readonly property list<var> unitOptions: [
+                { displayName: Translation.tr("Seconds"), value: 1 },
+                { displayName: Translation.tr("Minutes"), value: 60 },
+                { displayName: Translation.tr("Hours"), value: 3600 },
+            ]
+            function toDisplay(seconds) {
+                if (seconds <= 0) return [0, 60];
+                if (seconds % 3600 === 0) return [seconds / 3600, 3600];
+                if (seconds % 60 === 0) return [seconds / 60, 60];
+                return [seconds, 1];
+            }
+
+            // One idle time; 0 turns it off.
+            component IdleTimerRow: RowLayout {
+                id: timerRow
+                property string icon
+                property string label
+                property int seconds: 0
+                property int displayValue: idleSection.toDisplay(timerRow.seconds)[0]
+                property int displayUnit: idleSection.toDisplay(timerRow.seconds)[1]
+                signal edited(int newSeconds)
+
+                Layout.fillWidth: true
+                Layout.leftMargin: 8
+                spacing: 10
+                MaterialSymbol {
+                    text: timerRow.icon
+                    iconSize: Appearance.font.pixelSize.larger
+                    color: Appearance.colors.colOnSecondaryContainer
+                }
+                StyledText {
+                    Layout.fillWidth: true
+                    text: timerRow.label
+                    color: Appearance.colors.colOnSecondaryContainer
+                    elide: Text.ElideRight
+                }
+                StyledSpinBox {
+                    Layout.preferredWidth: 130
+                    value: timerRow.displayValue
+                    from: 0
+                    to: 9999
+                    stepSize: 1
+                    onValueModified: timerRow.edited(value * timerRow.displayUnit)
+                }
+                StyledComboBox {
+                    Layout.preferredWidth: 140
+                    textRole: "displayName"
+                    model: idleSection.unitOptions
+                    currentIndex: idleSection.unitOptions.findIndex(o => o.value === timerRow.displayUnit)
+                    onActivated: index => {
+                        timerRow.displayUnit = idleSection.unitOptions[index].value;
+                        timerRow.edited(timerRow.displayValue * timerRow.displayUnit);
+                    }
+                }
+            }
+
+            StyledText {
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                color: Appearance.colors.colSubtext
+                text: Translation.tr("After this long without input; 0 means never. Apps that keep the screen awake (videos, games) and the bar's keep-awake toggle hold these off.")
+            }
+            IdleTimerRow {
+                icon: "lock_clock"
+                label: Translation.tr("Lock the screen")
+                seconds: idleSection.idle.lock
+                onEdited: newSeconds => idleSection.idle.lock = newSeconds
+            }
+            IdleTimerRow {
+                icon: "monitor"
+                label: Translation.tr("Turn the screens off")
+                seconds: idleSection.idle.screenOff
+                onEdited: newSeconds => idleSection.idle.screenOff = newSeconds
+            }
+            IdleTimerRow {
+                icon: "bedtime"
+                label: Translation.tr("Sleep")
+                seconds: idleSection.idle.suspend
+                onEdited: newSeconds => idleSection.idle.suspend = newSeconds
+            }
+        }
+
+        ContentSection {
+            id: appTheming
+            icon: "format_paint"
+            title: Translation.tr("App theming")
+
+            readonly property var theming: Config.options.appearance.wallpaperTheming
+            function toggle(id, on) {
+                const list = appTheming.theming.appTemplates.filter(t => t !== id);
+                if (on) list.push(id);
+                appTheming.theming.appTemplates = list;
+                templatesProc.running = true;
+            }
+
+            StyledText {
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                color: Appearance.colors.colSubtext
+                text: Translation.tr("Apps get the wallpaper's colours from templates, rewritten whenever the colours change. A built-in one writes a colours file and includes it from the app's config; one managed by Home Manager is left alone (add the include there yourself).")
+            }
+            ConfigSwitch {
+                buttonIcon: "terminal"
+                text: Translation.tr("foot")
+                checked: appTheming.theming.appTemplates.includes("foot")
+                onCheckedChanged: if (checked !== appTheming.theming.appTemplates.includes("foot")) appTheming.toggle("foot", checked)
+            }
+            ConfigSwitch {
+                buttonIcon: "terminal"
+                text: Translation.tr("kitty")
+                checked: appTheming.theming.appTemplates.includes("kitty")
+                onCheckedChanged: if (checked !== appTheming.theming.appTemplates.includes("kitty")) appTheming.toggle("kitty", checked)
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                StyledText {
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
+                    color: Appearance.colors.colSubtext
+                    text: Translation.tr("Your own templates: ~/.config/hecate/templates.toml")
+                }
+                RippleButtonWithIcon {
+                    buttonRadius: Appearance.rounding.small
+                    materialIcon: "edit"
+                    mainText: Translation.tr("Edit")
+                    onClicked: editTemplatesProc.running = true
+                }
+                RippleButtonWithIcon {
+                    buttonRadius: Appearance.rounding.small
+                    materialIcon: "refresh"
+                    mainText: Translation.tr("Apply now")
+                    enabled: !templatesProc.running
+                    onClicked: templatesProc.running = true
+                }
+            }
+
+            Process {
+                id: templatesProc
+                command: ["python3", Quickshell.shellPath("scripts/colors/hecate_templates.py")]
+                stderr: StdioCollector {
+                    onStreamFinished: if (text.trim() !== "") Quickshell.execDetached(["notify-send", "-a", "Shell", Translation.tr("App theming"), text.trim()])
+                }
+            }
+            Process {
+                id: editTemplatesProc
+                command: ["bash", "-c", `f="${page.dir}/templates.toml"; [ -e "$f" ] || { mkdir -p "${page.dir}/templates"; cat > "$f" <<'TOML'
+# App colour templates, rendered with the wallpaper's colours (hecate shell).
+# Syntax: {{ colors.<name>.default.<format> }}, e.g. {{ colors.primary.default.hex }}.
+# Names: Material roles (primary, on_primary, surface_container_high, ...), term0..term15,
+# terminal_background, terminal_foreground, terminal_normal_red, terminal_bright_blue, ...
+# Formats: hex, hex_stripped, rgb, rgba, rgb_csv, red, green, blue, alpha.
+# Filters: | set_alpha 0.8, | lighten 10, | darken 10, | invert, | grayscale.
+#
+# [templates.my_app]
+# input_path = "~/.config/hecate/templates/my-app.css"
+# output_path = "~/.config/my-app/colors.css"   # or a list of paths
+# post_hook = "pkill -USR1 my-app"               # optional, runs after writing
+TOML
+}; xdg-open "$f"`]
+            }
+        }
+
         RippleButtonWithIcon {
             Layout.alignment: Qt.AlignRight
             buttonRadius: Appearance.rounding.small

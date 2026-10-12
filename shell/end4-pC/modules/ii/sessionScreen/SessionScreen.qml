@@ -43,6 +43,7 @@ Scope {
             screen: root.focusedScreen
             visible: sessionLoader.active
             property string subtitle
+            property bool bootWindowsOpen: false
 
             function hide() {
                 GlobalStates.sessionOpen = false;
@@ -68,6 +69,21 @@ Scope {
                 anchors.fill: parent
                 onClicked: {
                     sessionRoot.hide();
+                }
+            }
+
+            // hecate: the Boot Windows password prompt, over the menu.
+            Loader {
+                anchors.fill: parent
+                z: 100
+                active: sessionRoot.bootWindowsOpen
+                focus: active
+                sourceComponent: BootWindowsDialog {
+                    focus: true
+                    onClosed: {
+                        sessionRoot.bootWindowsOpen = false;
+                        sessionTaskManager.forceActiveFocus();
+                    }
                 }
             }
 
@@ -160,13 +176,11 @@ Scope {
                         KeyNavigation.down: sessionReboot
                     }
                     SessionActionButton {
+                        // hecate: Boot Windows in place of Task Manager.
                         id: sessionTaskManager
-                        buttonIcon: "browse_activity"
-                        buttonText: Translation.tr("Task Manager")
-                        onClicked: {
-                            Session.launchTaskManager();
-                            sessionRoot.hide();
-                        }
+                        buttonIcon: "window"
+                        buttonText: Translation.tr("Boot Windows")
+                        onClicked: sessionRoot.bootWindowsOpen = true
                         onFocusChanged: {
                             if (focus)
                                 sessionRoot.subtitle = buttonText;

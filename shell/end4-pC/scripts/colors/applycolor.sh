@@ -14,7 +14,9 @@ term_alpha=100 #Set this to < 100 make all your terminals transparent
 if [ ! -d "$STATE_DIR"/user/generated ]; then
   mkdir -p "$STATE_DIR"/user/generated
 fi
-cd "$CONFIG_DIR" || exit
+# hecate: the shell runs from the Nix store, not ~/.config/quickshell/ii, and nothing below
+# needs that directory; exiting here skipped all terminal theming.
+cd "$CONFIG_DIR" 2>/dev/null || true
 
 colornames=''
 colorstrings=''
@@ -93,3 +95,7 @@ else
 fi
 
 # apply_qt & # Qt theming is already handled by kde-material-colors
+
+# hecate: app colour templates (foot, kitty, ~/.config/hecate/templates.toml).
+python3 "$SCRIPT_DIR/hecate_templates.py" &
+

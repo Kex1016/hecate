@@ -50,6 +50,11 @@ See `git log -- shell/end4-pC` for the full list. In short:
 - per-monitor wallpapers (Settings → Background → Per monitor)
 - the lock screen shows the blurred wallpaper and clock (through a `show_when_locked` layer
   rule) rather than the niri fallback
+- Boot Windows (password prompt, then `~/.local/bin/boot-windows` as root) in place of
+  Task Manager in the session menu
+- idle lock, screens off and sleep driven by the shell (ext-idle-notify) instead of hypridle
+- app theming templates (foot, kitty, user templates), after Noctalia's; terminal colours
+  work again (applycolor.sh no longer exits without ~/.config/quickshell/ii)
 - an image picker for the Custom Image and Image Card desktop widgets, which upstream only
   set by dropping a file on them
 - Hyprland-only features hidden or rerouted on hecate (night light, keybind list, game mode,
