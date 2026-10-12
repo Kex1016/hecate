@@ -21,6 +21,8 @@ ContentPage {
     property var effective: ({})
     property var edits: ({})
     property bool loaded: false
+    // Outputs as `hecate msg -j outputs` reports them, by name.
+    property var outputs: []
 
     function value(path, fallback) {
         if (page.edits[path] !== undefined) return page.edits[path];
@@ -36,10 +38,24 @@ ContentPage {
         page.save();
     }
 
+    // Drop an edit, so the Nix config (or hecate's default) applies again.
+    function unset(path) {
+        if (!page.loaded || page.edits[path] === undefined) return;
+        const e = Object.assign({}, page.edits);
+        delete e[path];
+        page.edits = e;
+        page.save();
+    }
+
+    // Bare TOML key where allowed, quoted otherwise ("type:pointer", "*").
+    function tomlKey(k) {
+        return /^[A-Za-z0-9_-]+$/.test(k) ? k : JSON.stringify(k);
+    }
+
     function toToml(edits) {
         const sections = {};
         for (const [path, v] of Object.entries(edits)) {
-            const parts = path.split(".");
+            const parts = path.split(".").map(page.tomlKey);
             const key = parts.pop();
             const section = parts.join(".");
             (sections[section] = sections[section] ?? []).push(`${key} = ${JSON.stringify(v)}`);
@@ -56,13 +72,60 @@ ContentPage {
         reloadTimer.restart();
     }
 
+    // The exact mode string hecate writes for a mode, so it picks that mode again.
+    function modeValue(m) {
+        return `${m.width}x${m.height}@${(m.refresh_rate / 1000).toFixed(3)}`;
+    }
+
+    // Every mode of an output, largest and fastest first, behind a "default" entry.
+    function modeOptions(o) {
+        const seen = {};
+        const modes = (o.modes ?? []).filter(m => {
+            const v = page.modeValue(m);
+            if (seen[v]) return false;
+            seen[v] = true;
+            return true;
+        }).sort((a, b) => (b.width * b.height - a.width * a.height) || (b.refresh_rate - a.refresh_rate));
+        return [{ displayName: Translation.tr("Default (Nix config, else the monitor's preferred)"), value: "" }]
+            .concat(modes.map(m => ({
+                displayName: `${m.width}×${m.height} @ ${(m.refresh_rate / 1000).toFixed(2)} Hz` + (m.is_preferred ? Translation.tr(" (preferred)") : ""),
+                value: page.modeValue(m),
+            })));
+    }
+
+    function currentMode(o) {
+        const edited = page.edits[`outputs.${o.name}.mode`];
+        if (edited !== undefined) return edited;
+        const m = o.current_mode !== null && o.current_mode !== undefined ? o.modes[o.current_mode] : null;
+        return m ? page.modeValue(m) : "";
+    }
+
     Component.onCompleted: {
         mkdirProc.running = true;
         configProc.running = true;
+        outputsProc.running = true;
     }
 
     Process { id: mkdirProc; command: ["mkdir", "-p", page.dir] }
-    Process { id: reloadProc; command: ["hecate", "msg", "reload"] }
+    Process {
+        id: reloadProc
+        command: ["hecate", "msg", "reload"]
+        // A new mode changes what the outputs report.
+        onExited: outputsTimer.restart()
+    }
+    Timer { id: outputsTimer; interval: 500; onTriggered: outputsProc.running = true }
+    Process {
+        id: outputsProc
+        command: ["hecate", "msg", "-j", "outputs"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const map = JSON.parse(text);
+                    page.outputs = Object.keys(map).sort().map(k => map[k]);
+                } catch (e) { console.log("[HecateConfig] " + e); }
+            }
+        }
+    }
     Timer { id: reloadTimer; interval: 300; onTriggered: reloadProc.running = true }
 
     Process {
@@ -170,6 +233,218 @@ ContentPage {
                 text: Translation.tr("Blur behind panels and windows that ask for it")
                 checked: page.value("blur.enable", true)
                 onCheckedChanged: page.set("blur.enable", checked)
+            }
+        }
+
+        ContentSection {
+            icon: "monitor"
+            title: Translation.tr("Displays")
+
+            NoticeBox {
+                Layout.fillWidth: true
+                visible: page.outputs.length === 0
+                text: Translation.tr("No displays reported by hecate.")
+            }
+
+            // Drag the monitors into place. Each one snaps to the nearest edge of another on
+            // release; the result is saved as its position, like the spin boxes below.
+            Rectangle {
+                id: arrangement
+                Layout.fillWidth: true
+                Layout.preferredHeight: 240
+                visible: page.outputs.length > 0
+                radius: Appearance.rounding.small
+                color: Appearance.colors.colLayer2
+
+                readonly property real pad: 16
+                readonly property var boxes: page.outputs.filter(o => o.logical).map(o => {
+                    const p = page.value(`outputs.${o.name}.position`, [o.logical.x, o.logical.y]);
+                    return { name: o.name, x: p[0], y: p[1], w: o.logical.width, h: o.logical.height,
+                             label: `${o.name}\n${o.logical.width}×${o.logical.height}` };
+                })
+                // The view's origin and scale, frozen while dragging so nothing jumps.
+                property bool dragging: false
+                property real originX: 0
+                property real originY: 0
+                property real k: 0.05
+                function refit() {
+                    if (arrangement.dragging || arrangement.boxes.length === 0) return;
+                    const minX = Math.min(...arrangement.boxes.map(b => b.x));
+                    const minY = Math.min(...arrangement.boxes.map(b => b.y));
+                    const spanW = Math.max(...arrangement.boxes.map(b => b.x + b.w)) - minX;
+                    const spanH = Math.max(...arrangement.boxes.map(b => b.y + b.h)) - minY;
+                    // Leave room around the layout to drag a monitor past the others.
+                    arrangement.k = Math.min((arrangement.width - 2 * arrangement.pad) / (spanW * 1.5),
+                                             (arrangement.height - 2 * arrangement.pad) / (spanH * 1.5));
+                    arrangement.originX = minX - (arrangement.width / arrangement.k - spanW) / 2;
+                    arrangement.originY = minY - (arrangement.height / arrangement.k - spanH) / 2;
+                }
+                onBoxesChanged: refit()
+                onWidthChanged: refit()
+
+                // Where `box` should land near logical (x, y): flush against another monitor's
+                // edge when within 64 logical pixels, else where it was dropped.
+                function snapped(box, x, y) {
+                    const reach = 64;
+                    let bestX = x, dx = reach, bestY = y, dy = reach;
+                    for (const o of arrangement.boxes) {
+                        if (o.name === box.name) continue;
+                        for (const cx of [o.x + o.w, o.x - box.w, o.x, o.x + o.w - box.w])
+                            if (Math.abs(cx - x) < dx) { dx = Math.abs(cx - x); bestX = cx; }
+                        for (const cy of [o.y + o.h, o.y - box.h, o.y, o.y + o.h - box.h])
+                            if (Math.abs(cy - y) < dy) { dy = Math.abs(cy - y); bestY = cy; }
+                    }
+                    return [Math.round(bestX), Math.round(bestY)];
+                }
+
+                Repeater {
+                    model: arrangement.boxes
+
+                    Rectangle {
+                        id: monitorBox
+                        required property var modelData
+                        function placedX() { return (monitorBox.modelData.x - arrangement.originX) * arrangement.k; }
+                        function placedY() { return (monitorBox.modelData.y - arrangement.originY) * arrangement.k; }
+                        x: placedX()
+                        y: placedY()
+                        width: monitorBox.modelData.w * arrangement.k
+                        height: monitorBox.modelData.h * arrangement.k
+                        radius: Appearance.rounding.verysmall
+                        color: dragArea.drag.active ? Appearance.colors.colPrimary : Appearance.colors.colPrimaryContainer
+                        border.width: 1
+                        border.color: Appearance.colors.colOutline
+
+                        StyledText {
+                            anchors.centerIn: parent
+                            horizontalAlignment: Text.AlignHCenter
+                            text: monitorBox.modelData.label
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: dragArea.drag.active ? Appearance.colors.colOnPrimary : Appearance.colors.colOnPrimaryContainer
+                        }
+
+                        MouseArea {
+                            id: dragArea
+                            anchors.fill: parent
+                            cursorShape: Qt.SizeAllCursor
+                            drag.target: monitorBox
+                            onPressed: arrangement.dragging = true
+                            onReleased: {
+                                const p = arrangement.snapped(monitorBox.modelData,
+                                    monitorBox.x / arrangement.k + arrangement.originX,
+                                    monitorBox.y / arrangement.k + arrangement.originY);
+                                arrangement.dragging = false;
+                                // Dragging replaced the bindings; put them back.
+                                monitorBox.x = Qt.binding(() => monitorBox.placedX());
+                                monitorBox.y = Qt.binding(() => monitorBox.placedY());
+                                page.set(`outputs.${monitorBox.modelData.name}.position`, p);
+                                arrangement.refit();
+                            }
+                        }
+                    }
+                }
+            }
+
+            Repeater {
+                model: page.outputs
+
+                ContentSubsection {
+                    id: outputSection
+                    required property var modelData
+                    readonly property string name: modelData.name
+                    readonly property string base: `outputs.${modelData.name}`
+                    title: `${modelData.name}  ·  ${modelData.make} ${modelData.model}`.trim()
+
+                    ConfigComboBox {
+                        Layout.fillWidth: true
+                        buttonIcon: "aspect_ratio"
+                        text: Translation.tr("Resolution and refresh rate")
+                        fieldWidth: 300
+                        fixedWidth: true
+                        model: page.modeOptions(outputSection.modelData)
+                        currentValue: page.currentMode(outputSection.modelData)
+                        onSelected: newValue => newValue === ""
+                            ? page.unset(`${outputSection.base}.mode`)
+                            : page.set(`${outputSection.base}.mode`, newValue)
+                    }
+                    ConfigComboBox {
+                        Layout.fillWidth: true
+                        buttonIcon: "zoom_in"
+                        text: Translation.tr("Scale")
+                        fieldWidth: 120
+                        fixedWidth: true
+                        model: [1, 1.25, 1.5, 1.75, 2, 2.5, 3].map(v => ({ displayName: `${v * 100}%`, value: v }))
+                        currentValue: page.value(`${outputSection.base}.scale`, outputSection.modelData.logical?.scale ?? 1)
+                        onSelected: newValue => page.set(`${outputSection.base}.scale`, newValue)
+                    }
+                    ConfigComboBox {
+                        Layout.fillWidth: true
+                        visible: outputSection.modelData.vrr_supported
+                        buttonIcon: "speed"
+                        text: Translation.tr("Variable refresh rate")
+                        fieldWidth: 220
+                        fixedWidth: true
+                        model: [
+                            { displayName: Translation.tr("Off"), value: "off" },
+                            { displayName: Translation.tr("Fullscreen windows only"), value: "fullscreen" },
+                            { displayName: Translation.tr("Always on"), value: "on" },
+                        ]
+                        currentValue: page.value(`${outputSection.base}.adaptive_sync`, "off")
+                        onSelected: newValue => page.set(`${outputSection.base}.adaptive_sync`, newValue)
+                    }
+                    ConfigRow {
+                        uniform: true
+                        // Top-left corner in the global layout, in logical pixels.
+                        ConfigSpinBox {
+                            icon: "arrow_range"
+                            text: Translation.tr("Position X")
+                            from: -16384; to: 16384; stepSize: 10
+                            value: page.value(`${outputSection.base}.position`, [outputSection.modelData.logical?.x ?? 0, 0])[0]
+                            onValueChanged: {
+                                const p = page.value(`${outputSection.base}.position`, [outputSection.modelData.logical?.x ?? 0, outputSection.modelData.logical?.y ?? 0]);
+                                if (p[0] !== value) page.set(`${outputSection.base}.position`, [value, p[1]]);
+                            }
+                        }
+                        ConfigSpinBox {
+                            icon: "height"
+                            text: Translation.tr("Position Y")
+                            from: -16384; to: 16384; stepSize: 10
+                            value: page.value(`${outputSection.base}.position`, [0, outputSection.modelData.logical?.y ?? 0])[1]
+                            onValueChanged: {
+                                const p = page.value(`${outputSection.base}.position`, [outputSection.modelData.logical?.x ?? 0, outputSection.modelData.logical?.y ?? 0]);
+                                if (p[1] !== value) page.set(`${outputSection.base}.position`, [p[0], value]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        ContentSection {
+            icon: "mouse"
+            title: Translation.tr("Mouse")
+
+            ConfigComboBox {
+                Layout.fillWidth: true
+                buttonIcon: "trending_up"
+                text: Translation.tr("Acceleration")
+                fieldWidth: 220
+                fixedWidth: true
+                model: [
+                    { displayName: Translation.tr("Flat (none)"), value: "flat" },
+                    { displayName: Translation.tr("Adaptive"), value: "adaptive" },
+                ]
+                currentValue: page.value("input.type:pointer.accel_profile", page.value("input.*.accel_profile", "adaptive"))
+                onSelected: newValue => page.set("input.type:pointer.accel_profile", newValue)
+            }
+            ConfigSlider {
+                Layout.fillWidth: true
+                buttonIcon: "speed"
+                text: Translation.tr("Speed")
+                usePercentTooltip: false
+                from: -1; to: 1
+                stopIndicatorValues: [0]
+                value: page.value("input.type:pointer.pointer_speed", page.value("input.*.pointer_speed", 0))
+                onMoved: page.set("input.type:pointer.pointer_speed", Math.round(value * 100) / 100)
             }
         }
 

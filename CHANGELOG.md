@@ -51,7 +51,8 @@ workspace swipes, drawing tablets, keyboard layouts per window or global.
 
 - The bundled end4-pC shell (illogical-impulse), patched for hecate: compositor backend,
   shortcuts over IPC, keybind cheat sheet from `hecate msg binds`, game mode through
-  runtime overrides, a hecate settings page.
+  runtime overrides, a hecate settings page (windows, focus, effects, displays with a
+  drag-to-arrange map, mouse).
 - Flake with the `hecate` and `hecate-shell` packages, a NixOS module (`programs.hecate`,
   with `shell.enable` for the system services the shell needs) and a Home Manager module
   (`wayland.windowManager.hecate`: config as Nix, validated at build time, the shell's
