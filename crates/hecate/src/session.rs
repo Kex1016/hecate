@@ -63,6 +63,10 @@ impl State {
                 "xdg-desktop-portal-wlr.service",
             ]);
             if run_quiet(&["systemctl", "--user", "cat", "hecate-session.target"]) {
+                // A previous session that ended uncleanly leaves its units restarting against a
+                // display that's gone until systemd gives up (start-limit-hit), and then refuses
+                // to start them again: the shell would never come up in this session.
+                run_quiet(&["systemctl", "--user", "reset-failed"]);
                 run_quiet(&["systemctl", "--user", "start", "hecate-session.target"]);
             }
         });

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- A session no longer comes up without its shell after one that ended uncleanly: the shell's
+  unit kept restarting against the old, gone display until systemd stopped trying, and then
+  refused to start it again. hecate resets failed user units before starting the session.
+
 ## 1.0.0
 
 The first release: phases 0 to 6 of [docs/PLAN.md](docs/PLAN.md).
