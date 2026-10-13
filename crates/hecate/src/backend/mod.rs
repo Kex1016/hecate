@@ -299,6 +299,13 @@ impl Backend {
         }
     }
 
+    /// At exit: leave the last frame on screen for the next compositor (login splash).
+    pub fn leave_on_screen(&mut self) {
+        if let Backend::Tty(b) = self {
+            b.leave_on_screen();
+        }
+    }
+
     /// Run something with the primary renderer, if there is one.
     pub fn with_renderer<T>(
         &mut self,
