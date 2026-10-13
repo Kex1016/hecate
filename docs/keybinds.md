@@ -92,7 +92,9 @@ so `hecate msg binds` shows each bind's layer.
 | `Super` (tap)                | `shell:searchToggleRelease` (launcher / search) |
 | `Super_L`, `Super_R` (hold)  | press/release `shell:workspaceNumber` (shows workspace numbers) |
 | `Mod+V`                      | `shell:overviewClipboardToggle`         |
-| `Alt+Tab` / `Alt+Shift+Tab`  | shell Alt+Tab switcher (`signal`), releasing Alt switches; `Alt+Escape` cancels |
+| `Alt+Tab` / `Alt+Shift+Tab`  | shell Alt+Tab switcher: `signal` `alt-tab-next` / `alt-tab-prev` |
+| `Alt_L`, `Alt_R` (release)   | `signal` `alt-tab-commit`: switch to the selected window (transparent) |
+| `Alt+Escape`                 | `signal` `alt-tab-cancel`: close the switcher |
 | `Mod+Period`                 | `shell:overviewEmojiToggle`             |
 | `Mod+A`, `Mod+O`             | `shell:sidebarLeftToggle`               |
 | `Mod+Alt+A`                  | `shell:sidebarLeftToggleDetach`         |
