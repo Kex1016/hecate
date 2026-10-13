@@ -276,12 +276,15 @@ works unchanged once action names are mapped, because binds have the same
   from its first frame, so there's no bare screen while the shell starts, and fades it out
   when something runs the `splash_done` action (the bundled shell does once its wallpaper and
   bar are up), or after 20 s. A picture whose size doesn't match the output (another mode or
-  scale) isn't shown. With it on, hecate also hands the screen over without going dark: on a
-  TTY it starts without first turning every output off (the previous compositor's last frame
-  stays until its own first frame replaces it; same mode, so no modeset), and at exit it leaves
-  its last frame up (`CLOSEFB`, Linux 6.8+) instead of switching outputs off or restoring the
-  console. That needs nothing else holding the screen in between: hecate-greetd keeps the GPU
-  open between the login screen and the session for that.
+  scale) isn't shown.
+- **Handing the screen over**: on a TTY, hecate starts without first turning every output off
+  (the previous compositor's last frame stays until hecate's first frame replaces it; with the
+  same mode there's no modeset either), and at exit it leaves its last frame up (`CLOSEFB`,
+  Linux 6.8+) instead of switching outputs off. An output that fails to start on the state it
+  found gets a device reset and a retry; outputs left on that hecate doesn't drive are turned
+  off. With nothing else holding the GPU, the kernel restores the console when hecate exits,
+  as before; hecate-greetd keeps the GPU open between the login screen and the session, so
+  a login goes from the login screen's last frame straight to the session's splash.
 - A `transparent` bind with `on_release` (e.g. `"Alt_L" = { on_release = ..., transparent =
   true }`) runs the release action and still passes both the press and the release on to the
   focused window.

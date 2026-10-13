@@ -299,7 +299,7 @@ impl Backend {
         }
     }
 
-    /// At exit: leave the last frame on screen for the next compositor (login splash).
+    /// At exit: leave the last frame on screen for the next compositor.
     pub fn leave_on_screen(&mut self) {
         if let Backend::Tty(b) = self {
             b.leave_on_screen();

@@ -333,10 +333,9 @@ impl Tty {
             OFlags::RDWR | OFlags::CLOEXEC | OFlags::NOCTTY | OFlags::NONBLOCK,
         )?;
         let fd = DrmDeviceFd::new(DeviceFd::from(fd));
-        // With the login splash, whatever is on screen (the login screen's last frame) stays
-        // there until our first frame replaces it, instead of every output going dark first.
-        let keep_screen = hecate.config.splash.enable;
-        let (drm, notifier) = DrmDevice::new(fd.clone(), !keep_screen)?;
+        // No reset: whatever is on screen (the login screen's last frame) stays until our first
+        // frame replaces it, instead of every output going dark first.
+        let (drm, notifier) = DrmDevice::new(fd.clone(), false)?;
         let gbm = GbmDevice::new(fd)?;
 
         // SAFETY: the GBM device outlives the display (both live in this backend).
@@ -404,7 +403,7 @@ impl Tty {
             },
         );
         self.device_changed(hecate, node);
-        if keep_screen && let Some(device) = self.devices.get(&node) {
+        if let Some(device) = self.devices.get(&node) {
             disable_unused_crtcs(device);
         }
         Ok(())
@@ -436,9 +435,10 @@ impl Tty {
         }
     }
 
-    /// At exit, with the login splash: leave each output's last frame on screen for whatever
-    /// comes next (the session after the login screen, the login screen after a session)
-    /// instead of turning the outputs off or restoring the console.
+    /// At exit: leave each output's last frame on screen for whatever comes next (the session
+    /// after the login screen, the login screen after a session) instead of turning the outputs
+    /// off or restoring what we found. With nothing else holding the GPU, the kernel puts the
+    /// console back as soon as we close it, as before.
     pub fn leave_on_screen(&mut self) {
         for device in self.devices.values_mut() {
             let drm = device.manager.device();

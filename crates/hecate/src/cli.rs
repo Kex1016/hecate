@@ -209,8 +209,6 @@ fn run_compositor(
         let _ = handle.join();
     }
     state.end_session();
-    if state.hecate.config.splash.enable {
-        state.backend.leave_on_screen();
-    }
+    state.backend.leave_on_screen();
     Ok(())
 }
