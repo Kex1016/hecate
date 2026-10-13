@@ -175,15 +175,16 @@ def ensure_include(config, output, syntax, app):
         if str(output) not in config.read_text():
             warn(f"{config} is read-only (Home Manager?); add `{line}` to it for {app} colours")
         return
-    if config.exists():
-        text = config.read_text()
-        if str(output) in text:
-            return
-    else:
-        # A new user config would hide the system one (NixOS's /etc/xdg/...): keep it.
-        system = Path("/etc/xdg") / config.relative_to(CONFIG)
-        text = syntax.format(system) + "\n" if system.exists() else ""
-    write(config, f"{line}\n{text}")
+    # A user config hides the system one (NixOS's /etc/xdg/..., e.g. CakeOS's font and
+    # padding for foot), so keep that included too, also in configs written before it existed.
+    # Settings after the includes still win.
+    system = Path("/etc/xdg") / config.relative_to(CONFIG)
+    text = config.read_text() if config.exists() else ""
+    missing = [line] if str(output) not in text else []
+    if system.exists() and str(system) not in text:
+        missing.append(syntax.format(system))
+    if missing:
+        write(config, "\n".join(missing) + "\n" + text)
 
 
 def run_hook(cmd):
