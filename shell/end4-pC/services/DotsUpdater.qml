@@ -17,6 +17,11 @@ Singleton {
     }
 
     function runSystemUpdate() {
+        if (Updates.cakeos) {
+            Updates.openUpdater();
+            Qt.callLater(() => GlobalStates.settingsOpen = false);
+            return;
+        }
         if (root.managedByNix) return root.notifyManaged();
         Quickshell.execDetached([
             "kitty", "--hold",
@@ -27,6 +32,8 @@ Singleton {
     }
 
     function runUpdateDots() {
+        // CakeOS: the shell comes with the system.
+        if (Updates.cakeos) return root.runSystemUpdate();
         if (root.managedByNix) return root.notifyManaged();
         const updateScript = `
             set -e

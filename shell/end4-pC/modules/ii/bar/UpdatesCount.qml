@@ -25,7 +25,9 @@ MouseArea {
 
     onClicked: (mouse) => {
         if (mouse.button === Qt.LeftButton) {
-            updateProc.running = true
+            // CakeOS (hecate): the shell's own updater.
+            if (Updates.cakeos) Updates.openUpdater()
+            else updateProc.running = true
         } else if (mouse.button === Qt.RightButton) {
             Updates.refresh()
             Quickshell.execDetached(["notify-send",

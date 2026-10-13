@@ -55,6 +55,7 @@ See `git log -- shell/end4-pC` for the full list. In short:
 - idle lock, screens off and sleep driven by the shell (ext-idle-notify) instead of hypridle
 - app theming templates (foot, kitty, user templates), after Noctalia's; terminal colours
   work again (applycolor.sh no longer exits without ~/.config/quickshell/ii)
+- on CakeOS, an update check against upstream CakeOS and the shell's own updater
 - an Alt+Tab switcher (most recently used order, live window previews)
 - the login screen (hecate-greetd): `LockSurface` driven by a greetd context with a user and
   session picker, `GreeterSync` sharing the look with it, Settings → hecate-greetd

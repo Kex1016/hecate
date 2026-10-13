@@ -125,6 +125,7 @@ backend, which is why it has to be explicit.
 | Alt+Tab switcher (`modules/ii/altTab/AltTab.qml`, `nix/shell-binds.nix`) | new: every window in most recently used order (`focus_serial` from `hecate msg windows`), live previews, the first Alt+Tab selecting the previous window. hecate binds send `signal`s over the event stream (`alt-tab-next`, `-prev`, `-commit` on Alt release, `-cancel`); the switcher never takes the keyboard. A quick tap switches without showing it |
 | window previews (`HecateBackend.toplevelFor`) | Quickshell captures windows only through hyprland-toplevel-export-v1, which hecate now implements; hecate windows are matched to Quickshell toplevels by app id, title and creation order |
 | `DotsUpdater` / `Updates` (git pull into `~/.config`) | disabled in the Nix build, updates come from the flake |
+| updates on CakeOS (`Updates`, `modules/ii/cakeosUpdater`) | when `/etc/cakeos` holds the flake and `update-cakeos` exists, the update check is `update-cakeos check --json` (upstream commits not installed yet) and the bar widget, the dashboard and Settings → About open the shell's own updater: what's new, apply on next restart or now, the password, then `update-cakeos apply` through `sudo -S` with its log. The update runs in the `Updates` service, so hiding the dialog doesn't stop it |
 | `ConflictKiller` (kills other bars/notification daemons) | review; keep but make it Nix-aware |
 
 ### Things that keep working without patches

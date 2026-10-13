@@ -77,7 +77,8 @@ workspace swipes, drawing tablets, keyboard layouts per window or global.
   for the Custom Image and Image Card desktop widgets, Boot Windows in the session menu,
   idle lock, screens off and sleep, app colour templates (foot, kitty, your own), and a
   screen sharing picker with live previews of screens and windows, and an Alt+Tab switcher
-  in most recently used order with live window previews.
+  in most recently used order with live window previews. On CakeOS, the update check follows
+  upstream CakeOS and updates run in the shell's own updater.
 - Flake with the `hecate` and `hecate-shell` packages, a NixOS module (`programs.hecate`,
   with `shell.enable` for the system services the shell needs) and a Home Manager module
   (`wayland.windowManager.hecate`: config as Nix, validated at build time, the shell's

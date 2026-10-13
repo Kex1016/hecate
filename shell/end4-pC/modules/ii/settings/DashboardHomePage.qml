@@ -643,7 +643,7 @@ Item {
                                     color: Appearance.colors.colOnTertiaryContainer
                                 }
                                 StyledText {
-                                    text: !Updates.available ? Translation.tr("Update check unavailable") : Updates.checking ? Translation.tr("Checking...") : Translation.tr("Pacman + AUR")
+                                    text: !Updates.available ? Translation.tr("Update check unavailable") : Updates.checking ? Translation.tr("Checking...") : Updates.cakeos ? Translation.tr("CakeOS · %1").arg(Updates.cakeosStatus?.branch ?? "") : Translation.tr("Pacman + AUR")
                                     font.pixelSize: Appearance.font.pixelSize.smaller
                                     color: Appearance.colors.colOnTertiaryContainer
                                     opacity: 0.75

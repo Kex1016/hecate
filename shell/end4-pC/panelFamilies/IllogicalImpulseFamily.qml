@@ -30,6 +30,7 @@ import qs.modules.ii.frame
 import qs.modules.ii.idle
 import qs.modules.ii.sharePicker
 import qs.modules.ii.altTab
+import qs.modules.ii.cakeosUpdater
 import qs.services
 
 Scope {
@@ -61,4 +62,5 @@ Scope {
     PanelLoader { extraCondition: WM.compositor === "hecate"; component: HecateIdle {} }
     PanelLoader { extraCondition: WM.compositor === "hecate"; component: SharePicker {} }
     PanelLoader { extraCondition: WM.compositor === "hecate"; component: AltTab {} }
+    PanelLoader { extraCondition: Updates.cakeos; component: CakeosUpdater {} }
 }
