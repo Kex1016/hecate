@@ -18,6 +18,11 @@ The first release: phases 0 to 6 of [docs/PLAN.md](docs/PLAN.md).
   edge, fade, pop in). Cubic-bézier curves, a global slowdown, per-window opt-out.
 - Blur: dual Kawase behind layer surfaces per rule, with `xray` (wallpaper only, cached)
   and `ignore_alpha`; ext-background-effect for windows that ask, clipped to their corners.
+- While locked, the keyboard always rests on a lock surface: when the focused monitor drops
+  off (a DisplayPort monitor in deep sleep), the keyboard moves to another monitor's lock
+  surface instead of going nowhere until it reconnects, and clicking a monitor focuses its
+  lock surface. Commits that block for over half a second (a waking monitor's modeset) are
+  logged.
 - Activation requests (xdg-activation tokens from launchers such as Nautilus or Steam) for a
   window that hasn't mapped yet take effect when it maps, instead of switching the output to
   a workspace that doesn't exist and leaving it blank.

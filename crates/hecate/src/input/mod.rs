@@ -561,6 +561,10 @@ impl State {
             self.focus_grab_on_press(root.as_ref());
         }
 
+        if state == ButtonState::Pressed && self.hecate.wm.is_locked() {
+            self.focus_lock_surface_at(pointer.current_location());
+        }
+
         if state == ButtonState::Pressed && !pointer.is_grabbed() {
             let pos = pointer.current_location();
             let under = self.contents_under(pos);

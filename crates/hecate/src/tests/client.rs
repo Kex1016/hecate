@@ -23,6 +23,13 @@ use smithay::reexports::wayland_protocols::wp::fifo::v1::client::wp_fifo_manager
 use smithay::reexports::wayland_protocols::wp::fifo::v1::client::wp_fifo_v1::WpFifoV1;
 use smithay::reexports::wayland_protocols::wp::content_type::v1::client::wp_content_type_v1::WpContentTypeV1;
 use smithay::reexports::wayland_protocols::wp::single_pixel_buffer;
+use smithay::reexports::wayland_protocols::ext::session_lock::v1::client::ext_session_lock_manager_v1::ExtSessionLockManagerV1;
+use smithay::reexports::wayland_protocols::ext::session_lock::v1::client::ext_session_lock_surface_v1::{
+    self, ExtSessionLockSurfaceV1,
+};
+use smithay::reexports::wayland_protocols::ext::session_lock::v1::client::ext_session_lock_v1::{
+    self, ExtSessionLockV1,
+};
 use smithay::reexports::wayland_protocols::ext::background_effect::v1::client::ext_background_effect_manager_v1::{
     self, ExtBackgroundEffectManagerV1,
 };
@@ -155,6 +162,12 @@ pub struct State {
 
     pub windows: Vec<Window>,
     pub layers: Vec<LayerSurface>,
+
+    pub session_lock_manager: Option<ExtSessionLockManagerV1>,
+    pub session_lock: Option<ExtSessionLockV1>,
+    pub session_locked: bool,
+    /// Lock surfaces with the output they were made for.
+    pub lock_surfaces: Vec<(ExtSessionLockSurfaceV1, WlSurface, WlOutput)>,
 }
 
 pub struct Window {
@@ -510,6 +523,20 @@ impl fmt::Display for LayerConfigure {
 }
 
 impl Client {
+    /// Lock the session with a lock surface on every output (acked, no buffer).
+    pub fn lock_session(&mut self) {
+        let state = &mut self.state;
+        let lock = state.session_lock_manager.as_ref().unwrap().lock(&state.qh, ());
+        let outputs: Vec<WlOutput> = state.outputs.keys().cloned().collect();
+        for output in outputs {
+            let surface = state.create_surface();
+            let lock_surface = lock.get_lock_surface(&surface, &output, &state.qh, ());
+            state.lock_surfaces.push((lock_surface, surface, output));
+        }
+        state.session_lock = Some(lock);
+        self.connection.flush().unwrap();
+    }
+
     pub fn new(stream: UnixStream) -> Self {
         let id = ClientId::next();
 
@@ -576,6 +603,10 @@ impl Client {
             gamma_controls: Vec::new(),
             windows: Vec::new(),
             layers: Vec::new(),
+            session_lock_manager: None,
+            session_lock: None,
+            session_locked: false,
+            lock_surfaces: Vec::new(),
         };
 
         Self {
@@ -991,6 +1022,8 @@ impl Dispatch<WlRegistry, ()> for State {
                 } else if interface == WpViewporter::interface().name {
                     let version = min(version, WpViewporter::interface().version);
                     state.viewporter = Some(registry.bind(name, version, qh, ()));
+                } else if interface == ExtSessionLockManagerV1::interface().name {
+                    state.session_lock_manager = Some(registry.bind(name, 1, qh, ()));
                 } else if interface == WlOutput::interface().name {
                     let version = min(version, WlOutput::interface().version);
                     let output = registry.bind(name, version, qh, ());
@@ -2279,3 +2312,40 @@ wayland_client::delegate_noop!(State: ignore WpFifoManagerV1);
 wayland_client::delegate_noop!(State: ignore WpFifoV1);
 wayland_client::delegate_noop!(State: ignore WpCommitTimingManagerV1);
 wayland_client::delegate_noop!(State: ignore WpCommitTimerV1);
+
+wayland_client::delegate_noop!(State: ignore ExtSessionLockManagerV1);
+
+impl Dispatch<ExtSessionLockV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        _: &ExtSessionLockV1,
+        event: ext_session_lock_v1::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            ext_session_lock_v1::Event::Locked => state.session_locked = true,
+            ext_session_lock_v1::Event::Finished => state.session_locked = false,
+            _ => {}
+        }
+    }
+}
+
+impl Dispatch<ExtSessionLockSurfaceV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        lock_surface: &ExtSessionLockSurfaceV1,
+        event: ext_session_lock_surface_v1::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let ext_session_lock_surface_v1::Event::Configure { serial, .. } = event {
+            lock_surface.ack_configure(serial);
+            if let Some((_, surface, _)) = state.lock_surfaces.iter().find(|(l, ..)| l == lock_surface) {
+                surface.commit();
+            }
+        }
+    }
+}

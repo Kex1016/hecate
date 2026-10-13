@@ -395,6 +395,53 @@ impl State {
         self.focus_window(window);
     }
 
+    /// While locked, keep the keyboard on a lock surface: the focused output's, else any.
+    /// A monitor that drops off while asleep takes its lock surface along; without this the
+    /// keyboard went nowhere until that monitor came back.
+    pub fn keep_lock_focus(&mut self) {
+        if !self.hecate.wm.is_locked() {
+            return;
+        }
+        let keyboard = self.hecate.seat.get_keyboard().unwrap();
+        let current = keyboard.current_focus();
+        let wm = &self.hecate.wm;
+        if current
+            .as_ref()
+            .is_some_and(|f| wm.lock_surfaces().any(|s| s.wl_surface() == f))
+        {
+            return;
+        }
+        let target = wm
+            .focused_output
+            .as_ref()
+            .and_then(|o| wm.lock_surface(o))
+            .or_else(|| wm.lock_surfaces().next())
+            .map(|s| s.wl_surface().clone());
+        if let Some(surface) = target {
+            keyboard.set_focus(self, Some(surface), SERIAL_COUNTER.next_serial());
+        }
+    }
+
+    /// Locked: a click gives the keyboard to that monitor's lock surface.
+    pub fn focus_lock_surface_at(&mut self, point: smithay::utils::Point<f64, smithay::utils::Logical>) {
+        let Some(output) = self.hecate.wm.output_at(point).cloned() else {
+            return;
+        };
+        let Some(surface) = self
+            .hecate
+            .wm
+            .lock_surface(&output)
+            .map(|s| s.wl_surface().clone())
+        else {
+            return;
+        };
+        self.hecate.wm.focused_output = Some(output);
+        let keyboard = self.hecate.seat.get_keyboard().unwrap();
+        if keyboard.current_focus().as_ref() != Some(&surface) {
+            keyboard.set_focus(self, Some(surface), SERIAL_COUNTER.next_serial());
+        }
+    }
+
     /// Give focus to the topmost window on the focused output, or clear it.
     pub fn focus_topmost(&mut self) {
         if self.hecate.wm.is_locked() {

@@ -1021,6 +1021,10 @@ impl Wm {
         self.lock_surfaces.get(&output.name())
     }
 
+    pub fn lock_surfaces(&self) -> impl Iterator<Item = &LockSurface> {
+        self.lock_surfaces.values()
+    }
+
     pub fn set_lock_surface(&mut self, output: &Output, surface: LockSurface) {
         self.lock_surfaces.insert(output.name(), surface);
     }

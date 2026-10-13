@@ -742,6 +742,15 @@ impl Tty {
                             let queue_started = std::time::Instant::now();
                             let queued = surface.drm_output.queue_frame(Some(feedback));
                             queue = queue_started.elapsed();
+                            // A modeset (an output waking up) is a blocking commit: nothing,
+                            // input included, runs until the monitor has come up.
+                            if queue > std::time::Duration::from_millis(500) {
+                                tracing::warn!(
+                                    "committing a frame to {} blocked for {:.1} s (modeset)",
+                                    output.name(),
+                                    queue.as_secs_f64()
+                                );
+                            }
                             match queued {
                                 Ok(()) => true,
                                 Err(err) => {
@@ -849,11 +858,20 @@ impl Tty {
         let Some(surface) = self.surface_for(output) else {
             return;
         };
+        let started = std::time::Instant::now();
         let res = if on {
             surface.drm_output.with_compositor(|c| c.reset_state())
         } else {
             surface.drm_output.with_compositor(|c| c.clear())
         };
+        if started.elapsed() > std::time::Duration::from_millis(500) {
+            tracing::warn!(
+                "powering {} {} blocked for {:.1} s",
+                output.name(),
+                if on { "on" } else { "off" },
+                started.elapsed().as_secs_f64()
+            );
+        }
         if let Err(err) = res {
             tracing::warn!(
                 "error powering {} {}: {err:?}",

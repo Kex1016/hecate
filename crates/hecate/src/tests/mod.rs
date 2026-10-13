@@ -16,6 +16,7 @@ mod image_copy_capture;
 mod input;
 mod ipc;
 mod layers;
+mod lock;
 mod output_management;
 mod output_power;
 mod render;

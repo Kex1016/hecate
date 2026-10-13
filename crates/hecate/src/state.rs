@@ -294,6 +294,7 @@ impl State {
             keyboard.set_focus(self, None, serial);
             self.focus_topmost();
         }
+        self.keep_lock_focus();
     }
 }
 
