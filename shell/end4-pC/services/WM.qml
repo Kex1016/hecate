@@ -57,6 +57,8 @@ Singleton {
     readonly property var focusedMonitor: backend?.focusedMonitor ?? null
 
     function focusWindow(id) { backend?.focusWindow(id) }
+    // hecate only: Quickshell toplevel for a window (previews).
+    function toplevelFor(win) { return backend?.toplevelFor?.(win) ?? null }
     function closeWindow(id) { backend?.closeWindow(id) }
     function switchWorkspace(id) { backend?.switchWorkspace(id) }
     function moveWindowToWorkspace(id, wsId) { backend?.moveWindowToWorkspace(id, wsId) }

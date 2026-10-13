@@ -9,6 +9,7 @@ pub mod output_management;
 pub mod output_power;
 pub mod screencopy;
 pub mod tearing_control;
+pub mod toplevel_export;
 
 /// User data for resources that need none.
 pub struct EmptyData;

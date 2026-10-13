@@ -39,6 +39,7 @@ QS = QuickShell, including the bundled end4-pC shell (Noctalia 5.x binds the sam
 | keyboard-shortcuts-inhibit-v1         | smithay | 3     | QS `ShortcutInhibitor`, G, VMs |
 | ext-background-effect-v1              | smithay | 6     | QS `BackgroundEffect` (blur) |
 | hyprland-focus-grab-v1                | own     | 3     | QS `HyprlandFocusGrab`, Noctalia popups |
+| hyprland-toplevel-export-v1           | own     | 2     | QS `ScreencopyView` of a window (its only way to capture one): previews in the overview, Alt+Tab, screen sharing picker. shm, waits for damage unless `ignore_damage` |
 | xdg-activation-v1                     | smithay | 3     | focus requests, notifications |
 | wlr-data-control / ext-data-control   | smithay | 3     | clipboard managers, QS |
 | xdg-foreign v1/v2                     | smithay | 3     | portals parent windows |

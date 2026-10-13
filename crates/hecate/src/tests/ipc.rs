@@ -218,6 +218,19 @@ fn real_socket_roundtrip_and_event_stream() {
         }
     }
     assert!(saw_windows, "WindowsChanged after mapping a window");
+
+    // The signal action reaches event-stream listeners (the shell's Alt+Tab switcher).
+    f.hecate()
+        .do_action(crate::config::action::Action::Signal("alt-tab-next".into()), None);
+    let mut saw_signal = false;
+    // After whatever mapping the window still has queued.
+    for _ in 0..30 {
+        if read_line(&mut f, &mut sock) == json!({"Signal": {"name": "alt-tab-next"}}) {
+            saw_signal = true;
+            break;
+        }
+    }
+    assert!(saw_signal, "Signal event");
     let _ = Payload::Unit(hecate_ipc::Ack {});
     std::fs::remove_dir_all(&dir).ok();
 }

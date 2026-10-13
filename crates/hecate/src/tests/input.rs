@@ -218,3 +218,25 @@ fn absolute_devices_map_to_their_output() {
         "unknown output name: focused output"
     );
 }
+
+/// A transparent hold-style bind (end-4's Super hold, the Alt+Tab switcher's Alt release)
+/// runs its release action even though the key also went to the client.
+#[test]
+fn transparent_hold_bind_fires_on_release_after_another_bind() {
+    use smithay::backend::input::KeyState;
+    let (mut f, _id) = setup(
+        "[binds]\n\"Alt_L\" = { on_release = \"toggle_keybinds\", transparent = true }\n\"Alt+Tab\" = \"toggle_show_desktop\"\n",
+    );
+    // xkb keycodes: evdev + 8.
+    let (alt, tab) = (56 + 8, 15 + 8);
+    let key = |f: &mut Fixture, code: u32, state| f.hecate().handle_key(code.into(), state, InputTime::now());
+
+    key(&mut f, alt, KeyState::Pressed);
+    assert!(f.hecate().hecate.keybinds_enabled, "nothing on press");
+    key(&mut f, tab, KeyState::Pressed);
+    key(&mut f, tab, KeyState::Released);
+    assert!(f.hecate().hecate.wm.show_desktop, "Alt+Tab fired");
+    key(&mut f, alt, KeyState::Released);
+    assert!(!f.hecate().hecate.keybinds_enabled, "the Alt release fired");
+    assert!(f.hecate().hecate.transparent_holds.is_empty());
+}

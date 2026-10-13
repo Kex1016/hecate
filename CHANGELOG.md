@@ -26,6 +26,11 @@ The first release: phases 0 to 6 of [docs/PLAN.md](docs/PLAN.md).
 - Activation requests (xdg-activation tokens from launchers such as Nautilus or Steam) for a
   window that hasn't mapped yet take effect when it maps, instead of switching the output to
   a workspace that doesn't exist and leaving it blank.
+- hyprland-toplevel-export-v1, QuickShell's only way to capture a window: window previews in
+  the shell's overview, Alt+Tab switcher and screen sharing picker.
+- A `signal` action posts a named event on the IPC event stream; windows in IPC carry
+  `focus_serial` (most recently used order). Transparent hold binds now run their
+  `on_release` action (it never fired).
 - Session lock: layer surfaces whose rule sets `show_when_locked` stay visible under the lock
   screen (never receiving input), which is how the bundled shell shows its blurred wallpaper
   and clock there.
@@ -66,7 +71,8 @@ workspace swipes, drawing tablets, keyboard layouts per window or global.
   drag-to-arrange map, mouse, idle, app theming), a wallpaper per monitor, an image picker
   for the Custom Image and Image Card desktop widgets, Boot Windows in the session menu,
   idle lock, screens off and sleep, app colour templates (foot, kitty, your own), and a
-  screen sharing picker with live previews of screens and windows.
+  screen sharing picker with live previews of screens and windows, and an Alt+Tab switcher
+  in most recently used order with live window previews.
 - Flake with the `hecate` and `hecate-shell` packages, a NixOS module (`programs.hecate`,
   with `shell.enable` for the system services the shell needs) and a Home Manager module
   (`wayland.windowManager.hecate`: config as Nix, validated at build time, the shell's

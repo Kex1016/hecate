@@ -23,6 +23,10 @@ use smithay::reexports::wayland_protocols::wp::fifo::v1::client::wp_fifo_manager
 use smithay::reexports::wayland_protocols::wp::fifo::v1::client::wp_fifo_v1::WpFifoV1;
 use smithay::reexports::wayland_protocols::wp::content_type::v1::client::wp_content_type_v1::WpContentTypeV1;
 use smithay::reexports::wayland_protocols::wp::single_pixel_buffer;
+use crate::protocols::toplevel_export::client::hyprland_toplevel_export_frame_v1::{
+    self, HyprlandToplevelExportFrameV1,
+};
+use crate::protocols::toplevel_export::client::hyprland_toplevel_export_manager_v1::HyprlandToplevelExportManagerV1;
 use smithay::reexports::wayland_protocols::ext::session_lock::v1::client::ext_session_lock_manager_v1::ExtSessionLockManagerV1;
 use smithay::reexports::wayland_protocols::ext::session_lock::v1::client::ext_session_lock_surface_v1::{
     self, ExtSessionLockSurfaceV1,
@@ -162,6 +166,9 @@ pub struct State {
 
     pub windows: Vec<Window>,
     pub layers: Vec<LayerSurface>,
+
+    pub toplevel_export_manager: Option<HyprlandToplevelExportManagerV1>,
+    pub export_frames: Vec<(HyprlandToplevelExportFrameV1, CopyFrame)>,
 
     pub session_lock_manager: Option<ExtSessionLockManagerV1>,
     pub session_lock: Option<ExtSessionLockV1>,
@@ -603,6 +610,8 @@ impl Client {
             gamma_controls: Vec::new(),
             windows: Vec::new(),
             layers: Vec::new(),
+            toplevel_export_manager: None,
+            export_frames: Vec::new(),
             session_lock_manager: None,
             session_lock: None,
             session_locked: false,
@@ -1022,6 +1031,8 @@ impl Dispatch<WlRegistry, ()> for State {
                 } else if interface == WpViewporter::interface().name {
                     let version = min(version, WpViewporter::interface().version);
                     state.viewporter = Some(registry.bind(name, version, qh, ()));
+                } else if interface == HyprlandToplevelExportManagerV1::interface().name {
+                    state.toplevel_export_manager = Some(registry.bind(name, 2, qh, ()));
                 } else if interface == ExtSessionLockManagerV1::interface().name {
                     state.session_lock_manager = Some(registry.bind(name, 1, qh, ()));
                 } else if interface == WlOutput::interface().name {
@@ -2346,6 +2357,67 @@ impl Dispatch<ExtSessionLockSurfaceV1, ()> for State {
             if let Some((_, surface, _)) = state.lock_surfaces.iter().find(|(l, ..)| l == lock_surface) {
                 surface.commit();
             }
+        }
+    }
+}
+
+impl State {
+    /// hyprland-toplevel-export a window by its wlr-foreign-toplevel handle.
+    pub fn export_toplevel(&mut self, handle: &ZwlrForeignToplevelHandleV1) -> HyprlandToplevelExportFrameV1 {
+        let frame = self
+            .toplevel_export_manager
+            .as_ref()
+            .unwrap()
+            .capture_toplevel_with_wlr_toplevel_handle(0, handle, &self.qh, ());
+        self.export_frames.push((frame.clone(), CopyFrame::default()));
+        frame
+    }
+
+    pub fn export_frame(&self, frame: &HyprlandToplevelExportFrameV1) -> CopyFrame {
+        self.export_frames
+            .iter()
+            .find(|(f, _)| f == frame)
+            .unwrap()
+            .1
+            .clone()
+    }
+
+    /// An XRGB8888 shm buffer matching what the compositor asked for.
+    pub fn export_buffer(&self, frame: &HyprlandToplevelExportFrameV1) -> CaptureBuffer {
+        let (_, w, h, stride) = self.export_frame(frame).shm.expect("no buffer event");
+        assert_eq!(stride, w * 4);
+        CaptureBuffer::new(self.shm.as_ref().unwrap(), &self.qh, w as i32, h as i32)
+    }
+}
+
+wayland_client::delegate_noop!(State: ignore HyprlandToplevelExportManagerV1);
+
+impl Dispatch<HyprlandToplevelExportFrameV1, ()> for State {
+    fn event(
+        state: &mut Self,
+        proxy: &HyprlandToplevelExportFrameV1,
+        event: hyprland_toplevel_export_frame_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        let Some((_, f)) = state.export_frames.iter_mut().find(|(p, _)| p == proxy) else {
+            return;
+        };
+        match event {
+            hyprland_toplevel_export_frame_v1::Event::Buffer {
+                format,
+                width,
+                height,
+                stride,
+            } => f.shm = Some((format.into(), width, height, stride)),
+            hyprland_toplevel_export_frame_v1::Event::BufferDone => f.buffer_done = true,
+            hyprland_toplevel_export_frame_v1::Event::Damage { x, y, width, height } => {
+                f.damage.push((x, y, width, height))
+            }
+            hyprland_toplevel_export_frame_v1::Event::Ready { .. } => f.ready = true,
+            hyprland_toplevel_export_frame_v1::Event::Failed => f.failed = true,
+            _ => (),
         }
     }
 }

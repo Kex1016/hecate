@@ -101,10 +101,17 @@ impl State {
     }
 
     fn on_keyboard<I: InputBackend>(&mut self, event: I::KeyboardKeyEvent) {
+        self.handle_key(event.key_code(), event.state(), Event::time(&event));
+    }
+
+    /// A key press or release, from any input backend.
+    pub fn handle_key(
+        &mut self,
+        keycode: smithay::input::keyboard::Keycode,
+        state: KeyState,
+        time: smithay::backend::input::InputTime,
+    ) {
         let serial = SERIAL_COUNTER.next_serial();
-        let time = Event::time(&event);
-        let keycode = event.key_code();
-        let state = event.state();
         let pressed = state == KeyState::Pressed;
         let raw_code = keycode.raw();
         let inhibited = self.shortcuts_inhibited();
@@ -258,6 +265,12 @@ impl State {
                         let kb = self.hecate.seat.get_keyboard().unwrap();
                         kb.input_forward(self, keycode, state, serial, time, false);
                         self.hecate.suppressed_keys.retain(|k| *k != raw_code);
+                        // Its release goes to the client too, so remember the release action
+                        // here: the suppressed-key path above never sees it.
+                        if let Some(a) = value.on_release.clone() {
+                            self.hecate.transparent_holds.retain(|(k, _)| *k != raw_code);
+                            self.hecate.transparent_holds.push((raw_code, a));
+                        }
                     }
                 } else {
                     self.hecate.suppressed_keys.retain(|k| *k != raw_code);
@@ -280,6 +293,18 @@ impl State {
                 }
             }
             None => {}
+        }
+
+        // Release of a transparent hold-style bind's key (forwarded to the client as well).
+        if !pressed
+            && let Some(pos) = self
+                .hecate
+                .transparent_holds
+                .iter()
+                .position(|(k, _)| *k == raw_code)
+        {
+            let (_, action) = self.hecate.transparent_holds.remove(pos);
+            self.do_action(action, None);
         }
     }
 

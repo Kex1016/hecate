@@ -66,6 +66,7 @@ impl State {
             always_on_bottom: d.always_on_bottom,
             omnipresent: d.omnipresent,
             is_x11: false,
+            focus_serial: d.focus_serial,
         }
     }
 

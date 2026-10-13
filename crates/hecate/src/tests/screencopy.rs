@@ -116,3 +116,64 @@ fn copy_with_damage_waits_for_changes() {
     }
     assert_eq!(buf.rgb(200, 150), [0, 0, 255], "new content");
 }
+
+/// hyprland-toplevel-export: QuickShell's window previews.
+#[test]
+fn toplevel_export_copies_the_window_and_waits_for_damage() {
+    let Some((mut f, id, surface)) = fixture() else {
+        return;
+    };
+    f.client(id).window(&surface).set_app_id("red");
+    f.client(id).window(&surface).commit();
+    f.double_roundtrip(id);
+    let handle = f
+        .client(id)
+        .state
+        .wlr_toplevel("red")
+        .expect("wlr toplevel")
+        .0
+        .clone();
+
+    let frame = f.client(id).state.export_toplevel(&handle);
+    f.double_roundtrip(id);
+    let info = f.client(id).state.export_frame(&frame);
+    let (format, w, h, stride) = info.shm.expect("buffer event");
+    assert_eq!(format, wayland_client::protocol::wl_shm::Format::Xrgb8888 as u32);
+    assert_eq!(
+        (w, h, stride),
+        (100, 100, 400),
+        "the window's size, not the output's"
+    );
+    assert!(info.buffer_done);
+
+    let buf = f.client(id).state.export_buffer(&frame);
+    frame.copy(&buf.buffer, 0);
+    f.double_roundtrip(id);
+    let info = f.client(id).state.export_frame(&frame);
+    assert!(info.ready && !info.failed, "{info:?}");
+    assert_eq!(buf.rgb(50, 50), [255, 0, 0], "window contents");
+    assert_eq!(buf.rgb(0, 0), [255, 0, 0], "no output background around it");
+
+    // Nothing changed: the next frame waits until the window draws again.
+    let frame = f.client(id).state.export_toplevel(&handle);
+    f.double_roundtrip(id);
+    let buf = f.client(id).state.export_buffer(&frame);
+    frame.copy(&buf.buffer, 0);
+    f.double_roundtrip(id);
+    assert!(!f.client(id).state.export_frame(&frame).ready, "waits for damage");
+    f.client(id).window(&surface).attach_shm(100, 100, BLUE);
+    f.client(id).window(&surface).commit();
+    f.double_roundtrip(id);
+    f.double_roundtrip(id);
+    let info = f.client(id).state.export_frame(&frame);
+    assert!(info.ready, "ready once the window changed: {info:?}");
+    assert_eq!(buf.rgb(50, 50), [0, 0, 255]);
+
+    // ignore_damage copies at once.
+    let frame = f.client(id).state.export_toplevel(&handle);
+    f.double_roundtrip(id);
+    let buf = f.client(id).state.export_buffer(&frame);
+    frame.copy(&buf.buffer, 1);
+    f.double_roundtrip(id);
+    assert!(f.client(id).state.export_frame(&frame).ready);
+}

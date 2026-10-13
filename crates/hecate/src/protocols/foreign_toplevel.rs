@@ -76,6 +76,14 @@ impl ForeignToplevelManagerState {
 }
 
 impl ForeignToplevelManagerState {
+    /// Window id behind a wlr-foreign-toplevel-management handle.
+    pub fn window_id_for_wlr_handle(&self, handle: &ZwlrForeignToplevelHandleV1) -> Option<u64> {
+        self.toplevels
+            .values()
+            .find(|d| d.wlr_management_instances.contains_key(handle))
+            .map(|d| d.identifier)
+    }
+
     /// Window id behind an ext-foreign-toplevel handle.
     pub fn window_id_for_ext_handle(&self, handle: &ExtForeignToplevelHandleV1) -> Option<u64> {
         self.toplevels

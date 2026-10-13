@@ -131,6 +131,7 @@ pub struct Hecate {
     pub output_power_state: crate::protocols::output_power::OutputPowerState,
     pub screencopy_state: crate::protocols::screencopy::ScreencopyManagerState,
     pub focus_grab_state: crate::protocols::focus_grab::FocusGrabState,
+    pub toplevel_export_state: crate::protocols::toplevel_export::ToplevelExportState,
     pub tearing_control_state: crate::protocols::tearing_control::TearingControlState,
     pub background_effect_state: crate::protocols::background_effect::BackgroundEffectState,
     pub content_type_state: smithay::wayland::content_type::ContentTypeState,
@@ -177,6 +178,8 @@ pub struct Hecate {
     pub shortcut_inhibitors: Vec<WlSurface>,
     /// Keys whose press triggered a bind; their release is swallowed.
     pub suppressed_keys: Vec<u32>,
+    /// Transparent hold-style binds whose key is down: key code and release action.
+    pub transparent_holds: Vec<(u32, crate::config::action::Action)>,
     /// Buttons whose press triggered a mouse bind.
     pub suppressed_buttons: Vec<u32>,
     pub gestures: crate::input::gestures::GestureState,
@@ -265,6 +268,7 @@ impl State {
         crate::protocols::ext_workspace::refresh(self);
         crate::protocols::output_management::refresh(self);
         self.refresh_image_copy_capture();
+        self.refresh_toplevel_export();
         self.refresh_focus_grab();
         self.refresh_vrr();
         self.refresh_commit_timers();
@@ -361,6 +365,8 @@ impl Hecate {
         let screencopy_state =
             crate::protocols::screencopy::ScreencopyManagerState::new(&dh, client_is_unrestricted);
         let focus_grab_state = crate::protocols::focus_grab::FocusGrabState::new(&dh, client_is_unrestricted);
+        let toplevel_export_state =
+            crate::protocols::toplevel_export::ToplevelExportState::new(&dh, client_is_unrestricted);
         let tearing_control_state = crate::protocols::tearing_control::TearingControlState::new(&dh);
         let background_effect_state =
             crate::protocols::background_effect::BackgroundEffectState::new(&dh, config.blur.enable);
@@ -523,6 +529,7 @@ impl Hecate {
             output_power_state,
             screencopy_state,
             focus_grab_state,
+            toplevel_export_state,
             tearing_control_state,
             background_effect_state,
             content_type_state,
@@ -559,6 +566,7 @@ impl Hecate {
             idle_inhibitors: Vec::new(),
             shortcut_inhibitors: Vec::new(),
             suppressed_keys: Vec::new(),
+            transparent_holds: Vec::new(),
             suppressed_buttons: Vec::new(),
             gestures: Default::default(),
             pending_mod_tap: None,
@@ -747,6 +755,7 @@ pub fn advertised_globals() -> Vec<String> {
         "ext_output_image_capture_source_manager_v1",
         "ext_foreign_toplevel_image_capture_source_manager_v1",
         "hyprland_focus_grab_manager_v1",
+        "hyprland_toplevel_export_manager_v1",
         "wp_tearing_control_manager_v1",
         "ext_background_effect_manager_v1",
         "wp_content_type_manager_v1",

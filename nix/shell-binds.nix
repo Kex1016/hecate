@@ -39,6 +39,20 @@ in
   "Super_L" = hold "workspaceNumber";
   "Super_R" = hold "workspaceNumber";
 
+  # The Alt+Tab switcher (modules/ii/altTab): signals on hecate's event stream rather than a
+  # process per key press. Releasing Alt switches; the release still reaches the window.
+  "Alt+Tab".signal = "alt-tab-next";
+  "Alt+Shift+Tab".signal = "alt-tab-prev";
+  "Alt+Escape".signal = "alt-tab-cancel";
+  "Alt_L" = {
+    on_release.signal = "alt-tab-commit";
+    transparent = true;
+  };
+  "Alt_R" = {
+    on_release.signal = "alt-tab-commit";
+    transparent = true;
+  };
+
   "Mod+V" = trigger "overviewClipboardToggle";
   "Mod+Period" = trigger "overviewEmojiToggle";
   "Mod+A" = trigger "sidebarLeftToggle";

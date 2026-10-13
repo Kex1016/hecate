@@ -22,8 +22,6 @@ Scope {
     readonly property bool open: answerPath !== ""
     property string category: "screens"
     property string selected: ""
-    // Read from the start: ToplevelManager fills its list asynchronously on first use.
-    readonly property var toplevels: ToplevelManager.toplevels.values
 
     function finish(answer) {
         if (!root.open) return;
@@ -37,17 +35,6 @@ Scope {
     // hecate's ext-foreign-toplevel-list identifier for a window id.
     function windowIdentifier(id) {
         return "hecate-" + Number(id).toString(16).padStart(16, "0");
-    }
-
-    // The Quickshell toplevel (for the preview) of a hecate window: same app id and title,
-    // the n-th of those in creation order on both sides.
-    function toplevelFor(win) {
-        const same = WM.windowList
-            .filter(w => w.appId === win.appId && w.title === win.title)
-            .sort((a, b) => Number(a.id) - Number(b.id));
-        const k = same.findIndex(w => w.id === win.id);
-        const tops = root.toplevels.filter(t => t.appId === win.appId && t.title === win.title);
-        return tops[k] ?? null;
     }
 
     Process { id: answerProc }
@@ -173,7 +160,7 @@ Scope {
                                         anchors.fill: parent
                                         anchors.margins: 2
                                         live: true
-                                        captureSource: cell.modelData.screen ?? root.toplevelFor(cell.modelData.win)
+                                        captureSource: cell.modelData.screen ?? WM.toplevelFor(cell.modelData.win)
                                     }
                                     MaterialSymbol {
                                         anchors.centerIn: parent

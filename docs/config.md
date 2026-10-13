@@ -261,6 +261,12 @@ works unchanged once action names are mapped, because binds have the same
   non-spawn actions).
 - `spawn` takes an argv list (no shell); `spawn_sh` runs through `sh -c`,
   like niri's `spawn-sh`.
+- `signal = "name"` posts `{"Signal":{"name":"name"}}` on the IPC event stream, for a shell
+  that listens there: cheaper than spawning a process per key press (the bundled shell's
+  Alt+Tab switcher uses it).
+- A `transparent` bind with `on_release` (e.g. `"Alt_L" = { on_release = ..., transparent =
+  true }`) runs the release action and still passes both the press and the release on to the
+  focused window.
 - `radius` accepts a number (all corners) or a table with the four named
   corners. Missing corners in a table default to 0.
 - Colours accept `#rrggbb` and `#rrggbbaa`.

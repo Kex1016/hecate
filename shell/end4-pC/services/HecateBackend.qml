@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 
 /**
  * Compositor backend for hecate. hecate's IPC is shaped like niri's, so this mirrors
@@ -13,6 +14,22 @@ import Quickshell.Io
 Scope {
     id: root
     property var windowList: []
+    // hecate's `signal` action (e.g. the Alt+Tab switcher's binds).
+    signal compositorSignal(string name)
+    // Read from the start: ToplevelManager fills its list asynchronously on first use.
+    readonly property var toplevels: ToplevelManager.toplevels.values
+
+    // The Quickshell toplevel (window previews) of a hecate window: same app id and title,
+    // the n-th of those in creation order on both sides.
+    function toplevelFor(win) {
+        if (!win) return null;
+        const same = root.windowList
+            .filter(w => w.appId === win.appId && w.title === win.title)
+            .sort((a, b) => Number(a.id) - Number(b.id));
+        const k = same.findIndex(w => w.id === win.id);
+        const tops = root.toplevels.filter(t => t.appId === win.appId && t.title === win.title);
+        return tops[k] ?? null;
+    }
     property var workspaces: []
     property var workspaceById: ({})
     property var activeWorkspace: null
@@ -37,6 +54,8 @@ Scope {
             workspaceId: w.workspace_id,
             focused: w.is_focused ?? false,
             fullscreen: w.is_fullscreen ?? false,
+            minimized: w.is_minimized ?? false,
+            focusSerial: w.focus_serial ?? 0,
             output: w.output ?? "",
             width: w.layout?.window_size?.[0] ?? 0,
             height: w.layout?.window_size?.[1] ?? 0
@@ -166,7 +185,14 @@ Scope {
         command: ["hecate", "msg", "-j", "event-stream"]
         stdout: SplitParser {
             splitMarker: "\n"
-            onRead: (line) => { if (line.trim().length > 0) refreshDebounce.restart() }
+            onRead: (line) => {
+                if (line.trim().length === 0) return;
+                if (line.startsWith('{"Signal"')) {
+                    try { root.compositorSignal(JSON.parse(line).Signal.name); } catch (e) {}
+                    return;
+                }
+                refreshDebounce.restart();
+            }
         }
         onExited: restartTimer.restart()
     }

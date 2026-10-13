@@ -235,6 +235,9 @@ pub struct Window {
     pub always_on_bottom: bool,
     pub omnipresent: bool,
     pub is_x11: bool,
+    /// Grows each time the window gets focus: sort descending for most recently used first.
+    #[serde(default)]
+    pub focus_serial: u64,
 }
 
 /// Everything about one window (`hecate msg pick` / `window`).
@@ -377,15 +380,38 @@ pub struct FrameStats {
 /// Events on an `event_stream` connection.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Event {
-    WorkspacesChanged { workspaces: Vec<Workspace> },
-    WindowsChanged { windows: Vec<Window> },
-    OutputsChanged { outputs: BTreeMap<String, Output> },
-    KeyboardLayoutsChanged { keyboard_layouts: KeyboardLayouts },
-    WindowFocusChanged { id: Option<u64> },
-    WorkspaceActivated { id: u64, focused: bool },
-    OutputFocusChanged { output: Option<String> },
-    KeyboardLayoutSwitched { idx: u8 },
-    ConfigReloaded { failed: bool },
+    WorkspacesChanged {
+        workspaces: Vec<Workspace>,
+    },
+    WindowsChanged {
+        windows: Vec<Window>,
+    },
+    OutputsChanged {
+        outputs: BTreeMap<String, Output>,
+    },
+    KeyboardLayoutsChanged {
+        keyboard_layouts: KeyboardLayouts,
+    },
+    WindowFocusChanged {
+        id: Option<u64>,
+    },
+    WorkspaceActivated {
+        id: u64,
+        focused: bool,
+    },
+    OutputFocusChanged {
+        output: Option<String>,
+    },
+    KeyboardLayoutSwitched {
+        idx: u8,
+    },
+    ConfigReloaded {
+        failed: bool,
+    },
+    /// From the `signal` action.
+    Signal {
+        name: String,
+    },
 }
 
 /// One line on a `key_stream` connection.
