@@ -21,6 +21,7 @@ mod output_management;
 mod output_power;
 mod render;
 mod screencopy;
+mod splash;
 mod sync;
 mod windows;
 mod workspaces;

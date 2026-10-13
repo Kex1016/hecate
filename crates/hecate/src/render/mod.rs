@@ -202,15 +202,18 @@ pub fn layer_rules_for(config: &Config, namespace: &str) -> LayerRule {
 impl Hecate {
     /// Render elements for an output, topmost first.
     pub fn render_elements(&self, renderer: &mut GlesRenderer, output: &Output) -> Vec<HecateElement> {
-        self.render_elements_for(renderer, output, true)
+        self.render_elements_for(renderer, output, true, false)
     }
 
     /// Render elements for an output, topmost first, optionally without the cursor (captures).
+    /// `desktop_only` draws just the wallpaper and the shell's layers below overlays, as if
+    /// unlocked and with no windows: the login splash's picture.
     pub fn render_elements_for(
         &self,
         renderer: &mut GlesRenderer,
         output: &Output,
         include_cursor: bool,
+        desktop_only: bool,
     ) -> Vec<HecateElement> {
         let mut out: Vec<HecateElement> = Vec::new();
         let scale = Scale::from(output.current_scale().fractional_scale());
@@ -220,12 +223,15 @@ impl Hecate {
         };
         let state = self.output_state.get(output);
 
-        // Cursor on top.
+        // Cursor on top, then the login splash over everything else.
         if include_cursor {
             self.push_cursor(renderer, output, &mut out);
         }
+        if !desktop_only && let Some(splash) = self.splash_element(renderer, output) {
+            out.push(HecateElement::Memory(splash));
+        }
 
-        if self.wm.is_locked() {
+        if self.wm.is_locked() && !desktop_only {
             if let Some(lock) = self.wm.lock_surface(output) {
                 out.extend(
                     render_elements_from_surface_tree(
@@ -339,9 +345,15 @@ impl Hecate {
             }
         };
 
-        push_layer(&mut out, &mut markers, renderer, Layer::Overlay);
+        if !desktop_only {
+            push_layer(&mut out, &mut markers, renderer, Layer::Overlay);
+        }
 
-        let windows = self.wm.windows_on_output(output);
+        let windows = if desktop_only {
+            Vec::new()
+        } else {
+            self.wm.windows_on_output(output)
+        };
         let fullscreen = windows.iter().any(|w| w.data().fullscreen);
         if !fullscreen {
             push_layer(&mut out, &mut markers, renderer, Layer::Top);
@@ -352,10 +364,12 @@ impl Hecate {
             .get_keyboard()
             .and_then(|k| k.current_focus())
             .map(|s| crate::utils::root_surface(&s));
-        self.push_closing(&mut out, output, None, now);
+        if !desktop_only {
+            self.push_closing(&mut out, output, None, now);
+        }
         // A workspace switch slides the new workspace in over the old one's way out.
         let width = output_geo.size.w as f64;
-        let switch = self.wm.switch_for(output).cloned();
+        let switch = self.wm.switch_for(output).cloned().filter(|_| !desktop_only);
         let (in_offset, out_offset) = match &switch {
             Some(s) => {
                 let v = s.anim.value(now);

@@ -35,6 +35,7 @@ wayland-scanner = "0.31"
 wayland-backend = "0.3"
 smithay-drm-extras.workspace = true
 font8x8 = { version = "0.3", default-features = false }
+png = "0.17"
 
 [dependencies.smithay]
 workspace = true

@@ -192,6 +192,7 @@ fn run_compositor(
     }
 
     state.start_session();
+    state.hecate.start_splash_timeout();
     for argv in state.hecate.config.autostart.clone() {
         state.hecate.spawn(&argv);
     }
@@ -200,6 +201,13 @@ fn run_compositor(
     }
 
     event_loop.run(None, &mut state, |state| state.refresh_and_flush_clients())?;
+    let snapshots = state
+        .backend
+        .with_renderer(|r| state.hecate.save_snapshots(r))
+        .unwrap_or_default();
+    for handle in snapshots {
+        let _ = handle.join();
+    }
     state.end_session();
     Ok(())
 }

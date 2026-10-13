@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Login splash (`splash.enable`, on with the bundled shell): the desktop as it was when the
+  session last locked or ended (wallpaper and shell, no windows) covers the screen from the
+  first frame until the shell is up, then fades out, instead of a bare screen while it starts.
+
 ## 1.0.0
 
 The first release: phases 0 to 6 of [docs/PLAN.md](docs/PLAN.md).

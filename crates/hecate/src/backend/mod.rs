@@ -335,6 +335,7 @@ impl Hecate {
         );
         self.output_heads_dirty = true;
         self.apply_output_props(&output);
+        self.load_splash(&output);
         if output.current_location() == (0, 0).into()
             && self
                 .config

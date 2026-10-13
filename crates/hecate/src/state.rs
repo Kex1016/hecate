@@ -166,6 +166,11 @@ pub struct Hecate {
     pub satellite: Option<crate::xwayland::Satellite>,
     /// Outputs were powered off by the action; the next input powers them on.
     pub wake_outputs_on_input: bool,
+    /// Login splash per output (`splash.enable`), and whether it was dismissed.
+    pub splash: std::collections::HashMap<Output, crate::splash::Splash>,
+    pub splash_done: bool,
+    /// Where splash pictures are saved and read (`splash::dir()`).
+    pub snapshot_dir: Option<std::path::PathBuf>,
 
     pub pointer_location: Point<f64, Logical>,
     pub cursor_status: CursorImageStatus,
@@ -559,6 +564,9 @@ impl Hecate {
             output_heads_dirty: true,
             satellite: None,
             wake_outputs_on_input: false,
+            splash: Default::default(),
+            splash_done: false,
+            snapshot_dir: crate::splash::dir(),
             pointer_location: (0., 0.).into(),
             cursor_status: CursorImageStatus::default_named(),
             cursor_manager,
@@ -608,7 +616,7 @@ impl Hecate {
         let started = crate::utils::monotonic_time();
         let submitted = backend.render(self, output);
         // After rendering: drawing a frame can start animations (moves, border fades).
-        let running = self.wm.advance_animations(output);
+        let running = self.wm.advance_animations(output) | self.splash_animating(output);
         if let Some(state) = self.output_state.get_mut(output) {
             state.animations_running = running;
         }

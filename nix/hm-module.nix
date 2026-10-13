@@ -29,6 +29,8 @@ let
     lib.recursiveUpdate (
       lib.optionalAttrs (shellBinds != { }) { shell_binds = shellBinds; }
       // lib.optionalAttrs (cfg.systemd.variables != [ ]) { session_variables = cfg.systemd.variables; }
+      # The shell tells hecate when it's up, which ends the login splash.
+      // lib.optionalAttrs shellCfg.enable { splash.enable = true; }
     ) cfg.settings
     // lib.optionalAttrs (layerRules != [ ]) { layer_rules = layerRules; }
     // lib.optionalAttrs (includes != [ ]) { include = includes; }

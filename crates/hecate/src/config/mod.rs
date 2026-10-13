@@ -31,6 +31,7 @@ pub struct Config {
     pub border: Border,
     pub outputs: BTreeMap<String, OutputConfig>,
     pub gaming: Gaming,
+    pub splash: Splash,
     pub xwayland: Xwayland,
     pub workspaces: Workspaces,
     pub focus: Focus,
@@ -72,6 +73,7 @@ impl Default for Config {
             border: Border::default(),
             outputs: BTreeMap::new(),
             gaming: Gaming::default(),
+            splash: Splash::default(),
             xwayland: Xwayland::default(),
             workspaces: Workspaces::default(),
             focus: Focus::default(),
@@ -385,6 +387,16 @@ pub enum Tearing {
     #[default]
     Fullscreen,
     Always,
+}
+
+/// Login splash: a picture of the desktop (wallpaper and shell layers, no windows), saved when
+/// the session locks or ends and shown from the next session's first frame until the shell
+/// runs the `splash_done` action. For a shell that does; the Home Manager module turns it on
+/// with `shell.enable`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct Splash {
+    pub enable: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

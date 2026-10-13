@@ -50,7 +50,7 @@ impl Hecate {
         screencopy: &Screencopy,
     ) -> Vec<RelocateRenderElement<HecateElement>> {
         let offset = screencopy.region_loc().upscale(-1);
-        self.render_elements_for(renderer, output, screencopy.overlay_cursor())
+        self.render_elements_for(renderer, output, screencopy.overlay_cursor(), false)
             .into_iter()
             .map(|e| RelocateRenderElement::from_element(e, offset, Relocate::Relative))
             .collect()

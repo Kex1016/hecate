@@ -229,7 +229,7 @@ impl State {
                 }
 
                 let elements: Vec<HecateElement> = match &live {
-                    Live::Output(o) => hecate.render_elements_for(renderer, o, draw_cursor),
+                    Live::Output(o) => hecate.render_elements_for(renderer, o, draw_cursor, false),
                     Live::Window(w, scale) => {
                         let loc: Point<i32, Physical> =
                             w.geometry().loc.upscale(-1).to_physical_precise_round(*scale);
