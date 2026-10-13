@@ -5,6 +5,9 @@
 - Login splash (`splash.enable`, on with the bundled shell): the desktop as it was when the
   session last locked or ended (wallpaper and shell, no windows) covers the screen from the
   first frame until the shell is up, then fades out, instead of a bare screen while it starts.
+- A session no longer comes up without its shell after one that ended uncleanly: the shell's
+  unit kept restarting against the old, gone display until systemd stopped trying, and then
+  refused to start it again. hecate resets failed user units before starting the session.
 
 ## 1.0.0
 
