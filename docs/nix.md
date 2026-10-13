@@ -201,6 +201,15 @@ What the HM module does with it:
   ydotool and gnome-keyring. The NixOS module's `programs.hecate.shell.enable` turns
   these on (as defaults you can override).
 
+### Login screen
+
+[hecate-greetd](https://github.com/Kex1016/hecate-greetd) is a greetd greeter that runs this
+shell's lock screen inside hecate, with the wallpaper, colours, widgets, monitor layout and
+keyboard layout of whoever logs in. Its flake has the NixOS module
+(`services.hecate-greetd.enable`); the shell shares your look with it on its own (it runs
+`hecate-greetd sync` whenever that's installed) and has its settings under Settings →
+hecate-greetd.
+
 ## Other shells
 
 - Plain QuickShell configs: `pkgs.quickshell` or its flake, started from

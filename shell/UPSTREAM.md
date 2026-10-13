@@ -56,6 +56,8 @@ See `git log -- shell/end4-pC` for the full list. In short:
 - app theming templates (foot, kitty, user templates), after Noctalia's; terminal colours
   work again (applycolor.sh no longer exits without ~/.config/quickshell/ii)
 - an Alt+Tab switcher (most recently used order, live window previews)
+- the login screen (hecate-greetd): `LockSurface` driven by a greetd context with a user and
+  session picker, `GreeterSync` sharing the look with it, Settings → hecate-greetd
 - a screen sharing picker (screens and windows, live previews) for xdg-desktop-portal-wlr
 - an image picker for the Custom Image and Image Card desktop widgets, which upstream only
   set by dropping a file on them

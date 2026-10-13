@@ -738,6 +738,24 @@ Singleton {
                 property bool materialShapeChars: true
             }
 
+            // hecate-greetd, the login screen: it shows this lock screen with your wallpaper,
+            // colours and displays. Settings → hecate-greetd.
+            property JsonObject greeter: JsonObject {
+                // Hand your look to the login screen (`hecate-greetd sync` after each change).
+                property bool share: true
+                // "lock": same as the lock screen | "centered": wallpaper in the centered shape |
+                // "blurred": the wallpaper zoomed and blurred
+                property string style: "lock"
+                // "" = the lock screen's wallpaper (else the main one)
+                property string wallpaper: ""
+                // Also hand over your monitor layout and keyboard/mouse settings.
+                property bool displays: true
+                property bool input: true
+                property bool showStatusText: true
+                property string statusText: "" // "" = "Locked", like the lock screen
+                property bool showToolbars: true
+            }
+
             property JsonObject media: JsonObject {
                 // Attempt to remove dupes (the aggregator playerctl one and browsers' native ones when there's plasma browser integration)
                 property bool filterDuplicatePlayers: true
