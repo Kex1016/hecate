@@ -62,5 +62,8 @@ See `git log -- shell/end4-pC` for the full list. In short:
 - a screen sharing picker (screens and windows, live previews) for xdg-desktop-portal-wlr
 - an image picker for the Custom Image and Image Card desktop widgets, which upstream only
   set by dropping a file on them
+- faster startup: the startup-lock flag clears as soon as the config says no lock is due
+  (`GlobalStates.settleStartupLock`), and panels load asynchronously, visible ones first
+  (`PanelLoader`, `IllogicalImpulseFamily`)
 - Hyprland-only features hidden or rerouted on hecate (night light, keybind list, game mode,
   updater)

@@ -34,33 +34,41 @@ import qs.modules.ii.cakeosUpdater
 import qs.services
 
 Scope {
-    PanelLoader { extraCondition: !Config.options.bar.vertical; component: Bar {} }
+    // Loaded in the background in this order (PanelLoader): what's on screen first, then the
+    // lock screen and popups, then what only opens on demand.
+
+    // On screen
     PanelLoader { component: Background {} }
-    PanelLoader { extraCondition: Config.options.dock.enable; component: Dock {} }
-    PanelLoader { component: EqualizerPopup {} }
-    PanelLoader { component: Lock {} }
-    PanelLoader { component: MediaControls {} }
-    PanelLoader { component: NotificationPopup {} }
-    PanelLoader { component: OnScreenDisplay {} }
-    PanelLoader { component: OnScreenKeyboard {} }
-    PanelLoader { component: Overlay {} }
-    PanelLoader { component: Overview {} }
-    PanelLoader { component: Polkit {} }
-    PanelLoader { component: RegionSelector {} }
-    PanelLoader { component: ScreenCorners {} }
-    PanelLoader { component: ScreenTranslator {} }
-    PanelLoader { component: SessionScreen {} }
-    PanelLoader { component: SidebarLeft {} }
-    PanelLoader { component: SidebarRight {} }
-    PanelLoader { extraCondition: Config.options.bar.vertical; component: VerticalBar {} }
-    PanelLoader { component: WallpaperSelector {} }
-    PanelLoader { component: Settings {} }
-    PanelLoader { component: DesktopMenu {} }
-    PanelLoader { extraCondition: GlobalStates.dropShelfOpen; component: DropShelfPanel {} }
     PanelLoader { component: NiriBackdrop {} }
     PanelLoader { component: ScreenFrame {} }
+    PanelLoader { component: ScreenCorners {} }
+    PanelLoader { extraCondition: !Config.options.bar.vertical; component: Bar {} }
+    PanelLoader { extraCondition: Config.options.bar.vertical; component: VerticalBar {} }
+    PanelLoader { extraCondition: Config.options.dock.enable; component: Dock {} }
+
+    // Lock screen, notifications, OSD
+    PanelLoader { component: Lock {} }
+    PanelLoader { component: NotificationPopup {} }
+    PanelLoader { component: OnScreenDisplay {} }
     PanelLoader { extraCondition: WM.compositor === "hecate"; component: HecateIdle {} }
-    PanelLoader { extraCondition: WM.compositor === "hecate"; component: SharePicker {} }
+
+    // On demand
+    PanelLoader { component: Polkit {} }
+    PanelLoader { component: SessionScreen {} }
     PanelLoader { extraCondition: WM.compositor === "hecate"; component: AltTab {} }
+    PanelLoader { extraCondition: WM.compositor === "hecate"; component: SharePicker {} }
+    PanelLoader { component: SidebarRight {} }
+    PanelLoader { component: SidebarLeft {} }
+    PanelLoader { component: Overview {} }
+    PanelLoader { component: MediaControls {} }
+    PanelLoader { component: EqualizerPopup {} }
+    PanelLoader { component: OnScreenKeyboard {} }
+    PanelLoader { component: Overlay {} }
+    PanelLoader { component: RegionSelector {} }
+    PanelLoader { component: ScreenTranslator {} }
+    PanelLoader { component: DesktopMenu {} }
+    PanelLoader { component: WallpaperSelector {} }
+    PanelLoader { component: Settings {} }
     PanelLoader { extraCondition: Updates.cakeos; component: CakeosUpdater {} }
+    PanelLoader { extraCondition: GlobalStates.dropShelfOpen; component: DropShelfPanel {} }
 }

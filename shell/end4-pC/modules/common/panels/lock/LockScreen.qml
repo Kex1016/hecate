@@ -142,6 +142,8 @@ Scope {
             GlobalStates.startupLockPending = false;
         }
     }
+    // Panels load after the config, so its readyChanged has usually fired already.
+    Component.onCompleted: root.initIfReady()
     Connections {
         target: Config
         function onReadyChanged() {

@@ -75,7 +75,27 @@ Singleton {
         return root.frameHover[`${screenName}:${side}`] ?? false;
     }
     property bool diSessionOpen: false
+    // Hides the wallpaper and the bar at startup while the lock screen may still be coming up
+    // (lock.launchOnStartup). Cleared as soon as the config and persistent state say it isn't,
+    // otherwise once the lock is secure (LockScreen), or after the timer at the latest. This
+    // used to wait on the lock panel noticing the config load, which never happened when the
+    // panel loaded after it, so every start showed a bare screen until the timer.
     property bool startupLockPending: true
+
+    function settleStartupLock() {
+        if (!root.startupLockPending || !Config.ready || !Persistent.ready) return;
+        if (!(Config.options.lock.launchOnStartup && Persistent.isNewHyprlandInstance))
+            root.startupLockPending = false;
+    }
+    Component.onCompleted: root.settleStartupLock()
+    Connections {
+        target: Config
+        function onReadyChanged() { root.settleStartupLock(); }
+    }
+    Connections {
+        target: Persistent
+        function onReadyChanged() { root.settleStartupLock(); }
+    }
 
     Timer {
         interval: 3000

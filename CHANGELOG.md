@@ -98,6 +98,12 @@ workspace swipes, drawing tablets, keyboard layouts per window or global.
   a test-only atomic commit per element per frame.
 - `hecate msg frames` splits render time into building the scene, drawing it and queueing it.
 - Interactive resizes send a new size only once the client has drawn the previous one.
+- The shell shows its wallpaper and bar as soon as they are built (about 2.7 s instead of
+  4.1 s to the bar in a headless test). Upstream hid both until the lock screen confirmed no
+  startup lock was due, which never happened once the lock panel loaded after the config, so
+  every start waited out a 3 s fallback timer on a bare screen with only the rounded corners.
+  Panels now load in the background between frames, the visible ones first, instead of all
+  at once on the UI thread.
 
 ### Known limitations
 
