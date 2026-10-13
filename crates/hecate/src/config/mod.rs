@@ -397,6 +397,10 @@ pub enum Tearing {
 #[serde(default, deny_unknown_fields)]
 pub struct Splash {
     pub enable: bool,
+    /// Where the pictures are kept, as `<output>.png` (default
+    /// `$XDG_STATE_HOME/hecate/snapshots`). hecate-greetd's login screen reads them from
+    /// `/var/lib/hecate-greetd/users/<user>/splash`.
+    pub dir: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

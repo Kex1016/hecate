@@ -169,7 +169,7 @@ pub struct Hecate {
     /// Login splash per output (`splash.enable`), and whether it was dismissed.
     pub splash: std::collections::HashMap<Output, crate::splash::Splash>,
     pub splash_done: bool,
-    /// Where splash pictures are saved and read (`splash::dir()`).
+    /// Where splash pictures are saved and read unless `splash.dir` says (`splash::dir()`).
     pub snapshot_dir: Option<std::path::PathBuf>,
 
     pub pointer_location: Point<f64, Logical>,

@@ -75,16 +75,24 @@ fn encode(path: &std::path::Path, pixels: &[u8], size: Size<i32, Physical>) -> a
 }
 
 impl Hecate {
+    /// `<splash.dir or the default>/<output>.png`
+    fn splash_path(&self, output: &Output) -> Option<PathBuf> {
+        let dir = self
+            .config
+            .splash
+            .dir
+            .as_ref()
+            .map(PathBuf::from)
+            .or_else(|| self.snapshot_dir.clone())?;
+        Some(dir.join(format!("{}.png", output.name())))
+    }
+
     /// Show the output's snapshot until the shell is ready, if there's one that fits it.
     pub fn load_splash(&mut self, output: &Output) {
         if !self.config.splash.enable || self.splash_done {
             return;
         }
-        let Some(path) = self
-            .snapshot_dir
-            .as_ref()
-            .map(|d| d.join(format!("{}.png", output.name())))
-        else {
+        let Some(path) = self.splash_path(output) else {
             return;
         };
         let (pixels, w, h) = match decode(&path) {
@@ -184,11 +192,7 @@ impl Hecate {
         }
         let mut handles = Vec::new();
         for output in self.wm.outputs() {
-            let Some(path) = self
-                .snapshot_dir
-                .as_ref()
-                .map(|d| d.join(format!("{}.png", output.name())))
-            else {
+            let Some(path) = self.splash_path(output) else {
                 continue;
             };
             let size = physical_size(output);

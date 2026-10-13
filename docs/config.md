@@ -88,6 +88,7 @@ fullscreen_inhibits_idle = true
 
 [splash]
 enable = false                 # login splash: the desktop as it was, until the shell runs `splash_done`
+# dir = "/var/lib/hecate-greetd/users/me/splash"   # where the pictures go (default $XDG_STATE_HOME/hecate/snapshots)
 
 [xwayland]
 enable = true
@@ -269,7 +270,8 @@ works unchanged once action names are mapped, because binds have the same
   Alt+Tab switcher uses it).
 - **Login splash** (`splash.enable`, on with the Home Manager module's `shell.enable`): when
   the session locks or ends, each output's desktop is saved to
-  `$XDG_STATE_HOME/hecate/snapshots/<output>.png`: the wallpaper and the shell's layers below
+  `$XDG_STATE_HOME/hecate/snapshots/<output>.png` (or `splash.dir`; hecate-greetd's login
+  screen shows them from `/var/lib/hecate-greetd/users/<user>/splash`): the wallpaper and the shell's layers below
   overlays, never windows, overlays or the cursor. The next session draws it over everything
   from its first frame, so there's no bare screen while the shell starts, and fades it out
   when something runs the `splash_done` action (the bundled shell does once its wallpaper and
