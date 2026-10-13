@@ -65,6 +65,11 @@ workspace swipes, drawing tablets, keyboard layouts per window or global.
 
 ### Shell and Nix
 
+- Login screen support for [hecate-greetd](https://github.com/Kex1016/hecate-greetd): the
+  lock screen runs on a greetd context with a user and session picker, the shell shares
+  its look (config, colours, wallpapers, avatar, monitor layout, keyboard and mouse) with
+  the greeter through `hecate-greetd sync`, and Settings → hecate-greetd sets the style
+  (as the lock screen, centered shape or blurred), wallpaper and status line.
 - The bundled end4-pC shell (illogical-impulse), patched for hecate: compositor backend,
   shortcuts over IPC, keybind cheat sheet from `hecate msg binds`, game mode through
   runtime overrides, a hecate settings page (windows, focus, effects, displays with a

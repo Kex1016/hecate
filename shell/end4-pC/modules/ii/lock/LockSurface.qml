@@ -15,10 +15,18 @@ import Quickshell.Services.SystemTray
 
 MouseArea {
     id: root
-    required property LockContext context
+    // A LockContext, or anything with the same interface (hecate-greetd's GreeterContext).
+    required property var context
     property bool active: false
     property bool showInputField: active || context.currentText.length > 0
-    readonly property bool requirePasswordToPower: Config.options.lock.security.requirePasswordToPower
+    // Set by hecate-greetd: there is no session yet, so power actions need no password, and
+    // `userComponent` (the user and session pickers) takes the username's place.
+    readonly property bool greeter: root.context.greeter ?? false
+    property Component userComponent: null
+    readonly property bool requirePasswordToPower: !root.greeter && Config.options.lock.security.requirePasswordToPower
+    // What the prompt asks for. A login can ask for more than a password (a one-time code,
+    // a new password); greetd says whether the answer is secret.
+    readonly property bool secretPrompt: root.context.secretPrompt ?? true
     readonly property MprisPlayer activePlayer: {
         const preferred = Config.options.bar.media.preferredPlayer.trim().toLowerCase()
         if (preferred.length === 0) return MprisController.activePlayer
@@ -201,7 +209,9 @@ MouseArea {
         ToolbarTextField {
             id: passwordBox
             Layout.rightMargin: -Layout.leftMargin
-            placeholderText: GlobalStates.screenUnlockFailed ? Translation.tr("Incorrect password") : Translation.tr("Enter password")
+            placeholderText: GlobalStates.screenUnlockFailed
+                ? ((root.context.failureText ?? "") || Translation.tr("Incorrect password"))
+                : ((root.context.promptText ?? "") || Translation.tr("Enter password"))
 
             // Style
             clip: true
@@ -211,8 +221,8 @@ MouseArea {
 
             // Password
             enabled: !root.context.unlockInProgress
-            echoMode: TextInput.Password
-            inputMethodHints: Qt.ImhSensitiveData
+            echoMode: root.secretPrompt ? TextInput.Password : TextInput.Normal
+            inputMethodHints: root.secretPrompt ? Qt.ImhSensitiveData : Qt.ImhNone
 
             // Synchronizing (across monitors) and unlocking
             onTextChanged: root.context.currentText = this.text
@@ -252,7 +262,7 @@ MouseArea {
             }
 
             // We're drawing dots manually
-            property bool materialShapeChars: Config.options.lock.materialShapeChars
+            property bool materialShapeChars: Config.options.lock.materialShapeChars && root.secretPrompt
             color: ColorUtils.transparentize(Appearance.colors.colOnLayer1, materialShapeChars ? 1 : 0)
             Loader {
                 active: passwordBox.materialShapeChars
@@ -301,7 +311,8 @@ MouseArea {
     // Left toolbar
     Toolbar {
         id: leftIsland
-        visible: Config.options.lock.showToolbars
+        // The greeter's user picker stays reachable without the toolbars.
+        visible: Config.options.lock.showToolbars || root.userComponent !== null
         anchors {
             right: mainIsland.left
             top: mainIsland.top
@@ -315,8 +326,17 @@ MouseArea {
         IconAndTextPair {
             Layout.leftMargin: 8
             icon: "account_circle"
-            visible: !Config.options.lock.showMedia || MprisController.activePlayer === null
+            visible: root.userComponent === null && (!Config.options.lock.showMedia || MprisController.activePlayer === null)
             text: SystemInfo.username
+        }
+
+        // The greeter's user and session pickers
+        Loader {
+            Layout.leftMargin: 2
+            Layout.alignment: Qt.AlignVCenter
+            active: root.userComponent !== null
+            visible: active
+            sourceComponent: root.userComponent
         }
 
         // Media player info 
@@ -324,7 +344,7 @@ MouseArea {
             Layout.leftMargin: 2
             Layout.rightMargin: 2
             Layout.alignment: Qt.AlignVCenter
-            active: MprisController.activePlayer !== null
+            active: !root.greeter && MprisController.activePlayer !== null
             visible: active && Config.options.lock.showMedia
             
             sourceComponent: Item {
@@ -450,7 +470,7 @@ MouseArea {
         Loader {
             Layout.rightMargin: 8
             Layout.fillHeight: true
-            visible: !Config.options.lock.showMedia || MprisController.activePlayer === null
+            visible: root.greeter || !Config.options.lock.showMedia || MprisController.activePlayer === null
 
             sourceComponent: Row {
                 spacing: 8

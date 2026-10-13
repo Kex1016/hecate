@@ -28,6 +28,10 @@ Singleton {
     property bool screenLocked: false
     property bool screenLockContainsCharacters: false
     property bool screenUnlockFailed: false
+    // Replaces "Locked" under the lock screen clock (hecate-greetd sets its own).
+    property string lockStatusText: ""
+    // Running as hecate-greetd, the login screen: the lock screen with nothing behind it.
+    property bool greeterMode: false
     property bool screenTranslatorOpen: false
     property bool sessionOpen: false
     property bool superDown: false

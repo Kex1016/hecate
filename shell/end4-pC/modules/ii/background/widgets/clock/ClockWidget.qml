@@ -147,7 +147,7 @@ AbstractBackgroundWidget {
                     id: lockStatusText
                     shown: GlobalStates.screenLocked && Config.options.lock.showLockedText
                     statusIcon: "lock"
-                    statusText: Translation.tr("Locked")
+                    statusText: GlobalStates.lockStatusText || Translation.tr("Locked")
                 }
                 Item {
                     Layout.fillWidth: root.textHorizontalAlignment !== Text.AlignRight

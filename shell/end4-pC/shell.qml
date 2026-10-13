@@ -50,6 +50,7 @@ ShellRoot {
         Wallpapers.load()
         Updates.load()
         LyricsService.restartLyrics()
+        GreeterSync.load()
     }
     
     PanelFamilyLoader {
