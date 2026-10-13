@@ -6,6 +6,7 @@ import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
 import qs.services
+import qs
 
 /**
  * hecate settings. Only what you change here is saved, to ~/.config/hecate/shell.toml
@@ -594,13 +595,13 @@ ContentPage {
                     Layout.fillWidth: true
                     wrapMode: Text.Wrap
                     color: Appearance.colors.colSubtext
-                    text: Translation.tr("Your own templates: ~/.config/hecate/templates.toml")
+                    text: Translation.tr("Your own templates (~/.config/hecate/templates.toml), in the theming editor")
                 }
                 RippleButtonWithIcon {
                     buttonRadius: Appearance.rounding.small
                     materialIcon: "edit"
                     mainText: Translation.tr("Edit")
-                    onClicked: editTemplatesProc.running = true
+                    onClicked: GlobalStates.themeEditorOpen = true
                 }
                 RippleButtonWithIcon {
                     buttonRadius: Appearance.rounding.small
@@ -617,23 +618,6 @@ ContentPage {
                 stderr: StdioCollector {
                     onStreamFinished: if (text.trim() !== "") Quickshell.execDetached(["notify-send", "-a", "Shell", Translation.tr("App theming"), text.trim()])
                 }
-            }
-            Process {
-                id: editTemplatesProc
-                command: ["bash", "-c", `f="${page.dir}/templates.toml"; [ -e "$f" ] || { mkdir -p "${page.dir}/templates"; cat > "$f" <<'TOML'
-# App colour templates, rendered with the wallpaper's colours (hecate shell).
-# Syntax: {{ colors.<name>.default.<format> }}, e.g. {{ colors.primary.default.hex }}.
-# Names: Material roles (primary, on_primary, surface_container_high, ...), term0..term15,
-# terminal_background, terminal_foreground, terminal_normal_red, terminal_bright_blue, ...
-# Formats: hex, hex_stripped, rgb, rgba, rgb_csv, red, green, blue, alpha.
-# Filters: | set_alpha 0.8, | lighten 10, | darken 10, | invert, | grayscale.
-#
-# [templates.my_app]
-# input_path = "~/.config/hecate/templates/my-app.css"
-# output_path = "~/.config/my-app/colors.css"   # or a list of paths
-# post_hook = "pkill -USR1 my-app"               # optional, runs after writing
-TOML
-}; xdg-open "$f"`]
             }
         }
 

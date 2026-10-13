@@ -81,6 +81,7 @@ Singleton {
     // used to wait on the lock panel noticing the config load, which never happened when the
     // panel loaded after it, so every start showed a bare screen until the timer.
     property bool startupLockPending: true
+    property bool themeEditorOpen: false
 
     function settleStartupLock() {
         if (!root.startupLockPending || !Config.ready || !Persistent.ready) return;

@@ -53,7 +53,7 @@ See `git log -- shell/end4-pC` for the full list. In short:
 - Boot Windows (password prompt, then `~/.local/bin/boot-windows` as root) in place of
   Task Manager in the session menu
 - idle lock, screens off and sleep driven by the shell (ext-idle-notify) instead of hypridle
-- app theming templates (foot, kitty, user templates), after Noctalia's; terminal colours
+- app theming templates (foot, kitty, user templates, the theming editor), after Noctalia's; terminal colours
   work again (applycolor.sh no longer exits without ~/.config/quickshell/ii)
 - on CakeOS, an update check against upstream CakeOS and the shell's own updater
 - an Alt+Tab switcher (most recently used order, live window previews)

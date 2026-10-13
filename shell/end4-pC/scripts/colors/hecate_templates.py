@@ -28,6 +28,11 @@ same colour. <format>: hex, hex_stripped, rgb, rgba, rgb_csv, red, green, blue, 
 Filters: set_alpha A, lighten P, darken P, invert, grayscale.
 
 Usage: hecate_templates.py [--only ID]...
+The theming editor (modules/ii/themeEditor) also uses:
+  --list             user templates and the current colours, as JSON
+  --preview          render the template on stdin to stdout
+  --save ID OUTPUT   save stdin as template ID (adding it to templates.toml when new), then
+                     render it to OUTPUT
 """
 
 import argparse
@@ -214,14 +219,55 @@ def expand(p):
     return Path(os.path.expandvars(os.path.expanduser(p)))
 
 
+def save_template(tid, output, text):
+    """Write a user template's input file, registering it in templates.toml when it's new."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", tid):
+        raise ValueError(f"template names are letters, digits, - and _ ({tid!r})")
+    existing = user_templates().get(tid)
+    if existing:
+        write(expand(existing["input_path"]), text)
+        return
+    source = USER_TEMPLATES.parent / "templates" / (tid + Path(output).suffix)
+    write(source, text)
+    # JSON strings are valid TOML basic strings.
+    entry = f"\n[templates.{tid}]\ninput_path = {json.dumps(str(source))}\noutput_path = {json.dumps(output)}\n"
+    old = USER_TEMPLATES.read_text() if USER_TEMPLATES.exists() else ""
+    write(USER_TEMPLATES, old + entry)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--only", action="append", help="render just these template ids")
+    parser.add_argument("--list", action="store_true", help="user templates and colours as JSON")
+    parser.add_argument("--preview", action="store_true", help="render stdin to stdout")
+    parser.add_argument("--save", nargs=2, metavar=("ID", "OUTPUT"), help="save stdin as a template")
     args = parser.parse_args()
     if not SCSS.exists():
         warn(f"{SCSS} doesn't exist yet; pick a wallpaper first")
         return 1
     colors, mode = load_colors()
+    if args.list:
+        print(json.dumps({
+            "templates": {i: {"input": str(expand(t["input_path"])), "output": t["output_path"] if isinstance(t["output_path"], str) else t["output_path"][0]}
+                          for i, t in user_templates().items() if "input_path" in t and "output_path" in t},
+            # snake_case names only: load_colors also keeps the camelCase spellings.
+            "colors": {n: c.format("hex") for n, c in sorted(colors.items()) if n == n.lower()},
+        }))
+        return 0
+    if args.preview:
+        try:
+            sys.stdout.write(render(sys.stdin.read(), colors, mode))
+            return 0
+        except ValueError as e:
+            warn(str(e))
+            return 1
+    if args.save:
+        try:
+            save_template(args.save[0], args.save[1], sys.stdin.read())
+        except (OSError, ValueError) as e:
+            warn(str(e))
+            return 1
+        args.only = [args.save[0]]
     wanted = lambda i: not args.only or i in args.only
     status = 0
 

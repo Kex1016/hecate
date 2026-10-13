@@ -31,6 +31,7 @@ import qs.modules.ii.idle
 import qs.modules.ii.sharePicker
 import qs.modules.ii.altTab
 import qs.modules.ii.cakeosUpdater
+import qs.modules.ii.themeEditor
 import qs.services
 
 Scope {
@@ -70,5 +71,6 @@ Scope {
     PanelLoader { component: WallpaperSelector {} }
     PanelLoader { component: Settings {} }
     PanelLoader { extraCondition: Updates.cakeos; component: CakeosUpdater {} }
+    PanelLoader { component: ThemeEditor {} }
     PanelLoader { extraCondition: GlobalStates.dropShelfOpen; component: DropShelfPanel {} }
 }
