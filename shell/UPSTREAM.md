@@ -55,6 +55,7 @@ See `git log -- shell/end4-pC` for the full list. In short:
 - idle lock, screens off and sleep driven by the shell (ext-idle-notify) instead of hypridle
 - app theming templates (foot, kitty, user templates), after Noctalia's; terminal colours
   work again (applycolor.sh no longer exits without ~/.config/quickshell/ii)
+- a screen sharing picker (screens and windows, live previews) for xdg-desktop-portal-wlr
 - an image picker for the Custom Image and Image Card desktop widgets, which upstream only
   set by dropping a file on them
 - Hyprland-only features hidden or rerouted on hecate (night light, keybind list, game mode,

@@ -203,12 +203,21 @@ in
 
         # xdg-desktop-portal-wlr asks which output to share through a chooser. Its default looks
         # for slurp, wofi or bemenu on the PATH of a systemd user service, which has none of
-        # them, so screen sharing failed. Pin a picker instead.
-        xdg.configFile."xdg-desktop-portal-wlr/hecate".text = ''
-          [screencast]
-          chooser_type=dmenu
-          chooser_cmd=${lib.getExe pkgs.fuzzel} --dmenu --prompt "Share which screen? "
-        '';
+        # them, so screen sharing failed. Pin a picker instead: the shell's (screens and windows,
+        # with previews) when it runs, else fuzzel (screens only).
+        xdg.configFile."xdg-desktop-portal-wlr/hecate".text =
+          if shellCfg.enable then
+            ''
+              [screencast]
+              chooser_type=simple
+              chooser_cmd=${shellCfg.finalPackage}/bin/hecate-share-picker
+            ''
+          else
+            ''
+              [screencast]
+              chooser_type=dmenu
+              chooser_cmd=${lib.getExe pkgs.fuzzel} --dmenu --prompt "Share which screen? "
+            '';
 
         systemd.user.targets.hecate-session = lib.mkIf cfg.systemd.enable {
           Unit = {

@@ -28,6 +28,7 @@ import qs.modules.ii.desktopMenu
 import qs.modules.ii.dropover
 import qs.modules.ii.frame
 import qs.modules.ii.idle
+import qs.modules.ii.sharePicker
 import qs.services
 
 Scope {
@@ -57,4 +58,5 @@ Scope {
     PanelLoader { component: NiriBackdrop {} }
     PanelLoader { component: ScreenFrame {} }
     PanelLoader { extraCondition: WM.compositor === "hecate"; component: HecateIdle {} }
+    PanelLoader { extraCondition: WM.compositor === "hecate"; component: SharePicker {} }
 }

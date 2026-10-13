@@ -60,7 +60,8 @@ workspace swipes, drawing tablets, keyboard layouts per window or global.
   runtime overrides, a hecate settings page (windows, focus, effects, displays with a
   drag-to-arrange map, mouse, idle, app theming), a wallpaper per monitor, an image picker
   for the Custom Image and Image Card desktop widgets, Boot Windows in the session menu,
-  idle lock, screens off and sleep, and app colour templates (foot, kitty, your own).
+  idle lock, screens off and sleep, app colour templates (foot, kitty, your own), and a
+  screen sharing picker with live previews of screens and windows.
 - Flake with the `hecate` and `hecate-shell` packages, a NixOS module (`programs.hecate`,
   with `shell.enable` for the system services the shell needs) and a Home Manager module
   (`wayland.windowManager.hecate`: config as Nix, validated at build time, the shell's

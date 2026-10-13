@@ -189,7 +189,17 @@ stdenv.mkDerivation {
     fi
     exec $out/bin/qs -p $config ipc --any-display call "\$@"
     EOF
-    chmod +x $out/bin/hecate-shell $out/bin/hecate-shell-ipc
+    # xdg-desktop-portal-wlr's screen sharing chooser (chooser_type=simple): open the shell's
+    # picker and print its answer ("Monitor: DP-1", "Window: hecate-…", nothing to decline).
+    cat > $out/bin/hecate-share-picker <<EOF
+    #!${stdenv.shell}
+    dir=\$(${pkgs.coreutils}/bin/mktemp -d) || exit 1
+    trap '${pkgs.coreutils}/bin/rm -rf "\$dir"' EXIT
+    ${pkgs.coreutils}/bin/mkfifo "\$dir/answer" || exit 1
+    $out/bin/hecate-shell-ipc sharePicker pick "\$dir/answer" >/dev/null || exit 1
+    ${pkgs.coreutils}/bin/timeout 600 ${pkgs.coreutils}/bin/cat "\$dir/answer"
+    EOF
+    chmod +x $out/bin/hecate-shell $out/bin/hecate-shell-ipc $out/bin/hecate-share-picker
 
     runHook postInstall
   '';
