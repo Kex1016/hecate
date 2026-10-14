@@ -9,7 +9,7 @@ use smithay::input::pointer::{
 };
 use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
-use smithay::utils::{IsAlive, Logical, Point, Rectangle, SERIAL_COUNTER, Serial};
+use smithay::utils::{IsAlive, Logical, Point, Rectangle, SERIAL_COUNTER, Serial, Size};
 
 use crate::config::action::Edge;
 use crate::state::State;
@@ -342,10 +342,15 @@ impl PointerGrab<State> for MoveGrab {
 }
 
 /// Edge resistance: stick to output edges and other windows' edges within range.
-fn resist(state: &State, window: &Window, loc: Point<i32, Logical>) -> Point<i32, Logical> {
+pub(crate) fn resist(state: &State, window: &Window, loc: Point<i32, Logical>) -> Point<i32, Logical> {
     let screen = state.hecate.config.resistance.screen_edge;
     let win = state.hecate.config.resistance.window_edge;
-    let size = window.geometry().size;
+    // Edges meet border to border: work with the windows' outer rects, border included.
+    // shortcut: assumes every window draws the configured border; a window with its border hidden
+    // by a rule keeps a border-wide gap, fine until that's common.
+    let bw = state.border_px();
+    let loc = loc - Point::from((bw, bw));
+    let size = window.geometry().size + Size::from((2 * bw, 2 * bw));
     let mut out = loc;
     let snap_axis = |value: i32, len: i32, edges: &[i32], range: i32| -> i32 {
         if range <= 0 {
@@ -381,7 +386,13 @@ fn resist(state: &State, window: &Window, loc: Point<i32, Logical>) -> Point<i32
             .windows_on_output(o)
             .iter()
             .filter(|w| *w != window)
-            .map(|w| state.hecate.wm.window_rect(w))
+            .map(|w| {
+                let r = state.hecate.wm.window_rect(w);
+                Rectangle::new(
+                    r.loc - Point::from((bw, bw)),
+                    r.size + Size::from((2 * bw, 2 * bw)),
+                )
+            })
             .collect();
         let xs: Vec<i32> = others
             .iter()
@@ -394,7 +405,7 @@ fn resist(state: &State, window: &Window, loc: Point<i32, Logical>) -> Point<i32
         out.x = snap_axis(out.x, size.w, &xs, win);
         out.y = snap_axis(out.y, size.h, &ys, win);
     }
-    out
+    out + Point::from((bw, bw))
 }
 
 pub struct ResizeGrab {

@@ -512,7 +512,7 @@ impl State {
         let area = Wm::usable_area(output, &self.hecate.config);
         let gap = self.hecate.config.general.gaps;
         let bw = if self.hecate.config.border.keep_on_maximize {
-            self.hecate.config.border.width.ceil() as i32
+            self.border_px()
         } else {
             0
         };
@@ -527,6 +527,11 @@ impl State {
                 Rectangle::new((cur.loc.x, full.loc.y).into(), (cur.size.w, full.size.h).into())
             }
         }
+    }
+
+    /// Border width in whole pixels, drawn outside a window's geometry.
+    pub fn border_px(&self) -> i32 {
+        self.hecate.config.border.width.ceil() as i32
     }
 
     /// Move and resize a window to a rect (geometry, border excluded).
@@ -687,7 +692,8 @@ impl State {
         self.save_restore(window);
         let area = Wm::usable_area(&output, &self.hecate.config);
         let gap = self.hecate.config.general.gaps;
-        let rect = snap_rect(area, edge, gap);
+        // The border is part of what's snapped: it stays clear of the bar and the other half.
+        let rect = geometry::shrink(snap_rect(area, edge, gap), self.border_px());
         {
             let mut d = window.data();
             d.snapped = Some(Snap::Edge(edge));
@@ -736,7 +742,10 @@ impl State {
                 let rect = self.maximized_rect(output, maximized, restore);
                 self.set_window_rect(&w, rect);
             } else if let Some(Snap::Edge(edge)) = snapped {
-                let rect = snap_rect(area, edge, self.hecate.config.general.gaps);
+                let rect = geometry::shrink(
+                    snap_rect(area, edge, self.hecate.config.general.gaps),
+                    self.border_px(),
+                );
                 self.set_window_rect(&w, rect);
             }
             w.toplevel_surface()
