@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Login splash (`splash.enable`, on with the bundled shell): the desktop as it was when the
+  session last locked or ended (wallpaper and shell, no windows) covers the screen from the
+  first frame until the shell is up, then fades out, instead of a bare screen while it starts.
+- The screen no longer goes dark between compositors: no output reset at startup, and the last
+  frame left up at exit, so with hecate-greetd a login goes from the login screen straight to
+  the session (and back at logout).
 - A session no longer comes up without its shell after one that ended uncleanly: the shell's
   unit kept restarting against the old, gone display until systemd stopped trying, and then
   refused to start it again. hecate resets failed user units before starting the session.

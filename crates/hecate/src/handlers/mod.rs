@@ -451,6 +451,8 @@ impl SessionLockHandler for State {
     }
 
     fn lock(&mut self, confirmation: SessionLocker) {
+        // The desktop as it is now becomes the next login's splash.
+        self.backend.with_renderer(|r| self.hecate.save_snapshots(r));
         self.hecate.wm.lock = crate::wm::LockState::Locked;
         // We render nothing but lock surfaces (or black) from now on, so confirm right away.
         confirmation.lock();

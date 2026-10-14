@@ -333,7 +333,9 @@ impl Tty {
             OFlags::RDWR | OFlags::CLOEXEC | OFlags::NOCTTY | OFlags::NONBLOCK,
         )?;
         let fd = DrmDeviceFd::new(DeviceFd::from(fd));
-        let (drm, notifier) = DrmDevice::new(fd.clone(), true)?;
+        // No reset: whatever is on screen (the login screen's last frame) stays until our first
+        // frame replaces it, instead of every output going dark first.
+        let (drm, notifier) = DrmDevice::new(fd.clone(), false)?;
         let gbm = GbmDevice::new(fd)?;
 
         // SAFETY: the GBM device outlives the display (both live in this backend).
@@ -401,6 +403,9 @@ impl Tty {
             },
         );
         self.device_changed(hecate, node);
+        if let Some(device) = self.devices.get(&node) {
+            disable_unused_crtcs(device);
+        }
         Ok(())
     }
 
@@ -427,6 +432,25 @@ impl Tty {
                 } => self.connector_disconnected(hecate, node, connector, crtc),
                 _ => {}
             }
+        }
+    }
+
+    /// At exit: leave each output's last frame on screen for whatever comes next (the session
+    /// after the login screen, the login screen after a session) instead of turning the outputs
+    /// off or restoring what we found. With nothing else holding the GPU, the kernel puts the
+    /// console back as soon as we close it, as before.
+    pub fn leave_on_screen(&mut self) {
+        for device in self.devices.values_mut() {
+            let drm = device.manager.device();
+            if let Ok(planes) = drm.plane_handles() {
+                for plane in planes {
+                    if let Some(fb) = drm.get_plane(plane).ok().and_then(|p| p.framebuffer()) {
+                        close_fb(drm, fb);
+                    }
+                }
+            }
+            // Inactive: dropping the device no longer restores the state it found.
+            device.manager.pause();
         }
     }
 
@@ -541,16 +565,31 @@ impl Tty {
             }
             Err(_) => None,
         };
-        let drm_output = match device.manager.lock().initialize_output::<_, HecateElement>(
-            crtc,
-            mode,
-            &[connector.handle()],
-            &output,
-            planes,
-            renderer,
-            &DrmOutputRenderElements::default(),
-        ) {
+        let mut init = |device: &mut Device| {
+            device.manager.lock().initialize_output::<_, HecateElement>(
+                crtc,
+                mode,
+                &[connector.handle()],
+                &output,
+                planes.clone(),
+                renderer,
+                &DrmOutputRenderElements::default(),
+            )
+        };
+        let drm_output = match init(device) {
             Ok(o) => o,
+            // State left by the previous compositor (kept for a seamless start) can conflict
+            // with ours: start from a clean device instead.
+            Err(err) if device.manager.lock().device_mut().reset_state().is_ok() => {
+                tracing::debug!("output {name} after a device reset ({err:?})");
+                match init(device) {
+                    Ok(o) => o,
+                    Err(err) => {
+                        tracing::warn!("error initializing output {name}: {err:?}");
+                        return;
+                    }
+                }
+            }
             Err(err) => {
                 tracing::warn!("error initializing output {name}: {err:?}");
                 return;
@@ -1145,5 +1184,54 @@ pub fn apply_libinput_config(device: &mut smithay::reexports::input::Device, con
         } else {
             li::SendEventsMode::DISABLED
         });
+    }
+}
+
+/// Turn off displays the previous compositor left on that we don't drive (disabled in the
+/// config, or no longer connected), now that the device wasn't reset.
+fn disable_unused_crtcs(device: &Device) {
+    let drm = device.manager.device();
+    let Ok(resources) = drm.resource_handles() else {
+        return;
+    };
+    for &crtc in resources.crtcs() {
+        let ours = device.surfaces.contains_key(&crtc) || device.non_desktop.iter().any(|&(_, c)| c == crtc);
+        if !ours
+            && drm.get_crtc(crtc).is_ok_and(|info| info.mode().is_some())
+            && let Err(err) = drm.set_crtc(crtc, None, (0, 0), &[], None)
+        {
+            tracing::debug!("couldn't turn off unused CRTC {crtc:?}: {err}");
+        }
+    }
+}
+
+/// `_IOWR('d', 0xD0, struct drm_mode_closefb)`: like RMFB, but a framebuffer on screen stays
+/// there (Linux 6.8+) instead of the planes showing it being turned off.
+const DRM_IOCTL_MODE_CLOSEFB: libc::c_ulong = (3 << 30) | (8 << 16) | ((b'd' as libc::c_ulong) << 8) | 0xD0;
+
+fn close_fb(drm: &impl std::os::fd::AsFd, fb: smithay::reexports::drm::control::framebuffer::Handle) {
+    use std::os::fd::AsRawFd;
+    #[repr(C)]
+    struct DrmModeClosefb {
+        fb_id: u32,
+        pad: u32,
+    }
+    let mut arg = DrmModeClosefb {
+        fb_id: u32::from(fb),
+        pad: 0,
+    };
+    // SAFETY: a valid DRM fd and the kernel's struct layout for this ioctl.
+    if unsafe { libc::ioctl(drm.as_fd().as_raw_fd(), DRM_IOCTL_MODE_CLOSEFB, &mut arg) } != 0 {
+        // Older kernels: the frame goes when we exit.
+        tracing::debug!("CLOSEFB {fb:?}: {}", std::io::Error::last_os_error());
+    }
+}
+
+#[cfg(test)]
+mod closefb_tests {
+    #[test]
+    fn closefb_ioctl_number() {
+        // From the kernel's drm.h: DRM_IOWR(0xD0, struct drm_mode_closefb).
+        assert_eq!(super::DRM_IOCTL_MODE_CLOSEFB, 0xC008_64D0);
     }
 }

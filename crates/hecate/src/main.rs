@@ -19,6 +19,7 @@ mod overrides;
 mod protocols;
 mod render;
 mod session;
+mod splash;
 mod state;
 mod tools;
 mod utils;

@@ -37,6 +37,33 @@ pub fn render_to_dmabuf(
     Ok(res.sync)
 }
 
+/// Render elements into RGBA bytes (`size` pixels, rows top to bottom).
+pub fn render_to_rgba(
+    renderer: &mut GlesRenderer,
+    size: Size<i32, smithay::utils::Physical>,
+    scale: smithay::utils::Scale<f64>,
+    elements: &[impl RenderElement<GlesRenderer>],
+) -> anyhow::Result<Vec<u8>> {
+    let buffer_size: Size<i32, Buffer> = (size.w, size.h).into();
+    let mut texture: GlesTexture = renderer
+        .create_buffer(Fourcc::Abgr8888, buffer_size)
+        .context("error creating texture")?;
+    let mapping = {
+        let mut target = renderer.bind(&mut texture).context("error binding texture")?;
+        let mut tracker = OutputDamageTracker::new(size, scale, smithay::utils::Transform::Normal);
+        tracker
+            .render_output(renderer, &mut target, 0, elements, Color32F::TRANSPARENT)
+            .context("error rendering")?;
+        renderer
+            .copy_framebuffer(&target, Rectangle::from_size(buffer_size), Fourcc::Abgr8888)
+            .context("error copying framebuffer")?
+    };
+    Ok(renderer
+        .map_texture(&mapping)
+        .context("error mapping texture")?
+        .to_vec())
+}
+
 pub fn render_to_shm(
     renderer: &mut GlesRenderer,
     damage_tracker: &mut OutputDamageTracker,

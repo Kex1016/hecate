@@ -43,6 +43,7 @@ impl State {
                 self.backend.set_outputs_powered(&mut self.hecate, true);
                 self.hecate.queue_redraw_all();
             }
+            Action::SplashDone => self.hecate.finish_splash(),
             Action::Signal(name) => {
                 self.ipc_broadcast_event(hecate_ipc::Event::Signal { name });
             }

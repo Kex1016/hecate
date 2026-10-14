@@ -299,6 +299,13 @@ impl Backend {
         }
     }
 
+    /// At exit: leave the last frame on screen for the next compositor.
+    pub fn leave_on_screen(&mut self) {
+        if let Backend::Tty(b) = self {
+            b.leave_on_screen();
+        }
+    }
+
     /// Run something with the primary renderer, if there is one.
     pub fn with_renderer<T>(
         &mut self,
@@ -335,6 +342,7 @@ impl Hecate {
         );
         self.output_heads_dirty = true;
         self.apply_output_props(&output);
+        self.load_splash(&output);
         if output.current_location() == (0, 0).into()
             && self
                 .config

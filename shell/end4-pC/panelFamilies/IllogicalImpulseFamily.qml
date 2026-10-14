@@ -39,12 +39,21 @@ Scope {
     // lock screen and popups, then what only opens on demand.
 
     // On screen
-    PanelLoader { component: Background {} }
+    PanelLoader { id: background; component: Background {} }
     PanelLoader { component: NiriBackdrop {} }
     PanelLoader { component: ScreenFrame {} }
     PanelLoader { component: ScreenCorners {} }
-    PanelLoader { extraCondition: !Config.options.bar.vertical; component: Bar {} }
-    PanelLoader { extraCondition: Config.options.bar.vertical; component: VerticalBar {} }
+    PanelLoader { id: bar; extraCondition: !Config.options.bar.vertical; component: Bar {} }
+    PanelLoader { id: verticalBar; extraCondition: Config.options.bar.vertical; component: VerticalBar {} }
+
+    // hecate's login splash (a picture of this desktop) covers the screen until the wallpaper
+    // and bar are up; the delay lets their first frames land before it fades.
+    Timer {
+        interval: 300
+        running: WM.compositor === "hecate" && background.item !== null
+            && (bar.item !== null || verticalBar.item !== null) && !GlobalStates.startupLockPending
+        onTriggered: Quickshell.execDetached(["hecate", "msg", "action", "splash-done"])
+    }
     PanelLoader { extraCondition: Config.options.dock.enable; component: Dock {} }
 
     // Lock screen, notifications, OSD

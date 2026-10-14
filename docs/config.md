@@ -86,6 +86,10 @@ allow_tearing = "fullscreen"   # "never" | "fullscreen" | "always"
 direct_scanout = true          # fullscreen windows go straight to the display (primary plane) and the cursor uses the cursor plane; overlay planes are never used
 fullscreen_inhibits_idle = true
 
+[splash]
+enable = false                 # login splash: the desktop as it was, until the shell runs `splash_done`
+# dir = "/var/lib/hecate-greetd/users/me/splash"   # where the pictures go (default $XDG_STATE_HOME/hecate/snapshots)
+
 [xwayland]
 enable = true
 path = "xwayland-satellite"    # spawned on first X11 connection
@@ -264,6 +268,23 @@ works unchanged once action names are mapped, because binds have the same
 - `signal = "name"` posts `{"Signal":{"name":"name"}}` on the IPC event stream, for a shell
   that listens there: cheaper than spawning a process per key press (the bundled shell's
   Alt+Tab switcher uses it).
+- **Login splash** (`splash.enable`, on with the Home Manager module's `shell.enable`): when
+  the session locks or ends, each output's desktop is saved to
+  `$XDG_STATE_HOME/hecate/snapshots/<output>.png` (or `splash.dir`; hecate-greetd's login
+  screen shows them from `/var/lib/hecate-greetd/users/<user>/splash`): the wallpaper and the shell's layers below
+  overlays, never windows, overlays or the cursor. The next session draws it over everything
+  from its first frame, so there's no bare screen while the shell starts, and fades it out
+  when something runs the `splash_done` action (the bundled shell does once its wallpaper and
+  bar are up), or after 20 s. A picture whose size doesn't match the output (another mode or
+  scale) isn't shown.
+- **Handing the screen over**: on a TTY, hecate starts without first turning every output off
+  (the previous compositor's last frame stays until hecate's first frame replaces it; with the
+  same mode there's no modeset either), and at exit it leaves its last frame up (`CLOSEFB`,
+  Linux 6.8+) instead of switching outputs off. An output that fails to start on the state it
+  found gets a device reset and a retry; outputs left on that hecate doesn't drive are turned
+  off. With nothing else holding the GPU, the kernel restores the console when hecate exits,
+  as before; hecate-greetd keeps the GPU open between the login screen and the session, so
+  a login goes from the login screen's last frame straight to the session's splash.
 - A `transparent` bind with `on_release` (e.g. `"Alt_L" = { on_release = ..., transparent =
   true }`) runs the release action and still passes both the press and the release on to the
   focused window.

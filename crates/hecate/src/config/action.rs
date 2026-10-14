@@ -17,6 +17,8 @@ pub enum Action {
     /// Post a named `Signal` event on the IPC event stream, for a shell listening there
     /// (cheaper than spawning a process per key press, e.g. for Alt+Tab).
     Signal(String),
+    /// The shell is up: fade out the login splash (`splash.enable`).
+    SplashDone,
     /// Spawn the terminal from `general.terminal`, `$TERMINAL`, or the first of foot, kitty, alacritty.
     Terminal,
     ToggleKeybinds,
