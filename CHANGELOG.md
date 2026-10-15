@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Snapping counts the border: a window snapped to an edge or corner keeps its border inside
+  the usable area and clear of the other half, and edge resistance lines windows up border to
+  border, instead of the border sitting under the bar or on top of the next window.
 - Login splash (`splash.enable`, on with the bundled shell): the desktop as it was when the
   session last locked or ended (wallpaper and shell, no windows) covers the screen from the
   first frame until the shell is up, then fades out, instead of a bare screen while it starts.

@@ -127,8 +127,29 @@ fn maximize_respects_gaps() {
 }
 
 #[test]
+fn edge_resistance_meets_border_to_border() {
+    let (mut f, id) = setup("[border]\nwidth = 4\n[resistance]\nscreen_edge = 0");
+    f.map_window(id, (400, 300), RED, None);
+    f.map_window(id, (400, 300), RED, None);
+    let ws = f.windows();
+    let (a, b) = (ws[0].clone(), ws[1].clone());
+    f.hecate().set_window_rect(
+        &a,
+        smithay::utils::Rectangle::new((100, 100).into(), (400, 300).into()),
+    );
+    // b dragged so its border starts 5 px right of a's border (a's outer right edge is x = 504).
+    let got = crate::input::grabs::resist(f.hecate(), &b, (513, 100).into());
+    assert_eq!(
+        got,
+        (508, 100).into(),
+        "b's border meets a's, not b's window edge"
+    );
+}
+
+#[test]
 fn snap_left_and_right() {
-    let (mut f, id) = setup("");
+    // The border is part of the snapped half: 4 px of it fits between the window and each edge.
+    let (mut f, id) = setup("[border]\nwidth = 4");
     let surface = f.map_window(id, (400, 300), RED, None);
     let w = f.windows()[0].clone();
     f.hecate().do_action(Action::SnapToEdge(Edge::Left), None);
@@ -141,15 +162,15 @@ fn snap_left_and_right() {
         .unwrap()
         .1
         .clone();
-    assert_eq!(cfg.size, (960, 1080));
+    assert_eq!(cfg.size, (952, 1072));
     assert!(cfg.states.contains(&XdgState::TiledLeft));
     f.ack_and_resize(id, &surface, RED);
-    assert_eq!(f.hecate().hecate.wm.window_rect(&w).loc, (0, 0).into());
+    assert_eq!(f.hecate().hecate.wm.window_rect(&w).loc, (4, 4).into());
 
     f.hecate().do_action(Action::SnapToEdge(Edge::Right), None);
     f.double_roundtrip(id);
     f.ack_and_resize(id, &surface, RED);
-    assert_eq!(f.hecate().hecate.wm.window_rect(&w).loc, (960, 0).into());
+    assert_eq!(f.hecate().hecate.wm.window_rect(&w).loc, (964, 4).into());
 
     f.hecate().do_action(Action::Unsnap, None);
     f.double_roundtrip(id);
