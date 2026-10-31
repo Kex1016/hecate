@@ -125,7 +125,7 @@ impl State {
         let picking = self.has_pending_pick();
         let keyboard = self.hecate.seat.get_keyboard().unwrap();
         let mut key_report: Option<hecate_ipc::KeyEvent> = None;
-        let result = keyboard.input(self, keycode, state, serial, time, |_, mods, handle| {
+        let (result, mods_changed) = keyboard.input_intercept(self, keycode, state, |_, mods, handle| {
             let modifiers = Modifiers::from_xkb(mods);
             {
                 let sym = handle
@@ -226,6 +226,20 @@ impl State {
             }
             FilterResult::Forward
         });
+        // The client resolves a key against the modifiers it was last told about. A modifier
+        // key that fires a bind never reaches it, so what that key did to the modifiers goes
+        // out before the next key that does (an Alt_L hold bind, then Alt+Left in a browser).
+        let result = match result {
+            FilterResult::Intercept(r) => {
+                self.hecate.mods_changed_pending |= mods_changed;
+                Some(r)
+            }
+            FilterResult::Forward => {
+                self.send_pending_modifiers(serial);
+                keyboard.input_forward(self, keycode, state, serial, time, mods_changed);
+                None
+            }
+        };
 
         if let Some(mut report) = key_report {
             if let Some(KeyResult::Bind(value, _)) = &result {
@@ -263,7 +277,9 @@ impl State {
                     if value.flags.transparent {
                         // Forward the key to the client as well.
                         let kb = self.hecate.seat.get_keyboard().unwrap();
-                        kb.input_forward(self, keycode, state, serial, time, false);
+                        // Not pending: this key's own modifier change goes with it.
+                        self.hecate.mods_changed_pending = false;
+                        kb.input_forward(self, keycode, state, serial, time, mods_changed);
                         self.hecate.suppressed_keys.retain(|k| *k != raw_code);
                         // Its release goes to the client too, so remember the release action
                         // here: the suppressed-key path above never sees it.
@@ -305,6 +321,19 @@ impl State {
         {
             let (_, action) = self.hecate.transparent_holds.remove(pos);
             self.do_action(action, None);
+        }
+    }
+
+    /// Tell the focused client about modifiers it missed (changed by keys that fired binds).
+    fn send_pending_modifiers(&mut self, serial: smithay::utils::Serial) {
+        if !std::mem::take(&mut self.hecate.mods_changed_pending) {
+            return;
+        }
+        use smithay::input::keyboard::KeyboardTarget;
+        let seat = self.hecate.seat.clone();
+        let keyboard = seat.get_keyboard().unwrap();
+        if let Some(focus) = keyboard.current_focus() {
+            focus.modifiers(&seat, self, keyboard.modifier_state(), serial);
         }
     }
 

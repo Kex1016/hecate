@@ -185,6 +185,8 @@ pub struct Hecate {
     pub suppressed_keys: Vec<u32>,
     /// Transparent hold-style binds whose key is down: key code and release action.
     pub transparent_holds: Vec<(u32, crate::config::action::Action)>,
+    /// A key the client didn't get changed the modifiers: the next forwarded key carries them.
+    pub mods_changed_pending: bool,
     /// Buttons whose press triggered a mouse bind.
     pub suppressed_buttons: Vec<u32>,
     pub gestures: crate::input::gestures::GestureState,
@@ -575,6 +577,7 @@ impl Hecate {
             shortcut_inhibitors: Vec::new(),
             suppressed_keys: Vec::new(),
             transparent_holds: Vec::new(),
+            mods_changed_pending: false,
             suppressed_buttons: Vec::new(),
             gestures: Default::default(),
             pending_mod_tap: None,

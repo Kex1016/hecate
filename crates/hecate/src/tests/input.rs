@@ -240,3 +240,104 @@ fn transparent_hold_bind_fires_on_release_after_another_bind() {
     assert!(!f.hecate().hecate.keybinds_enabled, "the Alt release fired");
     assert!(f.hecate().hecate.transparent_holds.is_empty());
 }
+
+/// The client is told the modifiers a bound modifier key set, with the next key it does get:
+/// Alt_L is the Alt+Tab switcher's transparent hold bind, and Alt+Left must still go back a
+/// page in the browser.
+#[test]
+fn modifiers_of_a_bound_modifier_key_reach_the_client() {
+    use super::client::KeyboardEvent;
+    use smithay::backend::input::KeyState;
+    const MOD1: u32 = 1 << 3;
+    let (mut f, id) = setup(
+        "[binds]\n\"Alt_L\" = { on_release = \"toggle_keybinds\", transparent = true }\n\"Alt+Tab\" = \"toggle_show_desktop\"\n",
+    );
+    let surface = f.map_window(id, (400, 300), RED, None);
+    f.double_roundtrip(id);
+    let _ = f.client(id).state.recent_keyboard_events(&surface).count();
+    let (alt, left) = (56 + 8, 105 + 8);
+    let key = |f: &mut Fixture, code: u32, state| {
+        f.hecate().handle_key(code.into(), state, InputTime::now());
+        f.double_roundtrip(id);
+    };
+
+    key(&mut f, alt, KeyState::Pressed);
+    key(&mut f, left, KeyState::Pressed);
+    let events: Vec<KeyboardEvent> = f
+        .client(id)
+        .state
+        .recent_keyboard_events(&surface)
+        .cloned()
+        .collect();
+    let left_at = events
+        .iter()
+        .position(|e| matches!(e, KeyboardEvent::Key { key, .. } if *key == 105))
+        .expect("Left reached the client: {events:?}");
+    assert!(
+        events[..left_at]
+            .iter()
+            .any(|e| matches!(e, KeyboardEvent::Modifiers { depressed, .. } if depressed & MOD1 != 0)),
+        "Alt was depressed before Left: {events:?}"
+    );
+
+    key(&mut f, left, KeyState::Released);
+    key(&mut f, alt, KeyState::Released);
+    let events: Vec<KeyboardEvent> = f
+        .client(id)
+        .state
+        .recent_keyboard_events(&surface)
+        .cloned()
+        .collect();
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, KeyboardEvent::Modifiers { depressed, .. } if depressed & MOD1 == 0)),
+        "Alt released: {events:?}"
+    );
+}
+
+/// A non-transparent bind on a modifier key: the modifiers still reach the client with the
+/// next key that does.
+#[test]
+fn modifiers_of_a_swallowed_modifier_key_reach_the_client() {
+    use super::client::KeyboardEvent;
+    use smithay::backend::input::KeyState;
+    const MOD1: u32 = 1 << 3;
+    let (mut f, id) = setup("[binds]\n\"Alt_L\" = { on_press = \"toggle_keybinds\" }\n");
+    let surface = f.map_window(id, (400, 300), RED, None);
+    f.double_roundtrip(id);
+    let _ = f.client(id).state.recent_keyboard_events(&surface).count();
+    let (alt, left): (u32, u32) = (56 + 8, 105 + 8);
+    f.hecate()
+        .handle_key(alt.into(), KeyState::Pressed, InputTime::now());
+    f.double_roundtrip(id);
+    let swallowed: Vec<KeyboardEvent> = f
+        .client(id)
+        .state
+        .recent_keyboard_events(&surface)
+        .cloned()
+        .collect();
+    assert!(
+        swallowed.is_empty(),
+        "the bound Alt press is not forwarded: {swallowed:?}"
+    );
+    f.hecate()
+        .handle_key(left.into(), KeyState::Pressed, InputTime::now());
+    f.double_roundtrip(id);
+    let events: Vec<KeyboardEvent> = f
+        .client(id)
+        .state
+        .recent_keyboard_events(&surface)
+        .cloned()
+        .collect();
+    let left_at = events
+        .iter()
+        .position(|e| matches!(e, KeyboardEvent::Key { key, .. } if *key == 105))
+        .expect("Left reached the client");
+    assert!(
+        events[..left_at]
+            .iter()
+            .any(|e| matches!(e, KeyboardEvent::Modifiers { depressed, .. } if depressed & MOD1 != 0)),
+        "Alt was depressed before Left: {events:?}"
+    );
+}

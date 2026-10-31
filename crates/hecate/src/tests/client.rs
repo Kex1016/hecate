@@ -409,7 +409,7 @@ pub struct Keyboard {
     pub surface: Option<WlSurface>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum KeyboardEvent {
     Enter {
         keys: Vec<u8>,
