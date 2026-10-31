@@ -109,6 +109,7 @@ fn exclusive_layers_keep_the_keyboard_where_it_is() {
     f.add_output("headless-1", (1920, 1080));
     f.add_output("headless-2", (1920, 1080));
     let id = f.add_client();
+    f.double_roundtrip(id);
     let mut outputs: Vec<(String, wayland_client::protocol::wl_output::WlOutput)> = f
         .client(id)
         .state
@@ -117,7 +118,10 @@ fn exclusive_layers_keep_the_keyboard_where_it_is() {
         .map(|(o, name)| (name.clone(), o.clone()))
         .collect();
     outputs.sort_by(|a, b| a.0.cmp(&b.0));
-    assert_eq!(outputs.len(), 2);
+    assert_eq!(
+        outputs.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(),
+        ["headless-1", "headless-2"]
+    );
     let mut surfaces = Vec::new();
     for (_, output) in &outputs {
         let layer = f
