@@ -31,11 +31,15 @@ Singleton {
         const ry = Math.round(y);
         const rw = Math.round(width);
         const rh = Math.round(height);
-        const cropBase = `magick ${StringUtils.shellSingleQuoteEscape(screenshotPath)} `
+        const cropBase = `magick '${StringUtils.shellSingleQuoteEscape(screenshotPath)}' `
             + `-crop ${rw}x${rh}+${rx}+${ry} +repage`
-        const cropToStdout = `${cropBase} -`
-        const cropInPlace = `${cropBase} '${StringUtils.shellSingleQuoteEscape(screenshotPath)}'`
-        const cleanup = `rm '${StringUtils.shellSingleQuoteEscape(screenshotPath)}'`
+        // The temp file has no extension, so name the output format rather than leave it to be guessed.
+        const cropToStdout = `${cropBase} png:-`
+        const cropInPlace = `${cropBase} 'png:${StringUtils.shellSingleQuoteEscape(screenshotPath)}'`
+        const cleanup = `rm -f '${StringUtils.shellSingleQuoteEscape(screenshotPath)}'`
+        // Report a failed step instead of leaving an empty file or clipboard behind.
+        const failed = (what) => `{ ${cleanup}; notify-send -a "Screen Snip" -i image-x-generic "Screenshot failed" "${what}: $(tr '\\n' ' ' < "$err")"; rm -f "$err"; exit 1; }`
+        const withErr = (cmd) => `err=$(mktemp) && ${cmd}`
         const slurpRegion = `${rx},${ry} ${rw}x${rh}`
         const uploadAndGetUrl = (filePath) => {
             return `curl -sF files[]=@'${StringUtils.shellSingleQuoteEscape(filePath)}' ${root.fileUploadApiEndpoint} | jq -r '.files[0].url'`
@@ -46,16 +50,18 @@ Singleton {
             case ScreenshotAction.Action.Copy:
                 if (saveDir === "") {
                     // not saving the screenshot, just copy to clipboard
-                    return ["bash", "-c", `${cropToStdout} | wl-copy && ${cleanup}`]
+                    return ["bash", "-c", withErr(`${cropToStdout} 2>"$err" > "$err.png" && [ -s "$err.png" ] && wl-copy < "$err.png" && rm -f "$err" "$err.png" && ${cleanup} || { rm -f "$err.png"; ${failed("could not crop the capture")}; }`)]
                     break;
                 }
+                // Crop into a temp file first: a file is saved only when there is a picture to save.
                 return [
                     "bash", "-c",
-                    `mkdir -p '${StringUtils.shellSingleQuoteEscape(saveDir)}' && \
+                    withErr(`mkdir -p '${StringUtils.shellSingleQuoteEscape(saveDir)}' && \
                     saveFileName="screenshot-$(date '+%Y-%m-%d_%H.%M.%S').png" && \
-                    savePath="${saveDir}/$saveFileName" && \
-                    ${cropToStdout} | tee >(wl-copy) > "$savePath" && \
-                    ${cleanup}`
+                    savePath='${StringUtils.shellSingleQuoteEscape(saveDir)}'/"$saveFileName" && \
+                    { ${cropToStdout} 2>"$err" > "$savePath.part" && [ -s "$savePath.part" ] || { rm -f "$savePath.part"; ${failed("could not crop the capture")}; }; } && \
+                    rm -f "$err" && mv "$savePath.part" "$savePath" && wl-copy < "$savePath" && \
+                    ${cleanup}`)
                 ]
 
                 break;
