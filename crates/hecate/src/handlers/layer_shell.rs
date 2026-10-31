@@ -109,9 +109,18 @@ impl State {
                 let interactivity = layer.cached_state().keyboard_interactivity;
                 let can_focus = interactivity != wlr_layer::KeyboardInteractivity::None
                     && !self.layer_rule_no_focus(&layer);
-                let is_newly_focusable = interactivity == wlr_layer::KeyboardInteractivity::Exclusive
-                    || (interactivity == wlr_layer::KeyboardInteractivity::OnDemand
-                        && !layer.user_data().get::<LayerSeen>().is_some());
+                let seen = layer.user_data().get::<LayerSeen>().is_some();
+                // On the first map only, or when no exclusive layer holds the keyboard: not on
+                // every commit, or two exclusive surfaces (the greeter's lock screen has one per
+                // output, redrawing every frame) would trade the keyboard back and forth, with a
+                // key's press going to one and its release to the other.
+                let is_newly_focusable = match interactivity {
+                    wlr_layer::KeyboardInteractivity::Exclusive => {
+                        !seen || !self.keyboard_on_exclusive_layer()
+                    }
+                    wlr_layer::KeyboardInteractivity::OnDemand => !seen,
+                    wlr_layer::KeyboardInteractivity::None => false,
+                };
                 layer.user_data().insert_if_missing(|| LayerSeen);
                 // Layers drawn under a fullscreen window (everything but Overlay: the bar,
                 // its popups, notifications) don't take the keyboard from it, or a
@@ -134,6 +143,21 @@ impl State {
         }
         self.hecate.queue_redraw(&output);
         true
+    }
+
+    /// Does a mapped layer surface with exclusive keyboard interactivity have the keyboard?
+    fn keyboard_on_exclusive_layer(&self) -> bool {
+        let Some(focus) = self.hecate.seat.get_keyboard().and_then(|k| k.current_focus()) else {
+            return false;
+        };
+        self.hecate.wm.outputs().any(|o| {
+            layer_map_for_output(o)
+                .layer_for_surface(&focus, WindowSurfaceType::TOPLEVEL)
+                .is_some_and(|l| {
+                    l.cached_state().keyboard_interactivity == wlr_layer::KeyboardInteractivity::Exclusive
+                        && crate::utils::is_mapped(l.wl_surface())
+                })
+        })
     }
 
     fn layer_rule_no_focus(&self, layer: &LayerSurface) -> bool {

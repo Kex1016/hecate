@@ -103,6 +103,72 @@ fn exclusive_keyboard_layer_takes_focus() {
 }
 
 #[test]
+fn exclusive_layers_keep_the_keyboard_where_it_is() {
+    // The greeter's lock screen: one exclusive surface per output, each redrawing every frame.
+    let mut f = Fixture::new();
+    f.add_output("headless-1", (1920, 1080));
+    f.add_output("headless-2", (1920, 1080));
+    let id = f.add_client();
+    let mut outputs: Vec<(String, wayland_client::protocol::wl_output::WlOutput)> = f
+        .client(id)
+        .state
+        .outputs
+        .iter()
+        .map(|(o, name)| (name.clone(), o.clone()))
+        .collect();
+    outputs.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(outputs.len(), 2);
+    let mut surfaces = Vec::new();
+    for (_, output) in &outputs {
+        let layer = f
+            .client(id)
+            .create_layer(Some(output), Layer::Overlay, "quickshell:lockscreen");
+        let surface = layer.surface.clone();
+        layer.set_configure_props(LayerConfigureProps {
+            size: Some((600, 400)),
+            kb_interactivity: Some(KeyboardInteractivity::Exclusive),
+            ..Default::default()
+        });
+        layer.commit();
+        f.double_roundtrip(id);
+        let layer = f.client(id).layer(&surface);
+        layer.attach_color(BLUE);
+        layer.set_size(600, 400);
+        layer.ack_last_and_commit();
+        f.double_roundtrip(id);
+        surfaces.push(surface);
+    }
+    // The output whose exclusive layer surface has the keyboard.
+    fn focused_output(f: &mut Fixture) -> Option<String> {
+        let state = &f.hecate().hecate;
+        let focus = state.seat.get_keyboard()?.current_focus()?;
+        state
+            .wm
+            .outputs()
+            .find(|o| {
+                smithay::desktop::layer_map_for_output(o)
+                    .layer_for_surface(&focus, smithay::desktop::WindowSurfaceType::TOPLEVEL)
+                    .is_some()
+            })
+            .map(|o| o.name())
+    }
+    assert_eq!(
+        focused_output(&mut f).as_deref(),
+        Some("headless-2"),
+        "the last mapped exclusive layer has the keyboard"
+    );
+
+    // The first one redraws: the keyboard stays where it is.
+    for _ in 0..3 {
+        let layer = f.client(id).layer(&surfaces[0]);
+        layer.attach_new_buffer();
+        layer.commit();
+        f.double_roundtrip(id);
+        assert_eq!(focused_output(&mut f).as_deref(), Some("headless-2"));
+    }
+}
+
+#[test]
 fn layer_rules_resolve_in_order() {
     let toml = r#"
 [[layer_rules]]

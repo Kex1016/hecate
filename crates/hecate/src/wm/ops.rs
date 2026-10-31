@@ -480,6 +480,8 @@ impl State {
         &self,
     ) -> Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface> {
         use smithay::wayland::shell::wlr_layer::{KeyboardInteractivity, Layer};
+        let current = self.hecate.seat.get_keyboard().and_then(|k| k.current_focus());
+        let mut first = None;
         for output in self.hecate.wm.outputs() {
             let map = smithay::desktop::layer_map_for_output(output);
             // A fullscreen window covers the Top layer, so it keeps the keyboard there.
@@ -493,11 +495,16 @@ impl State {
                     l.cached_state().keyboard_interactivity == KeyboardInteractivity::Exclusive
                         && crate::utils::is_mapped(l.wl_surface())
                 }) {
-                    return Some(l.wl_surface().clone());
+                    // With one per output (the greeter's lock screen), the keyboard stays on
+                    // the one it's on rather than jumping to the first output's.
+                    if current.as_ref() == Some(l.wl_surface()) {
+                        return Some(l.wl_surface().clone());
+                    }
+                    first.get_or_insert_with(|| l.wl_surface().clone());
                 }
             }
         }
-        None
+        first
     }
 
     // ------------------------------------------------------------ geometry
