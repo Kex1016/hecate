@@ -30,6 +30,7 @@ use smithay::backend::udev::{UdevBackend, UdevEvent, all_gpus, primary_gpu};
 use smithay::desktop::utils::OutputPresentationFeedback;
 use smithay::input::keyboard::LedState;
 use smithay::output::{Mode as WlMode, Output, PhysicalProperties};
+use smithay::reexports::calloop::channel::{self, Channel, Sender};
 use smithay::reexports::calloop::{LoopHandle, RegistrationToken};
 use smithay::reexports::drm::Device as _;
 use smithay::reexports::drm::control::{Device as _, ModeTypeFlags, connector, crtc};
@@ -78,13 +79,52 @@ struct TtyOutputId {
 
 struct Surface {
     output: Output,
-    drm_output: HecateDrmOutput,
+    /// None while a frame of it is being committed on another thread (`CommitDone` brings it
+    /// back).
+    drm_output: Option<HecateDrmOutput>,
     connector: connector::Handle,
     vrr_supported: bool,
     gamma: Option<GammaProps>,
     /// Gamma set while the session was inactive, applied on resume.
     pending_gamma: Option<Option<Vec<u16>>>,
+    /// The next frame is a modeset (the first one, a power-on, a resume): a blocking commit,
+    /// so it goes to a thread.
+    modeset_pending: bool,
+    /// A vblank that arrived while the output was away on a commit thread.
+    missed_vblank: Option<Vblank>,
+    /// A power change asked for while the output was away.
+    pending_power: Option<bool>,
 }
+
+/// What a DRM vblank event said.
+#[derive(Clone, Copy)]
+struct Vblank {
+    time: Duration,
+    flags: wp_presentation_feedback::Kind,
+    sequence: u32,
+}
+
+/// A frame commit that ran on its own thread is done: the output comes back to its surface.
+///
+/// A modeset (an output coming on after DPMS, the first frame of a session, a resume) is a
+/// blocking atomic commit, and a monitor can take seconds to come up. Done on the main thread it
+/// stalled everything, input included, and with one monitor awake and the other still waking up,
+/// the awake one froze too. The commit holds the output's compositor lock while it blocks, so
+/// the main thread doesn't touch that output until it is back; the vblank the commit produces
+/// may arrive first and is kept until then.
+struct CommitDone {
+    node: DrmNode,
+    crtc: crtc::Handle,
+    drm_output: HecateDrmOutput,
+    result: Result<(), String>,
+    took: Duration,
+}
+
+// The output and its compositor cross to the commit thread.
+const _: () = {
+    const fn assert_send<T: Send>() {}
+    assert_send::<HecateDrmOutput>();
+};
 
 struct Device {
     token: RegistrationToken,
@@ -111,6 +151,11 @@ pub struct Tty {
     keyboards: Vec<smithay::reexports::input::Device>,
     input_devices: Vec<smithay::reexports::input::Device>,
     event_loop: LoopHandle<'static, State>,
+    /// Commit threads report back through this.
+    commit_tx: Sender<CommitDone>,
+    /// Frames being committed on threads. While there are any, every output's commits go the
+    /// same way: the kernel may make another CRTC's flip wait for the modeset in progress.
+    commits_in_flight: usize,
 }
 
 impl Tty {
@@ -212,6 +257,12 @@ impl Tty {
                             }
                         }
                     }
+                    if let crate::backend::Backend::Tty(tty) = &mut state.backend {
+                        // The first frame after a resume sets the outputs up again.
+                        for surface in tty.devices.values_mut().flat_map(|d| d.surfaces.values_mut()) {
+                            surface.modeset_pending = true;
+                        }
+                    }
                     let outputs: Vec<Output> = state.hecate.output_state.keys().cloned().collect();
                     for o in outputs {
                         if let Some(s) = state.hecate.output_state.get_mut(&o) {
@@ -222,6 +273,17 @@ impl Tty {
                 }
             })
             .map_err(|e| anyhow::anyhow!("inserting session source: {e}"))?;
+
+        let (commit_tx, commit_rx): (Sender<CommitDone>, Channel<CommitDone>) = channel::channel();
+        event_loop
+            .insert_source(commit_rx, |event, _, state| {
+                if let channel::Event::Msg(done) = event
+                    && let crate::backend::Backend::Tty(tty) = &mut state.backend
+                {
+                    tty.commit_done(&mut state.hecate, done);
+                }
+            })
+            .map_err(|e| anyhow::anyhow!("inserting commit source: {e}"))?;
 
         Ok(Tty {
             syncobj_state: None,
@@ -235,6 +297,8 @@ impl Tty {
             keyboards: Vec::new(),
             input_devices: Vec::new(),
             event_loop,
+            commit_tx,
+            commits_in_flight: 0,
         })
     }
 
@@ -620,11 +684,15 @@ impl Tty {
             crtc,
             Surface {
                 output: output.clone(),
-                drm_output,
+                drm_output: Some(drm_output),
                 connector: connector.handle(),
                 vrr_supported,
                 gamma,
                 pending_gamma: None,
+                // The first frame sets the mode.
+                modeset_pending: true,
+                missed_vblank: None,
+                pending_power: None,
             },
         );
         hecate.add_output(output.clone());
@@ -744,6 +812,9 @@ impl Tty {
         if !self.session.is_active() || hecate.output_state.get(output).is_some_and(|s| s.powered_off) {
             return false;
         }
+        let Some(id) = output.user_data().get::<TtyOutputId>().copied() else {
+            return false;
+        };
         let Some(mut renderer) = self.renderer.take() else {
             return false;
         };
@@ -753,8 +824,17 @@ impl Tty {
         let mut draw = std::time::Duration::ZERO;
         let mut queue = std::time::Duration::ZERO;
         let direct_scanout = hecate.config.gaming.direct_scanout;
-        let submitted = match self.surface_for(output) {
+        let offload_all = self.commits_in_flight > 0;
+        let surface = self
+            .devices
+            .get_mut(&id.node)
+            .and_then(|d| d.surfaces.get_mut(&id.crtc))
+            // Away on a commit thread: it waits for its vblank anyway.
+            .filter(|s| s.drm_output.is_some());
+        let mut spawned = false;
+        let submitted = match surface {
             Some(surface) => {
+                let drm_output = surface.drm_output.as_mut().unwrap();
                 // Primary-plane scanout is what direct scanout is for (a fullscreen game or
                 // video skips composition), plus the cursor plane. Not overlay planes:
                 // Smithay tries every element on them with a test-only atomic commit per
@@ -766,10 +846,7 @@ impl Tty {
                     FrameFlags::empty()
                 };
                 let draw_started = std::time::Instant::now();
-                let rendered =
-                    surface
-                        .drm_output
-                        .render_frame(&mut renderer, &elements, [0., 0., 0., 1.], flags);
+                let rendered = drm_output.render_frame(&mut renderer, &elements, [0., 0., 0., 1.], flags);
                 draw = draw_started.elapsed();
                 match rendered {
                     Ok(res) => {
@@ -778,23 +855,60 @@ impl Tty {
                             false
                         } else {
                             let feedback = hecate.take_presentation_feedback(output, &res.states);
-                            let queue_started = std::time::Instant::now();
-                            let queued = surface.drm_output.queue_frame(Some(feedback));
-                            queue = queue_started.elapsed();
-                            // A modeset (an output waking up) is a blocking commit: nothing,
-                            // input included, runs until the monitor has come up.
-                            if queue > std::time::Duration::from_millis(500) {
-                                tracing::warn!(
-                                    "committing a frame to {} blocked for {:.1} s (modeset)",
-                                    output.name(),
-                                    queue.as_secs_f64()
+                            drop(res);
+                            if surface.modeset_pending || offload_all {
+                                // A modeset is a blocking commit, as long as the monitor takes
+                                // to come up: not on the main thread (see `CommitDone`).
+                                surface.modeset_pending = false;
+                                let drm_output = surface.drm_output.take().unwrap();
+                                let tx = self.commit_tx.clone();
+                                let name = output.name();
+                                let spawn = std::thread::Builder::new().name(format!("commit {name}")).spawn(
+                                    move || {
+                                        let started = std::time::Instant::now();
+                                        let mut drm_output = drm_output;
+                                        let result = drm_output
+                                            .queue_frame(Some(feedback))
+                                            .map_err(|err| format!("{err:?}"));
+                                        let _ = tx.send(CommitDone {
+                                            node: id.node,
+                                            crtc: id.crtc,
+                                            drm_output,
+                                            result,
+                                            took: started.elapsed(),
+                                        });
+                                    },
                                 );
-                            }
-                            match queued {
-                                Ok(()) => true,
-                                Err(err) => {
-                                    tracing::warn!("error queueing frame: {err:?}");
-                                    false
+                                match spawn {
+                                    Ok(_) => {
+                                        spawned = true;
+                                        true
+                                    }
+                                    Err(err) => {
+                                        // No thread: the frame is lost, the next one is drawn
+                                        // from the main thread as before.
+                                        tracing::warn!("couldn't start a commit thread: {err}");
+                                        surface.modeset_pending = true;
+                                        false
+                                    }
+                                }
+                            } else {
+                                let queue_started = std::time::Instant::now();
+                                let queued = drm_output.queue_frame(Some(feedback));
+                                queue = queue_started.elapsed();
+                                if queue > std::time::Duration::from_millis(500) {
+                                    tracing::warn!(
+                                        "committing a frame to {} blocked for {:.1} s",
+                                        output.name(),
+                                        queue.as_secs_f64()
+                                    );
+                                }
+                                match queued {
+                                    Ok(()) => true,
+                                    Err(err) => {
+                                        tracing::warn!("error queueing frame: {err:?}");
+                                        false
+                                    }
                                 }
                             }
                         }
@@ -807,11 +921,85 @@ impl Tty {
             }
             None => false,
         };
+        if spawned {
+            self.commits_in_flight += 1;
+        }
         self.renderer = Some(renderer);
         if submitted && let Some(st) = hecate.output_state.get_mut(output) {
             st.frame_stats.phases(scene, draw, queue);
         }
+        // A frame lost to a failed thread start: the next one isn't lost too.
+        if !submitted
+            && !spawned
+            && let Some(surface) = self
+                .devices
+                .get_mut(&id.node)
+                .and_then(|d| d.surfaces.get_mut(&id.crtc))
+            && surface.modeset_pending
+            && surface.drm_output.is_some()
+        {
+            hecate.queue_redraw(output);
+        }
         submitted
+    }
+
+    /// A commit thread finished: the output is ours again.
+    fn commit_done(&mut self, hecate: &mut Hecate, done: CommitDone) {
+        self.commits_in_flight = self.commits_in_flight.saturating_sub(1);
+        let Some(surface) = self
+            .devices
+            .get_mut(&done.node)
+            .and_then(|d| d.surfaces.get_mut(&done.crtc))
+        else {
+            // Disconnected or disabled meanwhile: dropping the output turns the CRTC off.
+            return;
+        };
+        let output = surface.output.clone();
+        if done.took > std::time::Duration::from_millis(500) {
+            tracing::info!(
+                "committing a frame to {} took {:.1} s (modeset)",
+                output.name(),
+                done.took.as_secs_f64()
+            );
+        }
+        surface.drm_output = Some(done.drm_output);
+        if let Err(err) = done.result {
+            tracing::warn!("error queueing frame to {}: {err}", output.name());
+            // Nothing was submitted, so no vblank will come: draw again.
+            if let Some(s) = hecate.output_state.get_mut(&output) {
+                s.waiting_for_vblank = false;
+            }
+            hecate.queue_redraw(&output);
+        }
+        if let Some(vblank) = surface.missed_vblank.take() {
+            Self::presented(surface, hecate, vblank);
+        }
+        if let Some(on) = surface.pending_power.take() {
+            self.set_output_powered(hecate, &output, on);
+        }
+    }
+
+    /// A frame of `surface` was shown: presentation feedback and the output's bookkeeping.
+    fn presented(surface: &mut Surface, hecate: &mut Hecate, vblank: Vblank) {
+        let output = surface.output.clone();
+        let refresh = output.current_mode().map(|m| m.refresh).unwrap_or(60_000).max(1);
+        let frame_duration = Duration::from_secs_f64(1000.0 / refresh as f64);
+        let Some(drm_output) = surface.drm_output.as_mut() else {
+            return;
+        };
+        match drm_output.frame_submitted() {
+            Ok(Some(Some(mut feedback))) => {
+                feedback.presented::<_, smithay::utils::Monotonic>(
+                    vblank.time,
+                    Refresh::fixed(frame_duration),
+                    vblank.sequence as u64,
+                    vblank.flags,
+                );
+            }
+            Ok(_) => {}
+            Err(err) => tracing::warn!("frame_submitted error: {err:?}"),
+        }
+        hecate.on_vblank(&output, vblank.time, frame_duration);
     }
 
     fn on_vblank(
@@ -828,9 +1016,6 @@ impl Tty {
         else {
             return;
         };
-        let output = surface.output.clone();
-        let refresh = output.current_mode().map(|m| m.refresh).unwrap_or(60_000).max(1);
-        let frame_duration = Duration::from_secs_f64(1000.0 / refresh as f64);
         let (time, flags) = match meta.as_ref().map(|m| m.time) {
             Some(DrmEventTime::Monotonic(tp)) if !tp.is_zero() => (
                 tp,
@@ -843,20 +1028,17 @@ impl Tty {
                 wp_presentation_feedback::Kind::Vsync,
             ),
         };
-        let seq = meta.as_ref().map(|m| m.sequence).unwrap_or(0);
-        match surface.drm_output.frame_submitted() {
-            Ok(Some(Some(mut feedback))) => {
-                feedback.presented::<_, smithay::utils::Monotonic>(
-                    time,
-                    Refresh::fixed(frame_duration),
-                    seq as u64,
-                    flags,
-                );
-            }
-            Ok(_) => {}
-            Err(err) => tracing::warn!("frame_submitted error: {err:?}"),
+        let vblank = Vblank {
+            time,
+            flags,
+            sequence: meta.as_ref().map(|m| m.sequence).unwrap_or(0),
+        };
+        if surface.drm_output.is_none() {
+            // The commit that produced it is still returning: handled once the output is back.
+            surface.missed_vblank = Some(vblank);
+            return;
         }
-        hecate.on_vblank(&output, time, frame_duration);
+        Self::presented(surface, hecate, vblank);
     }
 
     pub fn renderer_mut(&mut self) -> Option<&mut GlesRenderer> {
@@ -897,11 +1079,18 @@ impl Tty {
         let Some(surface) = self.surface_for(output) else {
             return;
         };
+        let Some(drm_output) = surface.drm_output.as_mut() else {
+            // Away on a commit thread: once it's back.
+            surface.pending_power = Some(on);
+            return;
+        };
         let started = std::time::Instant::now();
         let res = if on {
-            surface.drm_output.with_compositor(|c| c.reset_state())
+            // The next frame brings the CRTC back: a modeset.
+            surface.modeset_pending = true;
+            drm_output.with_compositor(|c| c.reset_state())
         } else {
-            surface.drm_output.with_compositor(|c| c.clear())
+            drm_output.with_compositor(|c| c.clear())
         };
         if started.elapsed() > std::time::Duration::from_millis(500) {
             tracing::warn!(
@@ -1019,8 +1208,12 @@ impl Tty {
                     continue;
                 };
                 let mode = pick_mode(info.modes(), config.mode.as_deref());
+                let Some(drm_output) = surface.drm_output.as_mut() else {
+                    tracing::debug!("{name} is being committed to, mode left as it is");
+                    continue;
+                };
                 if surface.output.current_mode() != Some(WlMode::from(mode)) {
-                    match surface.drm_output.use_mode::<_, HecateElement>(
+                    match drm_output.use_mode::<_, HecateElement>(
                         mode,
                         renderer,
                         &DrmOutputRenderElements::default(),
@@ -1060,7 +1253,8 @@ impl Tty {
     pub fn set_vrr(&mut self, output: &Output, on: bool) {
         if let Some(surface) = self.surface_for(output)
             && surface.vrr_supported
-            && let Err(err) = surface.drm_output.with_compositor(|c| c.use_vrr(on))
+            && let Some(drm_output) = surface.drm_output.as_ref()
+            && let Err(err) = drm_output.with_compositor(|c| c.use_vrr(on))
         {
             tracing::debug!("error setting VRR on {}: {err:?}", output.name());
         }
