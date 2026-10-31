@@ -2161,15 +2161,30 @@ impl State {
             .clone()
     }
 
+    /// An XRGB8888 shm buffer of the given size to capture into.
+    pub fn new_capture_buffer(&self, w: i32, h: i32) -> CaptureBuffer {
+        CaptureBuffer::new(self.shm.as_ref().unwrap(), &self.qh, w, h)
+    }
+
     /// Create a frame into `buffer` and request capture.
     pub fn capture_frame(
         &mut self,
         s: &ExtImageCopyCaptureSessionV1,
         buffer: &CaptureBuffer,
     ) -> ExtImageCopyCaptureFrameV1 {
+        self.capture_frame_with_damage(s, buffer, (0, 0, buffer.width, buffer.height))
+    }
+
+    /// Like `capture_frame`, with the damage rectangle the client reports.
+    pub fn capture_frame_with_damage(
+        &mut self,
+        s: &ExtImageCopyCaptureSessionV1,
+        buffer: &CaptureBuffer,
+        damage: (i32, i32, i32, i32),
+    ) -> ExtImageCopyCaptureFrameV1 {
         let frame = s.create_frame(&self.qh, ());
         frame.attach_buffer(&buffer.buffer);
-        frame.damage_buffer(0, 0, buffer.width, buffer.height);
+        frame.damage_buffer(damage.0, damage.1, damage.2, damage.3);
         frame.capture();
         self.capture_frames.push((frame.clone(), CopyFrame::default()));
         frame

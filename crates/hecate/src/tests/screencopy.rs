@@ -48,6 +48,37 @@ fn capture_output_to_shm() {
 }
 
 #[test]
+fn image_copy_capture_output_like_grim() {
+    // grim 1.5 prefers ext-image-copy-capture: a session on the output, one frame into an shm
+    // buffer of the advertised size, the whole buffer marked damaged (INT32_MAX), then capture.
+    let Some((mut f, id, _)) = fixture() else { return };
+    let o = f.client(id).output("headless-1");
+    let session = f.client(id).state.capture_session_output(&o);
+    f.double_roundtrip(id);
+    let s = f.client(id).state.capture_session_state(&session);
+    assert_eq!(s.buffer_size, Some((400, 300)), "{s:?}");
+    assert!(
+        s.shm_formats
+            .contains(&(wayland_client::protocol::wl_shm::Format::Xrgb8888 as u32)),
+        "{s:?}"
+    );
+    assert!(s.done >= 1 && !s.stopped, "{s:?}");
+
+    let buf = f.client(id).state.new_capture_buffer(400, 300);
+    let frame = f
+        .client(id)
+        .state
+        .capture_frame_with_damage(&session, &buf, (0, 0, i32::MAX, i32::MAX));
+    f.double_roundtrip(id);
+    f.double_roundtrip(id);
+    let state = f.client(id).state.capture_frame_state(&frame);
+    assert!(state.ready && !state.failed, "{state:?}");
+    assert_eq!(buf.rgb(5, 5), BG, "background");
+    assert_eq!(buf.rgb(200, 150), [255, 0, 0], "window");
+    assert_eq!(buf.rgb(260, 150), BG, "right of the window");
+}
+
+#[test]
 fn capture_region() {
     let Some((mut f, id, _)) = fixture() else { return };
     let o = f.client(id).output("headless-1");
