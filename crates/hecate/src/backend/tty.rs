@@ -118,6 +118,10 @@ struct CommitDone {
     drm_output: HecateDrmOutput,
     result: Result<(), String>,
     took: Duration,
+    /// The frame was the output's first (or its first after a resume or power-on).
+    first: bool,
+    /// Smithay had to set the mode, instead of flipping onto the one already on screen.
+    modeset: bool,
 }
 
 // The output and its compositor cross to the commit thread.
@@ -645,7 +649,9 @@ impl Tty {
             // State left by the previous compositor (kept for a seamless start) can conflict
             // with ours: start from a clean device instead.
             Err(err) if device.manager.lock().device_mut().reset_state().is_ok() => {
-                tracing::debug!("output {name} after a device reset ({err:?})");
+                tracing::info!(
+                    "output {name} couldn't start on the state left on screen, the device was reset (the screen goes dark until the first frame): {err:?}"
+                );
                 match init(device) {
                     Ok(o) => o,
                     Err(err) => {
@@ -859,6 +865,7 @@ impl Tty {
                             if surface.modeset_pending || offload_all {
                                 // A modeset is a blocking commit, as long as the monitor takes
                                 // to come up: not on the main thread (see `CommitDone`).
+                                let first = surface.modeset_pending;
                                 surface.modeset_pending = false;
                                 let drm_output = surface.drm_output.take().unwrap();
                                 let tx = self.commit_tx.clone();
@@ -867,6 +874,12 @@ impl Tty {
                                     move || {
                                         let started = std::time::Instant::now();
                                         let mut drm_output = drm_output;
+                                        // Whether the state on screen (left by the previous
+                                        // compositor, or ours before a resume) is the one we
+                                        // want: then this is a plain flip and the screen never
+                                        // goes dark.
+                                        let modeset =
+                                            drm_output.with_compositor(|c| c.surface().commit_pending());
                                         let result = drm_output
                                             .queue_frame(Some(feedback))
                                             .map_err(|err| format!("{err:?}"));
@@ -876,6 +889,8 @@ impl Tty {
                                             drm_output,
                                             result,
                                             took: started.elapsed(),
+                                            first,
+                                            modeset,
                                         });
                                     },
                                 );
@@ -955,7 +970,20 @@ impl Tty {
             return;
         };
         let output = surface.output.clone();
-        if done.took > std::time::Duration::from_millis(500) {
+        if done.first {
+            // Once per start, resume or power-on: says whether the handover from what was on
+            // screen before was seamless.
+            tracing::info!(
+                "first frame on {} committed in {:.0} ms ({})",
+                output.name(),
+                done.took.as_secs_f64() * 1000.,
+                if done.modeset {
+                    "modeset: the mode, connector or active state on screen differed"
+                } else {
+                    "flipped onto the mode already on screen, no modeset"
+                }
+            );
+        } else if done.took > std::time::Duration::from_millis(500) {
             tracing::info!(
                 "committing a frame to {} took {:.1} s (modeset)",
                 output.name(),
@@ -1390,11 +1418,11 @@ fn disable_unused_crtcs(device: &Device) {
     };
     for &crtc in resources.crtcs() {
         let ours = device.surfaces.contains_key(&crtc) || device.non_desktop.iter().any(|&(_, c)| c == crtc);
-        if !ours
-            && drm.get_crtc(crtc).is_ok_and(|info| info.mode().is_some())
-            && let Err(err) = drm.set_crtc(crtc, None, (0, 0), &[], None)
-        {
-            tracing::debug!("couldn't turn off unused CRTC {crtc:?}: {err}");
+        if !ours && drm.get_crtc(crtc).is_ok_and(|info| info.mode().is_some()) {
+            tracing::info!("turning off CRTC {crtc:?}: left on by the previous compositor, not ours");
+            if let Err(err) = drm.set_crtc(crtc, None, (0, 0), &[], None) {
+                tracing::debug!("couldn't turn off unused CRTC {crtc:?}: {err}");
+            }
         }
     }
 }
