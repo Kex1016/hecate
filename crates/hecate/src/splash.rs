@@ -23,6 +23,8 @@ use crate::wm::Wm;
 
 /// How long the splash waits for the shell before fading anyway.
 const TIMEOUT: Duration = Duration::from_secs(20);
+/// How long `splash.hold` keeps the first frame off screen waiting for the shell.
+const HOLD: Duration = Duration::from_secs(5);
 const FADE: Duration = Duration::from_millis(400);
 
 /// One output's splash, and when it started fading.
@@ -183,7 +185,8 @@ impl Hecate {
         );
     }
 
-    /// Fade out at the latest after `TIMEOUT`, in case the shell never says it's ready.
+    /// Fade out at the latest after `TIMEOUT`, in case the shell never says it's ready, and
+    /// stop holding the first frame (`splash.hold`) after `HOLD`.
     pub fn start_splash_timeout(&mut self) {
         if !self.config.splash.enable {
             return;
@@ -194,6 +197,31 @@ impl Hecate {
                 state.hecate.finish_splash();
                 TimeoutAction::Drop
             });
+        if self.config.splash.hold {
+            let _ = self
+                .event_loop
+                .insert_source(Timer::from_duration(HOLD), |_, _, state| {
+                    if !state.hecate.splash_done {
+                        tracing::info!(
+                            "the shell took more than {HOLD:?}: putting the first frame on screen"
+                        );
+                    }
+                    state.hecate.splash_hold_over = true;
+                    state.hecate.queue_redraw_all();
+                    TimeoutAction::Drop
+                });
+        }
+    }
+
+    /// Whether the output's first frame should stay off screen for now (`splash.hold`): it
+    /// would only be the splash, which is what the previous compositor left there. Until the
+    /// shell is ready or `HOLD` runs out; a splash that's fading is drawn.
+    pub fn splash_holds(&self, output: &Output) -> bool {
+        self.config.splash.enable
+            && self.config.splash.hold
+            && !self.splash_done
+            && !self.splash_hold_over
+            && self.splash.get(output).is_some_and(|s| s.fading_since.is_none())
     }
 
     /// The shell is ready (or it's too late): fade every splash out.

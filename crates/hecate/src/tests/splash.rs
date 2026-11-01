@@ -178,3 +178,65 @@ fn a_picture_of_another_size_is_not_shown() {
         .assert_rgb(320, 240, [0, 0, 0], "no stretched splash");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn hold_keeps_the_first_frame_back_until_the_shell_is_ready() {
+    let dir = temp_dir("hold");
+    let Some(mut f) = fixture("#00ff00", &dir) else {
+        return;
+    };
+    save(&mut f);
+
+    // The next session: its first frame would only be the picture already on screen.
+    let Some(mut next) = fixture("#000000", &dir) else {
+        return;
+    };
+    next.manual_clock();
+    let output = next.add_output("headless-2", (400, 300));
+    assert!(
+        !next.hecate().hecate.splash_holds(&output),
+        "no picture for this output, nothing to hold for"
+    );
+    let output = next.hecate().hecate.wm.outputs().next().cloned().unwrap();
+    assert_eq!(output.name(), "headless-1");
+    assert!(
+        next.hecate().hecate.splash_holds(&output),
+        "held while the splash is up"
+    );
+
+    // The shell is ready: the splash starts fading, so the frame goes on screen.
+    next.hecate()
+        .do_action(crate::config::action::Action::SplashDone, None);
+    assert!(!next.hecate().hecate.splash_holds(&output));
+    next.render("headless-1");
+    next.advance_clock(500);
+    next.render("headless-1");
+    assert!(
+        !next.hecate().hecate.splash_holds(&output),
+        "and stays off once the fade is over"
+    );
+
+    // The hold's timeout, or `hold = false`: not held either.
+    let Some(mut late) = fixture("#000000", &dir) else {
+        return;
+    };
+    let output = late.hecate().hecate.wm.outputs().next().cloned().unwrap();
+    assert!(late.hecate().hecate.splash_holds(&output));
+    late.hecate().hecate.splash_hold_over = true;
+    assert!(!late.hecate().hecate.splash_holds(&output));
+
+    let mut off = Fixture::with_toml(
+        "[splash]\nenable = true\nhold = false\n[border]\nwidth = 0\n[animations]\nenable = false\n",
+    );
+    if !off.enable_rendering() {
+        return;
+    }
+    off.hecate().hecate.snapshot_dir = Some(dir.clone());
+    let output = off.add_output("headless-1", (400, 300));
+    assert!(
+        off.hecate().hecate.splash.contains_key(&output),
+        "the splash is shown"
+    );
+    assert!(!off.hecate().hecate.splash_holds(&output), "but never held");
+    let _ = std::fs::remove_dir_all(dir);
+}

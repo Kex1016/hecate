@@ -94,6 +94,8 @@ struct Surface {
     missed_vblank: Option<Vblank>,
     /// A power change asked for while the output was away.
     pending_power: Option<bool>,
+    /// The first frame is being held back (`splash.hold`), logged once.
+    holding: bool,
 }
 
 /// What a DRM vblank event said.
@@ -699,6 +701,7 @@ impl Tty {
                 modeset_pending: true,
                 missed_vblank: None,
                 pending_power: None,
+                holding: false,
             },
         );
         hecate.add_output(output.clone());
@@ -821,6 +824,28 @@ impl Tty {
         let Some(id) = output.user_data().get::<TtyOutputId>().copied() else {
             return false;
         };
+        // `splash.hold`: the first frame would only be the splash, the picture the previous
+        // compositor left on screen. Flipping to it changes nothing, so don't: the first flip
+        // comes with the first real change (the shell's splash_done, or the hold's timeout).
+        // Only onto a state that needs no modeset, else the picture isn't there.
+        if let Some(surface) = self
+            .devices
+            .get_mut(&id.node)
+            .and_then(|d| d.surfaces.get_mut(&id.crtc))
+            && surface.modeset_pending
+            && hecate.splash_holds(output)
+            && let Some(drm_output) = surface.drm_output.as_ref()
+            && !drm_output.with_compositor(|c| c.surface().commit_pending())
+        {
+            if !surface.holding {
+                surface.holding = true;
+                tracing::info!(
+                    "holding the first frame on {}: the splash is what's on screen already",
+                    output.name()
+                );
+            }
+            return false;
+        }
         let Some(mut renderer) = self.renderer.take() else {
             return false;
         };

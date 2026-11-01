@@ -27,6 +27,11 @@
   the last frame left on screen) instead of killing hecate, which dropped its framebuffers
   and left the screen dark: greetd sends SIGTERM to a login screen still up 5 s after a
   login, systemd to the session at shutdown.
+- `splash.hold` (on by default): an output whose first frame would only be the splash, the
+  picture the previous compositor left on screen, isn't flipped at all while the shell starts.
+  The first flip comes with the first real change, the splash fading once the shell is ready
+  (at most 5 s later), so a login from hecate-greetd changes nothing on screen until the
+  desktop is there. Only onto a state that needs no modeset.
 
 ## 1.0.0
 

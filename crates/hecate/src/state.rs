@@ -169,6 +169,8 @@ pub struct Hecate {
     /// Login splash per output (`splash.enable`), and whether it was dismissed.
     pub splash: std::collections::HashMap<Output, crate::splash::Splash>,
     pub splash_done: bool,
+    /// `splash.hold` gave up waiting for the shell: the first frame goes on screen anyway.
+    pub splash_hold_over: bool,
     /// Pictures being decoded on threads since startup, by output name (`splash::Decoding`).
     pub splash_decoding: crate::splash::Decoding,
     /// Where splash pictures are saved and read unless `splash.dir` says (`splash::dir()`).
@@ -572,6 +574,7 @@ impl Hecate {
             wake_outputs_on_input: false,
             splash: Default::default(),
             splash_done: false,
+            splash_hold_over: false,
             splash_decoding: Default::default(),
             snapshot_dir: crate::splash::dir(),
             pointer_location: (0., 0.).into(),

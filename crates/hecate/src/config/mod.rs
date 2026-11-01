@@ -405,6 +405,11 @@ pub struct Splash {
     /// that starts from another one's pictures and has nothing of its own to leave behind
     /// (hecate-greetd's login screen after a logout).
     pub save: bool,
+    /// Don't put the first frame on screen while it would only be the splash and the previous
+    /// compositor left the same picture there (hecate-greetd's login screen, or the session
+    /// before it): the first flip waits for the shell (`splash_done`), at most 5 s, so the
+    /// handover doesn't flip at all until something actually changes.
+    pub hold: bool,
 }
 
 impl Default for Splash {
@@ -413,6 +418,7 @@ impl Default for Splash {
             enable: false,
             dir: None,
             save: true,
+            hold: true,
         }
     }
 }

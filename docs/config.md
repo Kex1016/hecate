@@ -90,6 +90,7 @@ fullscreen_inhibits_idle = true
 enable = false                 # login splash: the desktop as it was, until the shell runs `splash_done`
 # dir = "/var/lib/hecate-greetd/users/me/splash"   # where the pictures go (default $XDG_STATE_HOME/hecate/snapshots)
 save = true                    # save them at lock and exit; false only shows them (hecate-greetd's login screen)
+hold = true                    # no first frame while it would only be the splash already on screen: the first flip waits for the shell (at most 5 s)
 
 [xwayland]
 enable = true
@@ -279,7 +280,12 @@ works unchanged once action names are mapped, because binds have the same
   bar are up), or after 20 s. A picture whose size doesn't match the output (another mode or
   scale) isn't shown. `splash.save = false` shows the pictures without ever writing any:
   hecate-greetd's login screen starts from the desktop of the session that just ended, and
-  has nothing of its own to leave behind.
+  has nothing of its own to leave behind. With `splash.hold` (the default), an output whose
+  first frame would only be the splash isn't flipped at all while the shell starts: the
+  previous compositor left that same picture on screen, so the first flip comes with the first
+  real change, the fade once the shell is ready (or after 5 s, whichever is first). Only onto
+  a state that needs no modeset; a mode change can't wait. The log says
+  `holding the first frame on <output>` when it does. `hold = false` flips straight away.
 - **Handing the screen over**: on a TTY, hecate starts without first turning every output off
   (the previous compositor's last frame stays until hecate's first frame replaces it; with the
   same mode there's no modeset either), and at exit it leaves its last frame up (`CLOSEFB`,
