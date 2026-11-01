@@ -33,7 +33,7 @@ PanelWindow {
 
     // Config
     readonly property string screenshotDir: Directories.screenshotTemp
-    readonly property string screenshotPath: `${root.screenshotDir}/image-${screen.name}`
+    readonly property string screenshotPath: `${root.screenshotDir}/image-${screen.name}.png`
 
     // Preparation
     property bool screenshotReady: false

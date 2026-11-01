@@ -9,7 +9,7 @@ Process {
     running: true
     property string screenshotDir: Directories.screenshotTemp
     required property ShellScreen screen
-    property string screenshotPath: `${screenshotDir}/image-${screen.name}`
+    property string screenshotPath: `${screenshotDir}/image-${screen.name}.png`
     // A failed capture used to go unnoticed until the saved file turned out empty: say what grim said.
     command: ["bash", "-c", `mkdir -p '${StringUtils.shellSingleQuoteEscape(screenshotDir)}' && err=$(mktemp) && `
         + `if grim -o '${StringUtils.shellSingleQuoteEscape(screen.name)}' '${StringUtils.shellSingleQuoteEscape(screenshotPath)}' 2>"$err"; then rm -f "$err"; `

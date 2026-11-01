@@ -68,7 +68,7 @@ PanelWindow {
     readonly property real monitorOffsetX: monitorGeometry.x
     readonly property real monitorOffsetY: monitorGeometry.y
     property int activeWorkspaceId: WM.activeWorkspaceForMonitor(root.monitor?.name)?.id ?? 0
-    property string screenshotPath: `${root.screenshotDir}/image-${screen.name}`
+    property string screenshotPath: `${root.screenshotDir}/image-${screen.name}.png`
     property real dragStartX: 0
     property real dragStartY: 0
     property real draggingX: 0
