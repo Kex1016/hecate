@@ -183,7 +183,8 @@ What `hecate-shell` is (`nix/shell-package.nix`):
 What the HM module does with it:
 
 - `systemd.user.services.hecate-shell`: `ExecStart=hecate-shell`,
-  `PartOf`/`WantedBy=hecate-session.target`, restart on failure.
+  `WantedBy=hecate-session.target`, `PartOf=graphical-session.target` (so it stops when
+  hecate exits), restart on failure.
 - Adds the shell keybind profile to the generated hecate config (your own
   `settings.binds` still win).
 - Adds `include = [ "shell.toml" ]` so the shell's settings UI can write

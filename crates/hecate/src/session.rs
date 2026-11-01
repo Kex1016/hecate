@@ -72,10 +72,22 @@ impl State {
         });
     }
 
+    /// Stop the session's units: `graphical-session.target` takes `hecate-session.target`
+    /// (bound to it) and everything `PartOf` it (the shell, portals) down with it. Stopping
+    /// only `hecate-session.target` left those running against the display that was gone,
+    /// restarting and crashing until systemd gave up.
     pub fn end_session(&mut self) {
         if std::env::var_os("HECATE_NO_SESSION").is_some() {
             return;
         }
-        run_quiet(&["systemctl", "--user", "stop", "hecate-session.target"]);
+        if run_quiet(&["systemctl", "--user", "cat", "hecate-session.target"]) {
+            run_quiet(&[
+                "systemctl",
+                "--user",
+                "stop",
+                "graphical-session.target",
+                "hecate-session.target",
+            ]);
+        }
     }
 }

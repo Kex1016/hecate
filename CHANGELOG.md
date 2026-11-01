@@ -19,6 +19,10 @@
 - A session no longer comes up without its shell after one that ended uncleanly: the shell's
   unit kept restarting against the old, gone display until systemd stopped trying, and then
   refused to start it again. hecate resets failed user units before starting the session.
+- Logging out stops the shell: `hecate msg exit` stops `graphical-session.target`, not just
+  `hecate-session.target`, so the shell (part of the former) no longer survives the
+  compositor and crashes, restarting every second, until systemd gives up. Those restarts
+  competed with the login screen and the next session for the CPU and GPU.
 
 ## 1.0.0
 
