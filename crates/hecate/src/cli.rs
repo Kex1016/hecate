@@ -101,12 +101,23 @@ fn validate(path: Option<PathBuf>) -> anyhow::Result<()> {
     }
 }
 
+/// Logs go to stderr and, where there is one, the systemd journal (`journalctl -t hecate`).
+/// Under greetd stderr is the session's VT, which nobody sees: the journal is where the login
+/// screen's and the session's startup lines (first frame, splash, modeset) can be read back.
 fn init_logging() {
+    use tracing_subscriber::layer::SubscriberExt as _;
+    use tracing_subscriber::util::SubscriberInitExt as _;
+
     let filter = std::env::var("HECATE_LOG")
         .or_else(|_| std::env::var("RUST_LOG"))
         .unwrap_or_else(|_| "hecate=info,smithay=warn".into());
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::new(filter))
+    let journal = tracing_journald::layer()
+        .ok()
+        .map(|l| l.with_syslog_identifier("hecate".into()));
+    let _ = tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::new(filter))
+        .with(tracing_subscriber::fmt::layer())
+        .with(journal)
         .try_init();
 }
 
