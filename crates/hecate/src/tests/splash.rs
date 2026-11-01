@@ -97,6 +97,46 @@ fn snapshot_has_the_shell_but_not_the_windows_and_shows_until_the_shell_is_ready
 }
 
 #[test]
+fn save_off_shows_the_pictures_without_writing_any() {
+    let dir = temp_dir("save-off");
+    let Some(mut f) = fixture("#00ff00", &dir) else {
+        return;
+    };
+    save(&mut f);
+    assert!(dir.join("headless-1.png").is_file());
+
+    // The login screen's compositor: starts on the session's pictures, leaves none of its own.
+    let mut next = Fixture::with_toml(
+        "[splash]\nenable = true\nsave = false\n[border]\nwidth = 0\n[animations]\nenable = false\n[general]\nbackground_color = \"#000000\"\n",
+    );
+    if !next.enable_rendering() {
+        return;
+    }
+    next.hecate().hecate.snapshot_dir = Some(dir.clone());
+    next.add_output("headless-1", (400, 300));
+    next.render("headless-1").assert_rgb(
+        200,
+        150,
+        [0, 255, 0],
+        "the session's picture from the first frame",
+    );
+    let before = std::fs::metadata(dir.join("headless-1.png"))
+        .unwrap()
+        .modified()
+        .unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let crate::state::State { backend, hecate } = next.hecate();
+    let handles = backend.with_renderer(|r| hecate.save_snapshots(r)).unwrap();
+    assert!(handles.is_empty(), "nothing is written with save = false");
+    let after = std::fs::metadata(dir.join("headless-1.png"))
+        .unwrap()
+        .modified()
+        .unwrap();
+    assert_eq!(before, after, "the session's picture is left alone");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn a_picture_of_another_size_is_not_shown() {
     let dir = temp_dir("size");
     let Some(mut f) = fixture("#00ff00", &dir) else {

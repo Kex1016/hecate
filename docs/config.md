@@ -89,6 +89,7 @@ fullscreen_inhibits_idle = true
 [splash]
 enable = false                 # login splash: the desktop as it was, until the shell runs `splash_done`
 # dir = "/var/lib/hecate-greetd/users/me/splash"   # where the pictures go (default $XDG_STATE_HOME/hecate/snapshots)
+save = true                    # save them at lock and exit; false only shows them (hecate-greetd's login screen)
 
 [xwayland]
 enable = true
@@ -276,7 +277,9 @@ works unchanged once action names are mapped, because binds have the same
   from its first frame, so there's no bare screen while the shell starts, and fades it out
   when something runs the `splash_done` action (the bundled shell does once its wallpaper and
   bar are up), or after 20 s. A picture whose size doesn't match the output (another mode or
-  scale) isn't shown.
+  scale) isn't shown. `splash.save = false` shows the pictures without ever writing any:
+  hecate-greetd's login screen starts from the desktop of the session that just ended, and
+  has nothing of its own to leave behind.
 - **Handing the screen over**: on a TTY, hecate starts without first turning every output off
   (the previous compositor's last frame stays until hecate's first frame replaces it; with the
   same mode there's no modeset either), and at exit it leaves its last frame up (`CLOSEFB`,

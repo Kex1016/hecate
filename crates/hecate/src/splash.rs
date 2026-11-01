@@ -98,14 +98,23 @@ impl Hecate {
         let (pixels, w, h) = match decode(&path) {
             Ok(d) => d,
             Err(e) => {
-                tracing::debug!("no splash for {}: {e:#}", output.name());
+                tracing::info!("no splash for {} ({}): {e:#}", output.name(), path.display());
                 return;
             }
         };
         // A picture of a different mode or scale would be stretched: show nothing instead.
-        if physical_size(output) != Size::from((w as i32, h as i32)) {
+        let size = physical_size(output);
+        if size != Size::from((w as i32, h as i32)) {
+            tracing::info!(
+                "no splash for {}: {} is {w}x{h}, the output {}x{}",
+                output.name(),
+                path.display(),
+                size.w,
+                size.h
+            );
             return;
         }
+        tracing::info!("splash for {} from {}", output.name(), path.display());
         let buffer = MemoryRenderBuffer::from_slice(
             &pixels,
             Fourcc::Abgr8888,
@@ -187,7 +196,7 @@ impl Hecate {
     /// Save every output's desktop for the next login's splash. Encoding runs on threads; join
     /// the handles when the process is about to exit.
     pub fn save_snapshots(&self, renderer: &mut GlesRenderer) -> Vec<JoinHandle<()>> {
-        if !self.config.splash.enable {
+        if !self.config.splash.enable || !self.config.splash.save {
             return Vec::new();
         }
         let mut handles = Vec::new();

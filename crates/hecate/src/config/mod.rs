@@ -393,7 +393,7 @@ pub enum Tearing {
 /// the session locks or ends and shown from the next session's first frame until the shell
 /// runs the `splash_done` action. For a shell that does; the Home Manager module turns it on
 /// with `shell.enable`.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct Splash {
     pub enable: bool,
@@ -401,6 +401,20 @@ pub struct Splash {
     /// `$XDG_STATE_HOME/hecate/snapshots`). hecate-greetd's login screen reads them from
     /// `/var/lib/hecate-greetd/users/<user>/splash`.
     pub dir: Option<String>,
+    /// Save the pictures at lock and exit. Off, the splash is only shown: for a compositor
+    /// that starts from another one's pictures and has nothing of its own to leave behind
+    /// (hecate-greetd's login screen after a logout).
+    pub save: bool,
+}
+
+impl Default for Splash {
+    fn default() -> Self {
+        Splash {
+            enable: false,
+            dir: None,
+            save: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
