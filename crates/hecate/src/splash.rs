@@ -38,7 +38,7 @@ type Decoded = anyhow::Result<(Vec<u8>, u32, u32)>;
 /// up and the first frame: that is time the screen shows whatever the previous compositor
 /// left, or nothing. Started before the backend, the decoding overlaps with it.
 #[derive(Default)]
-pub struct Decoding(HashMap<String, JoinHandle<Decoded>>);
+pub struct Decoding(pub(crate) HashMap<String, JoinHandle<Decoded>>);
 
 /// `$XDG_STATE_HOME/hecate/snapshots`, where `<output>.png` are kept.
 pub fn dir() -> Option<PathBuf> {
