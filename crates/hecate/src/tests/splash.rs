@@ -137,6 +137,31 @@ fn save_off_shows_the_pictures_without_writing_any() {
 }
 
 #[test]
+fn pictures_decoded_from_startup_are_shown() {
+    let dir = temp_dir("threads");
+    let Some(mut f) = fixture("#00ff00", &dir) else {
+        return;
+    };
+    save(&mut f);
+
+    // `splash.dir` is known at construction, so the decoding starts before the backend and
+    // `load_splash` picks the thread's result up instead of decoding on the spot.
+    let mut next = Fixture::with_toml(&format!(
+        "[splash]\nenable = true\ndir = \"{}\"\n[border]\nwidth = 0\n[animations]\nenable = false\n[general]\nbackground_color = \"#000000\"\n",
+        dir.display()
+    ));
+    if !next.enable_rendering() {
+        return;
+    }
+    assert!(next.hecate().hecate.splash_decoding.0.contains_key("headless-1"));
+    next.add_output("headless-1", (400, 300));
+    assert!(next.hecate().hecate.splash_decoding.0.is_empty());
+    next.render("headless-1")
+        .assert_rgb(200, 150, [0, 255, 0], "the picture from the decoding thread");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn a_picture_of_another_size_is_not_shown() {
     let dir = temp_dir("size");
     let Some(mut f) = fixture("#00ff00", &dir) else {

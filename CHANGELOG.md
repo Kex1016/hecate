@@ -11,8 +11,11 @@
 - The screen no longer goes dark between compositors: no output reset at startup, and the last
   frame left up at exit, so with hecate-greetd a login goes from the login screen straight to
   the session (and back at logout). `splash.save = false` shows the pictures without writing
-  any, for the login screen after a logout. The log says, per output, whether the first frame
-  flipped onto the mode already on screen or needed a modeset, and why a splash wasn't shown.
+  any, for the login screen after a logout. The pictures are decoded on threads from startup,
+  alongside the GPU and outputs coming up, not on the main thread before the first frame. The
+  log (now also in the journal, `journalctl -t hecate`) says, per output, whether the first
+  frame flipped onto the mode already on screen or needed a modeset, and why a splash wasn't
+  shown.
 - A session no longer comes up without its shell after one that ended uncleanly: the shell's
   unit kept restarting against the old, gone display until systemd stopped trying, and then
   refused to start it again. hecate resets failed user units before starting the session.

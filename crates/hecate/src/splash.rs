@@ -4,6 +4,7 @@
 //! starts, and fades it out once the shell says it's ready (action `splash_done`), or after
 //! `TIMEOUT`. hecate-greetd shows the same pictures, so a login fades straight into them.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -29,6 +30,15 @@ pub struct Splash {
     buffer: MemoryRenderBuffer,
     fading_since: Option<Duration>,
 }
+
+type Decoded = anyhow::Result<(Vec<u8>, u32, u32)>;
+
+/// Pictures decoded on threads from startup, by output name. Decoding a monitor's PNG takes
+/// a good fraction of a second, which on the main thread would sit between the backend coming
+/// up and the first frame: that is time the screen shows whatever the previous compositor
+/// left, or nothing. Started before the backend, the decoding overlaps with it.
+#[derive(Default)]
+pub struct Decoding(HashMap<String, JoinHandle<Decoded>>);
 
 /// `$XDG_STATE_HOME/hecate/snapshots`, where `<output>.png` are kept.
 pub fn dir() -> Option<PathBuf> {
@@ -75,16 +85,51 @@ fn encode(path: &std::path::Path, pixels: &[u8], size: Size<i32, Physical>) -> a
 }
 
 impl Hecate {
-    /// `<splash.dir or the default>/<output>.png`
-    fn splash_path(&self, output: &Output) -> Option<PathBuf> {
-        let dir = self
-            .config
+    /// `splash.dir`, else the default (`dir()`).
+    fn splash_dir(&self) -> Option<PathBuf> {
+        self.config
             .splash
             .dir
             .as_ref()
             .map(PathBuf::from)
-            .or_else(|| self.snapshot_dir.clone())?;
-        Some(dir.join(format!("{}.png", output.name())))
+            .or_else(|| self.snapshot_dir.clone())
+    }
+
+    /// `<splash.dir or the default>/<output>.png`
+    fn splash_path(&self, output: &Output) -> Option<PathBuf> {
+        Some(self.splash_dir()?.join(format!("{}.png", output.name())))
+    }
+
+    /// Start decoding every picture in the splash directory, one thread each, so they are
+    /// ready (or nearly) by the time the outputs are. `load_splash` picks them up.
+    pub fn start_splash_decoding(&mut self) {
+        if !self.config.splash.enable {
+            return;
+        }
+        let Some(dir) = self.splash_dir() else {
+            return;
+        };
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Some(name) = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .and_then(|n| n.strip_suffix(".png"))
+            else {
+                continue;
+            };
+            let name = name.to_string();
+            let thread = std::thread::Builder::new().name(format!("splash {name}")).spawn({
+                let path = path.clone();
+                move || decode(&path)
+            });
+            if let Ok(handle) = thread {
+                self.splash_decoding.0.insert(name, handle);
+            }
+        }
     }
 
     /// Show the output's snapshot until the shell is ready, if there's one that fits it.
@@ -95,7 +140,13 @@ impl Hecate {
         let Some(path) = self.splash_path(output) else {
             return;
         };
-        let (pixels, w, h) = match decode(&path) {
+        let decoded = match self.splash_decoding.0.remove(&output.name()) {
+            Some(handle) => handle
+                .join()
+                .unwrap_or_else(|_| Err(anyhow::anyhow!("the decoding thread panicked"))),
+            None => decode(&path),
+        };
+        let (pixels, w, h) = match decoded {
             Ok(d) => d,
             Err(e) => {
                 tracing::info!("no splash for {} ({}): {e:#}", output.name(), path.display());

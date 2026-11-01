@@ -169,6 +169,8 @@ pub struct Hecate {
     /// Login splash per output (`splash.enable`), and whether it was dismissed.
     pub splash: std::collections::HashMap<Output, crate::splash::Splash>,
     pub splash_done: bool,
+    /// Pictures being decoded on threads since startup, by output name (`splash::Decoding`).
+    pub splash_decoding: crate::splash::Decoding,
     /// Where splash pictures are saved and read unless `splash.dir` says (`splash::dir()`).
     pub snapshot_dir: Option<std::path::PathBuf>,
 
@@ -256,6 +258,8 @@ impl State {
             create_socket,
         )?;
         let mut state = State { backend, hecate };
+        // Decoding runs while the GPU and the outputs come up, not before the first frame.
+        state.hecate.start_splash_decoding();
         state.backend.init(&mut state.hecate);
         state.hecate.wm.ensure_workspaces(&state.hecate.config);
         Ok(state)
@@ -568,6 +572,7 @@ impl Hecate {
             wake_outputs_on_input: false,
             splash: Default::default(),
             splash_done: false,
+            splash_decoding: Default::default(),
             snapshot_dir: crate::splash::dir(),
             pointer_location: (0., 0.).into(),
             cursor_status: CursorImageStatus::default_named(),
