@@ -208,3 +208,144 @@ fn toplevel_export_copies_the_window_and_waits_for_damage() {
     f.double_roundtrip(id);
     assert!(f.client(id).state.export_frame(&frame).ready);
 }
+
+/// The real `grim`, when one is on PATH: a capture of an output written to a file has to come
+/// out as a PNG with the scene in it. Ubuntu's grim 1.4 goes through wlr-screencopy, 1.5 and
+/// later through ext-image-copy-capture, so this covers whichever the machine has.
+///
+/// `toml` configures the outputs; `outputs` are added in order; `target` is the one grim is
+/// pointed at with `-o`, and it holds the 100×100 red window centred in a 400×300 scene.
+fn real_grim_captures(toml: &str, outputs: &[(&str, (i32, i32))], target: &str) {
+    use std::os::fd::AsRawFd as _;
+    use std::os::unix::net::UnixStream;
+    use std::os::unix::process::CommandExt as _;
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+
+    let Some(grim) = std::env::var_os("PATH").and_then(|path| {
+        std::env::split_paths(&path)
+            .map(|dir| dir.join("grim"))
+            .find(|candidate| candidate.is_file())
+    }) else {
+        eprintln!("skipping: no grim on PATH");
+        return;
+    };
+    eprintln!("using {}", grim.display());
+    let mut f = Fixture::with_toml(&format!(
+        "[general]\nbackground_color = \"#102030\"\n[border]\nwidth = 0\n{toml}"
+    ));
+    if !f.enable_rendering() {
+        return;
+    }
+    for (name, size) in outputs {
+        f.add_output(name, *size);
+    }
+    let id = f.add_client();
+    // The window lands on the output with the pointer, i.e. the first one at (0, 0).
+    let _surface = f.map_shm_window(id, (100, 100), RED);
+    for (name, _) in outputs {
+        f.render(name);
+    }
+
+    let dir = std::env::temp_dir().join(format!("hecate-grim-{}-{target}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(format!("image-{target}.png"));
+
+    // grim gets one end of a socket pair as its connection (`WAYLAND_SOCKET`), inherited on fd 3.
+    let (server_end, client_end) = UnixStream::pair().unwrap();
+    f.hecate()
+        .hecate
+        .display_handle
+        .insert_client(server_end, Arc::new(crate::state::ClientState::default()))
+        .unwrap();
+    let raw = client_end.as_raw_fd();
+    let mut command = std::process::Command::new(grim);
+    command
+        .args(["-o", target])
+        .arg(&path)
+        .env("WAYLAND_SOCKET", "3")
+        .env_remove("WAYLAND_DISPLAY")
+        .stderr(std::process::Stdio::piped());
+    unsafe {
+        command.pre_exec(move || {
+            if libc::dup2(raw, 3) < 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+    let mut child = command.spawn().expect("spawn grim");
+    drop(client_end);
+
+    let started = Instant::now();
+    let status = loop {
+        f.dispatch();
+        if let Some(status) = child.try_wait().unwrap() {
+            break status;
+        }
+        if started.elapsed() > Duration::from_secs(20) {
+            let _ = child.kill();
+            panic!("grim did not finish in 20 s");
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    };
+    let mut stderr = String::new();
+    std::io::Read::read_to_string(child.stderr.as_mut().unwrap(), &mut stderr).unwrap();
+    assert!(status.success(), "grim exited with {status}: {stderr}");
+
+    let bytes = std::fs::read(&path).expect("grim wrote the file");
+    assert!(
+        bytes.starts_with(b"\x89PNG\r\n\x1a\n"),
+        "{} bytes, not a PNG: {:?}",
+        bytes.len(),
+        &bytes[..bytes.len().min(8)]
+    );
+    let decoder = png::Decoder::new(std::io::Cursor::new(&bytes));
+    let mut reader = decoder.read_info().expect("png header");
+    let mut data = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut data).expect("png pixels");
+    let (w, h) = (info.width as usize, info.height as usize);
+    let channels = info.color_type.samples();
+    let rgb = |x: usize, y: usize| {
+        let i = (y * w + x) * channels;
+        [data[i], data[i + 1], data[i + 2]]
+    };
+    eprintln!("{w}x{h} {:?} from {}", info.color_type, path.display());
+    assert!(w >= 300 && h >= 200, "{w}x{h}: {stderr}");
+    assert_eq!(rgb(5, 5), BG, "background corner");
+    assert_eq!(rgb(w / 2, h / 2), [255, 0, 0], "window in the middle");
+    assert_eq!(rgb(w - 6, h - 6), BG, "background corner");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn real_grim_writes_a_png_of_the_output() {
+    real_grim_captures("", &[("headless-1", (400, 300))], "headless-1");
+}
+
+#[test]
+fn real_grim_with_two_outputs_captures_the_named_one() {
+    real_grim_captures(
+        "[outputs.headless-1]\nposition = [0, 0]\n[outputs.headless-2]\nposition = [400, 0]",
+        &[("headless-1", (400, 300)), ("headless-2", (640, 480))],
+        "headless-1",
+    );
+}
+
+#[test]
+fn real_grim_captures_a_scaled_output() {
+    real_grim_captures(
+        "[outputs.headless-1]\nscale = 1.5",
+        &[("headless-1", (600, 450))],
+        "headless-1",
+    );
+}
+
+#[test]
+fn real_grim_captures_a_rotated_output() {
+    real_grim_captures(
+        "[outputs.headless-1]\ntransform = \"90\"",
+        &[("headless-1", (300, 400))],
+        "headless-1",
+    );
+}
