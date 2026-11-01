@@ -102,5 +102,6 @@ ones:
 | command | does |
 | ------- | ---- |
 | `hecate msg exit` | quit the session cleanly (stops `graphical-session.target`, with `hecate-session.target` and the units that are part of it) |
+| `kill -TERM <hecate pid>` (or SIGINT) | the same: ends the session cleanly, the last frame left on screen |
 | `hecate msg spawn -- <cmd...>` | run a command with the compositor's environment (`WAYLAND_DISPLAY`, `DISPLAY`, ...) |
 | `hecate msg action power_off_outputs` / `power_on_outputs` | DPMS all outputs (idle scripts); any input turns them back on |

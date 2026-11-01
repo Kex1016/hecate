@@ -136,6 +136,29 @@ fn run_compositor(
     };
 
     let mut event_loop: EventLoop<State> = EventLoop::try_new()?;
+    // SIGHUP reloads the config; SIGTERM and SIGINT end the session the way `hecate msg exit`
+    // does (snapshots saved, the session's units stopped, the last frame left on screen)
+    // instead of killing the process, which drops its framebuffers and leaves the screen
+    // dark. greetd sends SIGTERM to a login screen that's still up 5 s after the login, and
+    // systemd to a session at shutdown. Before any thread starts, so they all inherit the
+    // mask that routes these signals here.
+    {
+        use smithay::reexports::calloop::signals::{Signal, Signals};
+        match Signals::new(&[Signal::SIGHUP, Signal::SIGTERM, Signal::SIGINT]) {
+            Ok(signals) => {
+                let _ = event_loop
+                    .handle()
+                    .insert_source(signals, |event, _, state| match event.signal() {
+                        Signal::SIGHUP => state.reload_config(),
+                        signal => {
+                            tracing::info!("{signal:?}: ending the session");
+                            state.hecate.stop_signal.stop();
+                        }
+                    });
+            }
+            Err(err) => tracing::warn!("not handling signals: {err}"),
+        }
+    }
     let display: Display<State> = Display::new()?;
     let nested = std::env::var_os("WAYLAND_DISPLAY").is_some() || std::env::var_os("DISPLAY").is_some();
     let kind = backend.unwrap_or(if nested {
@@ -192,16 +215,6 @@ fn run_compositor(
             Err(err) => tracing::warn!("not watching the config for changes: {err}"),
         }
     }
-    // SIGHUP reloads the config.
-    if let Ok(signals) = smithay::reexports::calloop::signals::Signals::new(&[
-        smithay::reexports::calloop::signals::Signal::SIGHUP,
-    ]) {
-        let _ = state
-            .hecate
-            .event_loop
-            .insert_source(signals, |_, _, state| state.reload_config());
-    }
-
     state.start_session();
     state.hecate.start_splash_timeout();
     for argv in state.hecate.config.autostart.clone() {

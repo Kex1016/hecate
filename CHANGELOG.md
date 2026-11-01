@@ -23,6 +23,10 @@
   `hecate-session.target`, so the shell (part of the former) no longer survives the
   compositor and crashes, restarting every second, until systemd gives up. Those restarts
   competed with the login screen and the next session for the CPU and GPU.
+- SIGTERM and SIGINT end the session like `hecate msg exit` (snapshots saved, units stopped,
+  the last frame left on screen) instead of killing hecate, which dropped its framebuffers
+  and left the screen dark: greetd sends SIGTERM to a login screen still up 5 s after a
+  login, systemd to the session at shutdown.
 
 ## 1.0.0
 
