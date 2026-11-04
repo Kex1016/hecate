@@ -23,7 +23,8 @@ let
       pywayland
       psutil
       materialyoucolor
-      kde-material-you-colors
+      # Moved out of python3Packages to pkgs/by-name (still a Python package).
+      (pkgs.kde-material-you-colors or ps.kde-material-you-colors)
       libsass
       material-color-utilities
       setproctitle
