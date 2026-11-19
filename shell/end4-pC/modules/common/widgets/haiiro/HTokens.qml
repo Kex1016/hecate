@@ -73,7 +73,7 @@ Singleton {
     readonly property real trackLabel: ls?.label ?? 0.96
     readonly property real trackBadge: ls?.badge ?? 0.66
 
-    readonly property int fontDisplay: fs?.display ?? 150
+    readonly property int fontDisplay: fs?.displayHuge ?? 150
     readonly property int fontNav: fs?.nav ?? 32
     readonly property int fontValueLg: fs?.valueLg ?? 20
     readonly property int fontBody: fs?.body ?? 16
