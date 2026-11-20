@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 import qs
 import qs.services
+import qs.services.apple
 import qs.modules.common
 import qs.modules.common.widgets.haiiro as H
 import qs.modules.ii.sidebarRight
@@ -95,8 +96,8 @@ ColumnLayout {
             visible: QuickState.tab === "calendar"
             width: parent.width
             today: DateTime.clock.date
-            // TODO(W2-icloud): days with events, from the calendars service
-            eventDays: []
+            // every day an event touches, multi-day ones included
+            eventDays: Calendars.eventDays(year, month)
             readonly property bool isThisMonth: year === today.getFullYear() && month === today.getMonth()
 
             function shift(n) {

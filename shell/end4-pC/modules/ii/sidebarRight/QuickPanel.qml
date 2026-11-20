@@ -1,5 +1,6 @@
 import qs
 import qs.services
+import qs.services.claude
 import qs.modules.common
 import qs.modules.common.widgets.haiiro as H
 import qs.modules.ii.sidebarRight.lists
@@ -43,6 +44,16 @@ H.HWindow {
 
             H.HRule {
                 Layout.fillWidth: true
+            }
+
+            // With Claude on: after an unlock, what came in while the screen was locked
+            // (ClaudeDigestWidget; it sends nothing until its own press).
+            Loader {
+                Layout.fillWidth: true
+                active: Config.options.claude.enable && ClaudeBrief.lockedAt > 0
+                    && Notifications.list.some(n => n.time >= ClaudeBrief.lockedAt)
+                visible: active && status === Loader.Ready
+                source: active ? Qt.resolvedUrl("../background/widgets/ClaudeDigestWidget.qml") : ""
             }
 
             NotificationList {
