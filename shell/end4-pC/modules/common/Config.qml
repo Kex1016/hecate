@@ -70,8 +70,11 @@ Singleton {
         onAdapterUpdated: fileWriteTimer.restart()
         onLoaded: root.ready = true
         onLoadFailed: error => {
+            // First start: write the defaults out. Nothing loads after that (a file
+            // that did not exist is not watched), so the defaults are what is ready.
             if (error == FileViewError.FileNotFound) {
                 writeAdapter();
+                root.ready = true;
             }
         }
 
