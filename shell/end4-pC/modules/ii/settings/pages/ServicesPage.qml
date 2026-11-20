@@ -148,14 +148,5 @@ SettingsPage {
             name: "stop other trays"
             key: "conflictKiller.autoKillTrays"
         }
-        SetSection { text: "music recognition" }
-        SetNumber {
-            name: "listen for"
-            key: "musicRecognition.timeout"
-            from: 4
-            to: 60
-            stepSize: 2
-            suffix: "s"
-        }
     }
 }

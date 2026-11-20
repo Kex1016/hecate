@@ -332,10 +332,6 @@ Singleton {
                 property bool filterDuplicatePlayers: true
             }
 
-            property JsonObject musicRecognition: JsonObject {
-                property int timeout: 16
-            }
-
             property JsonObject regionSelector: JsonObject {
                 property JsonObject targetRegions: JsonObject {
                     property bool windows: true
