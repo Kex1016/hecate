@@ -1,94 +1,35 @@
-import qs
-import qs.services
-import qs.modules.common
-import qs.modules.common.models
-import qs.modules.common.widgets
-import qs.modules.common.functions
+pragma ComponentBehavior: Bound
 import QtQuick
-import QtQuick.Layouts
-import Quickshell
-import QtQuick.Controls
 import Quickshell.Wayland
-import Quickshell.Widgets
-import Qt5Compat.GraphicalEffects
+import qs.modules.common.widgets.haiiro
 
+// The focused window after a muted », named the way its frame is
+// ("kitty: ~/src/hecate"). It gives way first when the bar runs short.
 Item {
     id: root
-    property color contentColor: Appearance.colors.colOnLayer0
-    property bool contentColorOverridden: false
-    property bool vertical: false
-    readonly property var monitor: WM.monitorFor(root.QsWindow.window?.screen)
-    readonly property Toplevel activeWindow: ToplevelManager.activeToplevel
-    property string activeWindowAddress: activeWindow?.HyprlandToplevel?.address ? `0x${activeWindow.HyprlandToplevel.address}` : ""
-    property bool focusingThisMonitor: WM.focusedMonitor?.name === monitor?.name
-    property var biggestWindow: WM.biggestWindowForWorkspace(WM.activeWorkspaceForMonitor(monitor?.name)?.id ?? 1)
 
-    property string activeAppClass: {
-        if (!root.focusingThisMonitor || !root.activeWindow?.activated)
-            return root.biggestWindow?.class ?? ""
-        return root.activeWindow?.appId ?? root.biggestWindow?.class ?? ""
-    }
+    readonly property Toplevel window: ToplevelManager.activeToplevel
+    readonly property string label: root.window ? BarState.windowLabel(root.window.appId, root.window.title) : ""
 
-    property var mainAppIconSource: {
-        if (!root.activeAppClass || root.activeAppClass === "")
-            return SystemAppearance.iconPath("user-desktop", "image-missing")
-        return SystemAppearance.iconPath(AppSearch.guessIcon(root.activeAppClass), 
-            SystemAppearance.iconPath("user-desktop", "image-missing"))     // ← fallback Desktop
-    }
+    // stays in the layout when empty, so the segments before it keep their place
+    implicitWidth: mark.implicitWidth + HTokens.space4 + title.implicitWidth
+    implicitHeight: title.implicitHeight
 
-    Component.onCompleted: {
-        console.log("appId:", root.activeWindow?.appId)
-        console.log("class:", root.biggestWindow?.class)
-        console.log("guessIcon:", AppSearch.guessIcon(root.activeAppClass))
-        console.log("iconPath:", root.mainAppIconSource)
-    }
-
-    implicitWidth:  vertical ? Appearance.sizes.verticalBarWidth : Math.min(colLayout.implicitWidth + 12, 280)
-    implicitHeight: vertical ? iconItem.implicitHeight : Appearance.sizes.barHeight
-
-    // Vertical
-    Item {
-        id: iconItem
-        visible: root.vertical
-        anchors.centerIn: parent
-        implicitWidth: 22
-        implicitHeight: 22
-
-        IconImage {
-            anchors.centerIn: parent
-            source: root.mainAppIconSource
-            implicitSize: 18
-            visible: root.mainAppIconSource !== ""
-        }
-    }
-
-    // Horizontal
-    ColumnLayout {
-        id: colLayout
-        visible: !root.vertical
+    HText {
+        id: mark
         anchors.verticalCenter: parent.verticalCenter
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.leftMargin: 6
-        spacing: -4
+        visible: root.label.length > 0
+        text: "»"
+        ink: "muted"
+    }
 
-        StyledText {
-            Layout.fillWidth: true
-            font.pixelSize: Appearance.font.pixelSize.smaller
-            color: root.contentColorOverridden ? Qt.alpha(root.contentColor, 0.7) : Appearance.colors.colSubtext
-            elide: Text.ElideRight
-            text: root.focusingThisMonitor && root.activeWindow?.activated && root.biggestWindow ?
-                root.activeWindow?.appId :
-                (root.biggestWindow?.class) ?? Translation.tr("Desktop")
-        }
-        StyledText {
-            Layout.fillWidth: true
-            font.pixelSize: Appearance.font.pixelSize.small
-            color: root.contentColor
-            elide: Text.ElideRight
-            text: root.focusingThisMonitor && root.activeWindow?.activated && root.biggestWindow ?
-                root.activeWindow?.title :
-                (root.biggestWindow?.title) ?? `${Translation.tr("Workspace")} ${WM.activeWorkspaceForMonitor(monitor?.name)?.id ?? 1}`
-        }
+    HText {
+        id: title
+        anchors.verticalCenter: parent.verticalCenter
+        x: mark.width + HTokens.space4
+        width: Math.max(0, root.width - x)
+        text: root.label
+        ink: "subtle"
+        elide: Text.ElideRight
     }
 }
