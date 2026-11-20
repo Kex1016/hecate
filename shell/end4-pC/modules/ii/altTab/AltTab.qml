@@ -3,14 +3,14 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
-import Quickshell.Widgets
 import qs
 import qs.services
-import qs.modules.common
-import qs.modules.common.widgets
+import qs.modules.common.widgets.haiiro as H
 
 /**
- * hecate: the Alt+Tab switcher. Windows in most recently used order, with live previews.
+ * hecate: the Alt+Tab switcher, the AltTab board of the haiiro canvas: a double-framed
+ * `hecate: ~/windows` pane, one card per window (live preview, number, app and title) in most
+ * recently used order, the selected card on overlay with a 5px double pine frame.
  *
  * Driven by hecate's `signal` binds (nix/shell-binds.nix): Alt+Tab / Alt+Shift+Tab move the
  * selection (the first press opens it on the previous window), releasing Alt switches,
@@ -25,6 +25,8 @@ Scope {
     property int index: 0
     // A quick Alt+Tab tap switches without flashing the switcher up.
     property bool shown: false
+    // The panel stays mapped while the close frames play.
+    property bool lingering: false
 
     function start(step) {
         const wins = WM.windowList.slice().sort((a, b) => b.focusSerial - a.focusSerial);
@@ -32,6 +34,7 @@ Scope {
         root.entries = wins;
         root.index = step > 0 ? Math.min(1, wins.length - 1) : wins.length - 1;
         root.open = true;
+        root.lingering = false;
         showDelay.restart();
     }
     function move(step) {
@@ -49,10 +52,12 @@ Scope {
         if (win) WM.focusWindow(win.id);
     }
     function close() {
+        // The card pixelates out; the windows stay in `entries` until it is gone.
+        root.lingering = root.shown;
         root.open = false;
         root.shown = false;
         showDelay.stop();
-        root.entries = [];
+        if (!root.lingering) root.entries = [];
     }
 
     Timer {
@@ -93,7 +98,7 @@ Scope {
     }
 
     Loader {
-        active: root.shown
+        active: root.shown || root.lingering
         sourceComponent: PanelWindow {
             id: panel
             screen: Quickshell.screens.find(s => s.name === WM.focusedMonitor?.name) ?? Quickshell.screens[0]
@@ -103,104 +108,167 @@ Scope {
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
             color: "transparent"
 
-            readonly property int cardWidth: 260
-            readonly property int cardHeight: 210
-            readonly property int padding: 14
-            implicitWidth: Math.min(list.count * cardWidth, (screen?.width ?? 1920) * 0.85) + padding * 2
-            implicitHeight: cardHeight + padding * 2
+            readonly property int cardWidth: 220
+            readonly property int cardGap: 8
+            readonly property int previewHeight: 130
+            // padding 8 + preview + gap + one title line + padding 8
+            readonly property int cardHeight: 8 + previewHeight + 8 + H.HTokens.lineBox(H.HTokens.fontLabel) + 8
+            readonly property int maxListWidth: Math.floor((screen?.width ?? 1920) * 0.9) - window.inset * 2
+            readonly property int listWidth: Math.min(root.entries.length * (cardWidth + cardGap) - cardGap, maxListWidth)
 
-            StyledRectangularShadow {
-                target: background
-            }
-            Rectangle {
-                id: background
-                anchors.fill: parent
-                radius: Appearance.rounding.large
-                color: Appearance.m3colors.m3surfaceContainer
-                border.width: 1
-                border.color: Appearance.colors.colLayer0Border
+            anchors.top: true
+            margins.top: Math.round((screen?.height ?? 1080) * 0.35)
+            implicitWidth: window.implicitWidth + 2 * transition.margin
+            implicitHeight: window.implicitHeight + 2 * transition.margin
+            mask: Region { item: window }
 
-                ListView {
-                    id: list
-                    anchors.fill: parent
-                    anchors.margins: panel.padding
-                    orientation: ListView.Horizontal
-                    clip: true
-                    interactive: false
-                    model: root.entries
-                    currentIndex: root.index
-                    highlightFollowsCurrentItem: false
-                    onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+            H.PixelTransition {
+                id: transition
+                x: transition.margin
+                y: transition.margin
+                width: window.implicitWidth
+                height: window.implicitHeight
+                shown: root.shown
+                onClosed: {
+                    root.lingering = false;
+                    if (!root.open) root.entries = [];
+                }
 
-                    delegate: Item {
-                        id: cell
-                        required property var modelData
-                        required property int index
-                        readonly property bool selected: cell.index === root.index
-                        width: panel.cardWidth
-                        height: panel.cardHeight
-
-                        Rectangle {
-                            anchors.fill: parent
-                            anchors.margins: 5
-                            radius: Appearance.rounding.normal
-                            color: cell.selected ? Appearance.colors.colSecondaryContainer
-                                : mouse.containsMouse ? Appearance.colors.colLayer2Hover : "transparent"
-                            border.width: cell.selected ? 2 : 0
-                            border.color: Appearance.colors.colPrimary
-                            Behavior on color {
-                                animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+                H.HWindow {
+                    id: window
+                    width: implicitWidth
+                    height: implicitHeight
+                    label: "hecate: ~/windows"
+                    hints: [
+                        { key: "tab", text: "next" },
+                        { key: "shift tab", text: "back" }
+                    ]
+                    footer: [
+                        Row {
+                            spacing: 8
+                            H.HText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                role: "caption"
+                                ink: "inkMuted"
+                                text: "release"
                             }
+                            H.Keycap { key: "alt"; quiet: true; hint: "to switch" }
+                        },
+                        H.Keycap { key: "esc"; quiet: true; hint: "stay" }
+                    ]
 
-                            ColumnLayout {
-                                anchors.fill: parent
-                                anchors.margins: 10
-                                spacing: 8
+                    Item {
+                        implicitWidth: panel.listWidth
+                        implicitHeight: panel.cardHeight
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: panel.cardHeight
+
+                        ListView {
+                            id: list
+                            anchors.fill: parent
+                            orientation: ListView.Horizontal
+                            spacing: panel.cardGap
+                            clip: true
+                            interactive: false
+                            model: root.entries
+                            currentIndex: root.index
+                            highlightFollowsCurrentItem: false
+                            onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+
+                            delegate: Item {
+                                id: cell
+                                required property var modelData
+                                required property int index
+                                readonly property bool selected: cell.index === root.index
+                                width: panel.cardWidth
+                                height: panel.cardHeight
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    color: cell.selected ? H.HTokens.overlay
+                                        : mouse.containsMouse ? H.HTokens.highlightLow : "transparent"
+                                }
 
                                 Item {
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
+                                    id: preview
+                                    x: 8
+                                    y: 8
+                                    width: parent.width - 16
+                                    height: panel.previewHeight
 
-                                    ScreencopyView {
-                                        id: preview
+                                    // No preview (yet): the dither, like any picture that is missing.
+                                    H.Dither {
                                         anchors.fill: parent
+                                        visible: !capture.hasContent
+                                        tone: cell.index % 2 === 0 ? "muted" : "lo"
+                                        big: cell.selected
+                                    }
+                                    ScreencopyView {
+                                        id: capture
+                                        anchors.fill: parent
+                                        anchors.margins: 2
                                         live: true
                                         constraintSize: Qt.size(width, height)
                                         captureSource: WM.toplevelFor(cell.modelData)
-                                        opacity: cell.modelData.minimized ? 0.5 : 1
                                     }
-                                    // No preview (yet): the app's icon, big.
-                                    IconImage {
-                                        anchors.centerIn: parent
-                                        visible: !preview.hasContent
-                                        implicitSize: 64
-                                        source: SystemAppearance.iconPath(AppSearch.guessIcon(cell.modelData.appId), "image-missing")
+                                    // 2px line, or the 5px double pine frame when selected
+                                    Repeater {
+                                        model: cell.selected ? [0, 3] : [0]
+                                        Rectangle {
+                                            required property int modelData
+                                            x: modelData
+                                            y: modelData
+                                            width: preview.width - 2 * modelData
+                                            height: preview.height - 2 * modelData
+                                            color: "transparent"
+                                            border.width: 2
+                                            border.color: cell.selected ? H.HTokens.pine : H.HTokens.highlightHigh
+                                        }
+                                    }
+                                    H.Chip {
+                                        visible: cell.modelData.minimized
+                                        x: 8
+                                        y: 8
+                                        text: "min"
+                                        badge: true
                                     }
                                 }
 
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 8
-                                    IconImage {
-                                        implicitSize: 20
-                                        source: SystemAppearance.iconPath(AppSearch.guessIcon(cell.modelData.appId), "image-missing")
+                                Row {
+                                    x: 8
+                                    y: preview.y + preview.height + 8
+                                    width: parent.width - 16
+                                    spacing: 0
+
+                                    H.HText {
+                                        id: marker
+                                        role: "caption"
+                                        ink: cell.selected ? "c4" : "c1"
+                                        text: (cell.selected ? "»" : cell.index + 1) + " "
                                     }
-                                    StyledText {
-                                        Layout.fillWidth: true
+                                    H.HText {
+                                        id: appName
+                                        visible: (cell.modelData.appId ?? "").length > 0
+                                        role: "caption"
+                                        ink: cell.selected ? "c5" : "subtle"
+                                        text: cell.modelData.appId + ": "
+                                    }
+                                    H.HText {
+                                        role: "caption"
+                                        width: parent.width - marker.width - (appName.visible ? appName.width : 0)
                                         elide: Text.ElideRight
                                         text: cell.modelData.title || cell.modelData.appId
-                                        color: cell.selected ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer1
                                     }
                                 }
-                            }
 
-                            MouseArea {
-                                id: mouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                onClicked: {
-                                    root.index = cell.index;
-                                    root.commit();
+                                MouseArea {
+                                    id: mouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: {
+                                        root.index = cell.index;
+                                        root.commit();
+                                    }
                                 }
                             }
                         }

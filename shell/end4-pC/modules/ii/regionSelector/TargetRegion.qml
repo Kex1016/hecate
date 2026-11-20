@@ -1,43 +1,38 @@
 pragma ComponentBehavior: Bound
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.common.widgets.haiiro as H
 import qs.services
 import QtQuick
-import Quickshell
-import Quickshell.Widgets
 
+// A window, layer or picture the selector offers as a one-click target: a square outline that
+// turns solid and gets a faint fill under the pointer. No fades, no rounding.
 Rectangle {
     id: root
     required property var clientDimensions
 
-    property color colBackground: Qt.alpha("#88111111", 0.9)
-    property color colForeground: "#ddffffff"
+    property color colBackground: H.HTokens.surface
+    property color colForeground: H.HTokens.text
     property bool showLabel: Config.options.regionSelector.targetRegions.showLabel
     property bool showIcon: false
     property bool targeted: false
     property color borderColor
     property color fillColor: "transparent"
     property string text: ""
-    property real textPadding: 10
+    property real textPadding: 8
     z: 2
     color: fillColor
     border.color: borderColor
-    border.width: targeted ? 4 : 2
-    radius: 4
-
-    Behavior on color {
-        animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
-    }
+    border.width: targeted ? 2 : 1
+    radius: 0
 
     visible: opacity > 0
-    Behavior on opacity {
-        animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-    }
     x: clientDimensions.at[0]
     y: clientDimensions.at[1]
     width: clientDimensions.size[0]
     height: clientDimensions.size[1]
 
+    // The label is shown for the targeted one too: it says what a click takes.
     Loader {
         anchors {
             top: parent.top
@@ -45,38 +40,20 @@ Rectangle {
             topMargin: root.textPadding
             leftMargin: root.textPadding
         }
-        
-        active: root.showLabel
+
+        active: root.showLabel || root.targeted
         sourceComponent: Rectangle {
-            property real verticalPadding: 5
-            property real horizontalPadding: 10
-            radius: 10
             color: root.colBackground
-            border.width: 1
-            border.color: Appearance.m3colors.m3outlineVariant
-            implicitWidth: regionInfoRow.implicitWidth + horizontalPadding * 2
-            implicitHeight: regionInfoRow.implicitHeight + verticalPadding * 2
+            implicitWidth: label.implicitWidth + 16
+            implicitHeight: label.implicitHeight + 4
 
-            Row {
-                id: regionInfoRow
-                anchors.centerIn: parent
-                spacing: 4
-
-                Loader {
-                    id: regionIconLoader
-                    active: root.showIcon
-                    visible: active
-                    sourceComponent: IconImage {
-                        implicitSize: Appearance.font.pixelSize.larger
-                        source: SystemAppearance.iconPath(AppSearch.guessIcon(root.text), "image-missing")
-                    }
-                }
-
-                StyledText {
-                    id: regionText
-                    text: root.text
-                    color: root.colForeground
-                }
+            H.HText {
+                id: label
+                x: 8
+                y: 2
+                role: "caption"
+                text: root.text
+                color: root.colForeground
             }
         }
     }

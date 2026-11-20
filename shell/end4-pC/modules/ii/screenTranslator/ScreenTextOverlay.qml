@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Layouts
 import QtQuick.Effects
 import Qt5Compat.GraphicalEffects
 import Quickshell
@@ -11,6 +12,7 @@ import qs.modules.common.functions
 import qs.modules.common.models.gCloud
 import qs.modules.common.utils
 import qs.modules.common.widgets
+import qs.modules.common.widgets.haiiro as H
 import qs.services
 
 Item {
@@ -60,75 +62,58 @@ Item {
         }
     }
 
-    Rectangle {
+    // While it works, and when it cannot: the screen under the veil and one window saying why.
+    Item {
         id: loadingOverlay
         anchors.fill: parent
-        opacity: root.loading ? 1 : 0
-        Behavior on opacity {
-            animation: Appearance.animation.elementMoveSmall.numberAnimation.createObject(this)
-        }
-        color: root.overlayColor
-
-        Column {
-            visible: !root.error
-            anchors.centerIn: parent
-            spacing: 10 * root.scaleFactor
-            MaterialLoadingIndicator {
-                anchors.horizontalCenter: parent.horizontalCenter
-                implicitSize: 100 * root.scaleFactor
-                scale: 1 + ((1 - loadingOverlay.opacity) * 0.5) * root.scaleFactor
-            }
-            StyledText {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: {
-                    if (cloudVision.state == GCloudApi.State.Preparing)
-                        return Translation.tr("Uploading image");
-                    else if (cloudVision.state == GCloudApi.State.Processing)
-                        return Translation.tr("Reading image");
-                    else if (cloudVision.state == GCloudApi.State.Error)
-                        return Translation.tr("Error");
-                    else if (cloudTrans.state == GCloudApi.State.Preparing)
-                        return Translation.tr("Getting ready to translate");
-                    else if (cloudTrans.state == GCloudApi.State.Processing)
-                        return Translation.tr("Translating");
-                    else
-                        return " ";
-                }
-                font.pixelSize: Appearance.font.pixelSize.small * root.scaleFactor
-                animateChange: true
-                color: root.textColor
-            }
+        z: 100
+        visible: root.loading
+        H.Veil {
+            anchors.fill: parent
+            heavy: true
+            blocking: false
         }
 
-        Column {
-            visible: root.error
+        H.HWindow {
+            id: statusWindow
             anchors.centerIn: parent
-            spacing: 10 * root.scaleFactor
+            width: 420
+            height: implicitHeight
+            label: root.error ? "tr: failed" : "tr: working"
+            variant: root.error ? "love" : "gold"
 
-            MaterialShapeWrappedMaterialSymbol {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "exclamation"
-                iconSize: 80 * root.scaleFactor
-                padding: 6 * root.scaleFactor
-                color: Appearance.colors.colError
-                colSymbol: Appearance.colors.colOnError
-                shape: MaterialShape.Shape.Sunny
-            }
-            StyledText {
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: Math.min(root.windowWidth / 2, 800) * root.scaleFactor
-                horizontalAlignment: Text.AlignHCenter
-                textFormat: Text.MarkdownText
+            H.HText {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 380 - 20
                 wrapMode: Text.Wrap
-                text: `**${Translation.tr("Screen Translator")}**\n\n${root.errorMessage}\n\n__[${Translation.tr("See setup instructions on the wiki")}](${root.wikiLink})__`
-                font.pixelSize: Appearance.font.pixelSize.small * root.scaleFactor
-                color: root.textColor
-                onLinkActivated: (link) => {
-                    Qt.openUrlExternally(link)
-                    GlobalStates.screenTranslatorOpen = false
+                text: {
+                    if (root.error)
+                        return root.errorMessage;
+                    if (cloudVision.state == GCloudApi.State.Preparing)
+                        return "uploading the screen";
+                    else if (cloudVision.state == GCloudApi.State.Processing)
+                        return "reading it";
+                    else if (cloudTrans.state == GCloudApi.State.Preparing)
+                        return "getting ready to translate";
+                    else if (cloudTrans.state == GCloudApi.State.Processing)
+                        return "translating";
+                    return "";
                 }
-
-                PointingHandLinkHover {}
+            }
+            H.HText {
+                visible: root.error
+                Layout.fillWidth: true
+                Layout.preferredWidth: 380 - 20
+                wrapMode: Text.Wrap
+                role: "caption"
+                ink: "c1"
+                text: "setup: " + root.wikiLink
+            }
+            H.HText {
+                visible: !root.error
+                role: "caption"
+                ink: "c1"
+                text: "esc to stop"
             }
         }
     }
@@ -278,7 +263,7 @@ Item {
         y: unscaledY * scaleFactor
         width: unscaledWidth * scaleFactor
         height: unscaledHeight * scaleFactor
-        radius: 4
+        radius: 0
     }
 
     component TextItem: VisionBoundingBoxRect {
@@ -288,10 +273,7 @@ Item {
         readonly property string translatedText: root.translate(text)
         visible: translatedText != text
 
-        color: ColorUtils.transparentize(Appearance.colors.colSecondaryContainer, 0.4)
-        Behavior on color {
-            animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
-        }
+        color: Qt.alpha(H.HTokens.overlay, 0.6)
 
         Loader {
             active: ti.visible
@@ -318,10 +300,6 @@ Item {
             height: parent.height
             text: ti.translatedText
             scaleFactor: root.scaleFactor
-
-            Behavior on color {
-                animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
-            }
         }
     }
 }
