@@ -225,6 +225,7 @@ fn run_compositor(
     }
 
     event_loop.run(None, &mut state, |state| state.refresh_and_flush_clients())?;
+    state.hecate.save_blobs();
     let snapshots = state
         .backend
         .with_renderer(|r| state.hecate.save_snapshots(r))

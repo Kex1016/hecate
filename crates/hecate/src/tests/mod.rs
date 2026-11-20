@@ -3,6 +3,7 @@
 //! Nix devShell) and check pixels.
 
 mod animations;
+mod blobs;
 mod blur;
 mod client;
 mod decorations;

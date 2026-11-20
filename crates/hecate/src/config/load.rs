@@ -219,6 +219,33 @@ pub fn validate(config: &Config) -> Result<(), LoadError> {
         errors.push("animations.slowdown must be positive".into());
     }
 
+    let blobs = &config.background.blobs;
+    if blobs.cell == 0 {
+        errors.push("background.blobs.cell must be at least 1".into());
+    }
+    if blobs.density.is_nan() || blobs.density <= 0. {
+        errors.push("background.blobs.density must be positive".into());
+    }
+    if blobs.count_min > blobs.count_max || blobs.count_max as usize > crate::render::blobs::MAX_BLOBS {
+        errors.push(format!(
+            "background.blobs: count_min <= count_max <= {} must hold",
+            crate::render::blobs::MAX_BLOBS
+        ));
+    }
+    if blobs.radius_max.is_nan() || blobs.radius_max < crate::render::blobs::RADIUS_MIN {
+        errors.push(format!(
+            "background.blobs.radius_max must be at least {}",
+            crate::render::blobs::RADIUS_MIN
+        ));
+    }
+    let speeds = (blobs.speed_min, blobs.speed_max);
+    if speeds.0.is_nan() || speeds.1.is_nan() || speeds.0 <= 0. || speeds.0 > speeds.1 {
+        errors.push("background.blobs: 0 < speed_min <= speed_max must hold".into());
+    }
+    if !(1..=240).contains(&blobs.fps) {
+        errors.push("background.blobs.fps must be between 1 and 240".into());
+    }
+
     const LAYER_ANIMATIONS: &[&str] = &[
         "none",
         "fade",

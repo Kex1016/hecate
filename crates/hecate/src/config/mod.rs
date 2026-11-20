@@ -40,6 +40,7 @@ pub struct Config {
     pub snapping: Snapping,
     pub resistance: Resistance,
     pub blur: Blur,
+    pub background: Background,
     pub animations: Animations,
     pub keyboard: Keyboard,
     pub cursor: Cursor,
@@ -82,6 +83,7 @@ impl Default for Config {
             snapping: Snapping::default(),
             resistance: Resistance::default(),
             blur: Blur::default(),
+            background: Background::default(),
             animations: Animations::default(),
             keyboard: Keyboard::default(),
             cursor: Cursor::default(),
@@ -735,6 +737,72 @@ impl Default for Blur {
             passes: 3,
             radius: 6.,
             noise: 0.02,
+        }
+    }
+}
+
+/// What the compositor draws under every output's layers.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct Background {
+    pub blobs: Blobs,
+}
+
+/// The blob background: pixelated blobs that drift, bridge and merge, dithered into three
+/// tones. Sizes and speeds are in cells. The defaults are the haiiro look.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct Blobs {
+    /// Draw it in place of `general.background_color`, and of the black behind a lock
+    /// screen. A shell that shows a wallpaper turns it off (`hecate msg blobs off`).
+    pub enable: bool,
+    /// One frame that doesn't move (reduced motion). It doesn't move either while
+    /// `animations.enable` is off (Game Mode) or a window is fullscreen on the output.
+    pub still: bool,
+    /// A cell's side in logical pixels.
+    pub cell: u32,
+    /// Cells per blob: a 1920x1080 output is 320x180 cells of 6, which makes 82 blobs,
+    /// then `count_max` of them.
+    pub density: f32,
+    pub count_min: u32,
+    /// 64 at most.
+    pub count_max: u32,
+    /// Two blobs that would make a bigger one than this pass through each other.
+    pub radius_max: f32,
+    /// Cells per second.
+    pub speed_min: f32,
+    pub speed_max: f32,
+    /// How often it moves, at most.
+    pub fps: u32,
+    /// The three tones: the ground, the dithered halo around a blob and its core.
+    pub ground: Color,
+    pub halo: Color,
+    pub core: Color,
+    /// Write the simulations to this file at exit, for the next compositor to carry on
+    /// from (`resume`): hecate-greetd's login screen hands its blobs to the session.
+    pub save: Option<String>,
+    /// Carry on from the simulations in this file, if it is there at startup.
+    pub resume: Option<String>,
+}
+
+impl Default for Blobs {
+    fn default() -> Self {
+        Blobs {
+            enable: false,
+            still: false,
+            cell: 6,
+            density: 700.,
+            count_min: 6,
+            count_max: 60,
+            radius_max: 24.,
+            speed_min: 1.5,
+            speed_max: 6.,
+            fps: 30,
+            ground: Color::rgb(0x19, 0x17, 0x24),
+            halo: Color::rgb(0x26, 0x23, 0x3a),
+            core: Color::rgb(0x40, 0x3d, 0x52),
+            save: None,
+            resume: None,
         }
     }
 }
