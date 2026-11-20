@@ -9,7 +9,8 @@ import qs.modules.common.functions
 
 /**
  * iCloud Drive at ~/iCloud, through rclone's iclouddrive backend, and in the file manager's
- * sidebar (a GTK bookmark, which Nautilus and the GTK file chooser read).
+ * sidebar: a GTK bookmark (GTK file choosers) and, once Dolphin has written its places file, a
+ * KDE place (Dolphin and the Qt file dialogs).
  *
  * The mount runs as a transient user unit (`hecate-icloud-drive`), started at login when the
  * remote exists, so it outlives a shell restart and `systemctl --user` can see it. Files are
@@ -102,6 +103,11 @@ Singleton {
         // The sidebar: one bookmark, added once.
         'b="${XDG_CONFIG_HOME:-$HOME/.config}/gtk-3.0/bookmarks"; mkdir -p "$(dirname "$b")"; touch "$b"',
         'grep -q "^file://$2 " "$b" 2>/dev/null || echo "file://$2 iCloud" >> "$b"',
+        // Only into a places file KDE already wrote: one written here would hide its default places.
+        'p="${XDG_DATA_HOME:-$HOME/.local/share}/user-places.xbel"',
+        'if [ -f "$p" ] && ! grep -q "href=\\"file://$2\\"" "$p"; then',
+        '    sed -i "s|</xbel>| <bookmark href=\\"file://$2\\"><title>iCloud</title><info><metadata owner=\\"http://freedesktop.org\\"><bookmark:icon name=\\"folder-cloud\\"/></metadata></info></bookmark>\\n</xbel>|" "$p"',
+        'fi',
     ].join("\n")
 
     Process {

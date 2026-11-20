@@ -5,7 +5,7 @@ import Quickshell
 import qs.services.apple
 import qs.modules.common.widgets.haiiro as H
 
-// nautilus: ~/iCloud · the top of iCloud Drive as the file manager shows it, what is still
+// ls: ~/iCloud · the top of iCloud Drive as the file manager shows it, what is still
 // uploading, and the one thing to know: rclone can't reach a drive with Advanced Data
 // Protection on. From services/apple/Drive.qml (rclone mount, started at login).
 H.HWindow {
@@ -16,7 +16,7 @@ H.HWindow {
 
     readonly property string shownPath: Drive.mountPoint.replace(new RegExp(`^${Quickshell.env("HOME")}`), "~")
 
-    label: `nautilus: ${root.shownPath}`
+    label: `ls: ${root.shownPath}`
     widget: true
     implicitWidth: 360
 
