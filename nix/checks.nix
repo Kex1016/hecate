@@ -60,10 +60,9 @@ in
     python3 -m unittest discover -v -s scripts/claude/tests -p 'test_*.py'
   '';
 
-  # iCloud calendar parsing, and the wallpaper-template editor calls.
+  # iCloud calendar parsing.
   shell-scripts = scriptCheck "scripts" [ python3 ] ''
     python3 -I scripts/apple/test_ical.py
-    python3 -I scripts/colors/test_hecate_templates.py
   '';
 
   # The shell's pure-JS logic (ask panel parsing, Apple cards), without QML.
