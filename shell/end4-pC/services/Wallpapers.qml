@@ -104,17 +104,6 @@ Singleton {
         if (!on) Config.options.background.monitorWallpapers = [];
     }
 
-    // The compositor draws the blobs; in wallpaper mode it is told to stop.
-    function syncBlobs() {
-        if (!Config.ready) return;
-        Quickshell.execDetached(["hecate", "msg", "set", "blobs.enable", root.enabled ? "false" : "true"]);
-    }
-    onEnabledChanged: root.syncBlobs()
-    Connections {
-        target: Config
-        function onReadyChanged() { root.syncBlobs(); }
-    }
-
     // No recolouring: the palette never follows the picture. The background layer
     // reads wallpaperPath and, with dither on, presses it into haiiro tones.
     function apply(path, darkMode = Appearance.m3colors.darkmode) {
