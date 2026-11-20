@@ -88,25 +88,20 @@ pkgs.testers.runNixOSTest {
         print(machine.execute(as_alice("timeout 15 hecate-shell-ipc shortcut list; echo ipc-rc=$?"))[1])
 
     try:
+        # Count layers by namespace: transient ones (a toast, the OSD) come and go on their own.
+        def has_layer(name):
+            return as_alice(f"HECATE_SOCKET={sock} hecate msg --json layers | grep -qw quickshell:{name}")
+
         # The bar and the background both map as layer surfaces.
-        machine.wait_until_succeeds(
-            as_alice(
-                f"test $(HECATE_SOCKET={sock} hecate msg --json layers | grep -o quickshell | wc -l) -ge 2"
-            ),
-            timeout=180,
-        )
+        machine.wait_until_succeeds(has_layer("background"), timeout=180)
+        machine.wait_until_succeeds(has_layer("bar"), timeout=30)
         # Every shortcut the shell's binds trigger is registered over its IPC.
         machine.wait_until_succeeds(
             as_alice("timeout 15 hecate-shell-ipc shortcut list | grep -q sidebarRightToggle"), timeout=180
         )
-        before = msg("--json layers").count("quickshell")
+        machine.fail(has_layer("sidebarRight"))
         machine.succeed(as_alice("timeout 15 hecate-shell-ipc shortcut trigger sidebarRightToggle"))
-        machine.wait_until_succeeds(
-            as_alice(
-                f"test $(HECATE_SOCKET={sock} hecate msg --json layers | grep -o quickshell | wc -l) -gt {before}"
-            ),
-            timeout=30,
-        )
+        machine.wait_until_succeeds(has_layer("sidebarRight"), timeout=30)
         machine.succeed(as_alice("systemctl --user is-active hecate-shell"))
 
         # Nothing the shell loaded may have failed to compile or bind: a component that cannot
