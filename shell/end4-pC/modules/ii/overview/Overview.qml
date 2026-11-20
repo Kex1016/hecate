@@ -1,46 +1,32 @@
+pragma ComponentBehavior: Bound
 import qs
 import qs.services
 import qs.modules.common
-import qs.modules.common.widgets
-import Qt.labs.synchronizer
+import qs.modules.common.widgets.haiiro as H
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
-import Quickshell.Hyprland
 
+// The launcher (Mod+A, the `searchToggle` shortcut). A veil over the
+// desktop under the bar, the launcher window 160px from the top, and
+// `man launch` under it while no prefix is in use. Mod+V and Mod+. open it
+// in the clipboard and emoji modes. Tapping Super alone does nothing.
 Scope {
     id: overviewScope
-    property bool dontAutoCancelSearch: false
 
     PanelWindow {
         id: panelWindow
-        property string searchingText: ""
-        readonly property HyprlandMonitor monitor: Hyprland.monitorFor(panelWindow.screen)
-        readonly property bool barCenterOnly: Config.options.bar.layouts.leftLayout.length === 0
-            && Config.options.bar.layouts.rightLayout.length === 0
-            && !Config.options.bar.vertical
-
-        readonly property bool barOverlapActive: panelWindow.barCenterOnly
-            && Config.options.bar.centerOnlyReserveFrame
-            && !Config.options.bar.bottom
-            && !Config.options.bar.autoHide.enable
-        property bool monitorIsFocused: (Hyprland.focusedMonitor?.id == monitor?.id)
-        visible: GlobalStates.overviewOpen
+        readonly property bool open: GlobalStates.overviewOpen
+        // stays mapped while the close frames play
+        visible: open || windowFx.present || helpFx.present
 
         WlrLayershell.namespace: "quickshell:overview"
         WlrLayershell.layer: WlrLayer.Top
-        WlrLayershell.keyboardFocus: GlobalStates.overviewOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+        WlrLayershell.keyboardFocus: open ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+        exclusionMode: ExclusionMode.Ignore
         color: "transparent"
-
-        mask: Region {
-            item: GlobalStates.overviewOpen ? columnLayout : null
-            Region {
-                item: searchWidget.clipboardPopover.visible ? searchWidget.clipboardPopover : null
-            }
-        }
 
         anchors {
             top: true
@@ -49,18 +35,27 @@ Scope {
             right: true
         }
 
+        // no input at all while closing
+        mask: Region {
+            item: panelWindow.open ? inputArea : null
+        }
+        Item {
+            id: inputArea
+            anchors.fill: parent
+        }
+
         Connections {
             target: GlobalStates
             function onOverviewOpenChanged() {
-                if (!GlobalStates.overviewOpen) {
-                    searchWidget.disableExpandAnimation();
-                    overviewScope.dontAutoCancelSearch = false;
-                    GlobalFocusGrab.dismiss();
-                } else {
-                    if (!overviewScope.dontAutoCancelSearch) {
-                        searchWidget.cancelSearch();
-                    }
+                if (GlobalStates.overviewOpen) {
+                    // opened from elsewhere (the bar's button): a fresh search
+                    if (!overviewScope.keepQuery)
+                        LauncherSearch.query = "";
+                    overviewScope.keepQuery = false;
                     GlobalFocusGrab.addDismissable(panelWindow);
+                    launcher.focusField();
+                } else {
+                    GlobalFocusGrab.dismiss();
                 }
             }
         }
@@ -71,206 +66,105 @@ Scope {
                 GlobalStates.overviewOpen = false;
             }
         }
-        implicitWidth: columnLayout.implicitWidth
-        implicitHeight: columnLayout.implicitHeight
 
-        function setSearchingText(text) {
-            searchWidget.setSearchingText(text);
-            searchWidget.focusFirstItem();
+        H.Veil {
+            id: veil
+            visible: panelWindow.open
+            anchors.fill: parent
+            anchors.topMargin: H.HTokens.barHeight
+            onClicked: GlobalStates.overviewOpen = false
         }
 
         Column {
-            id: columnLayout
-            visible: GlobalStates.overviewOpen
-            opacity: GlobalStates.overviewOpen ? 1 : 0
-            scale: GlobalStates.overviewOpen ? 1 : 0.85
-            transformOrigin: Item.Top
-            anchors {
-                horizontalCenter: parent.horizontalCenter
-                top: parent.top
-                topMargin: panelWindow.barOverlapActive
-                    ? Appearance.sizes.barHeight - Config.options.bar.frameThickness
-                    : 0
-            }
-            spacing: -8
+            id: stack
+            x: Math.round((parent.width - width) / 2)
+            y: 160
+            spacing: 40
 
-            Behavior on opacity {
-                NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
-            }
-            Behavior on scale {
-                NumberAnimation { duration: 400; easing.type: Easing.BezierSpline; easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial }
-            }
+            H.PixelTransition {
+                id: windowFx
+                shown: panelWindow.open
 
-            Keys.onPressed: event => {
-                if (event.key === Qt.Key_Escape) {
-                    GlobalStates.overviewOpen = false;
-                } else if (event.key === Qt.Key_Left) {
-                    if (!panelWindow.searchingText)
-                        Hyprland.dispatch("workspace r-1");
-                } else if (event.key === Qt.Key_Right) {
-                    if (!panelWindow.searchingText)
-                        Hyprland.dispatch("workspace r+1");
+                Launcher {
+                    id: launcher
+                    listMax: Math.max(160, panelWindow.height - stack.y - 80 - (helpFx.shown ? help.height + stack.spacing : 0) - 200)
+                    onDone: GlobalStates.overviewOpen = false
                 }
             }
 
-            SearchWidget {
-                id: searchWidget
-                anchors.horizontalCenter: parent.horizontalCenter
-                Synchronizer on searchingText {
-                    property alias source: panelWindow.searchingText
-                }
-            }
+            H.PixelTransition {
+                id: helpFx
+                index: 1
+                shown: panelWindow.open && LauncherSearch.mode === "search"
 
-            Loader {
-                id: overviewLoader
-                active: GlobalStates.overviewOpen && (Config?.options.overview.enable ?? true)
-                sourceComponent: (Config?.options.overview.style ?? "default") === "niri" ? niriComponent : defaultComponent
-
-                Component {
-                    id: defaultComponent
-                    OverviewWidget {
-                        screen: panelWindow.screen
-                        visible: (panelWindow.searchingText == "")
-                    }
-                }
-
-                Component {
-                    id: niriComponent
-                    NiriOverview {
-                        screen: panelWindow.screen
-                        panelWindow: panelWindow
-                        visible: (panelWindow.searchingText == "")
-                    }
+                LauncherHelp {
+                    id: help
                 }
             }
         }
     }
 
-    function toggleClipboard() {
-        if (GlobalStates.overviewOpen && overviewScope.dontAutoCancelSearch) {
+    // a fresh search each time it opens
+    function toggle() {
+        if (GlobalStates.overviewOpen)
             GlobalStates.overviewOpen = false;
-            return;
-        }
-        overviewScope.dontAutoCancelSearch = true;
-        panelWindow.setSearchingText(Config.options.search.prefix.clipboard);
-        GlobalStates.overviewOpen = true;
+        else
+            overviewScope.openIn("search");
     }
 
-    function toggleEmojis() {
-        if (GlobalStates.overviewOpen && overviewScope.dontAutoCancelSearch) {
+    function openIn(mode) {
+        // the same key again closes it
+        if (GlobalStates.overviewOpen && LauncherSearch.mode === mode) {
             GlobalStates.overviewOpen = false;
             return;
         }
-        overviewScope.dontAutoCancelSearch = true;
-        panelWindow.setSearchingText(Config.options.search.prefix.emojis);
-        GlobalStates.overviewOpen = true;
+        overviewScope.show(mode === "search" ? "" : LauncherSearch.prefixes.find(p => p.mode === mode).token);
     }
 
-    function toggleSymbols() {
-        if (GlobalStates.overviewOpen && overviewScope.dontAutoCancelSearch) {
-            GlobalStates.overviewOpen = false;
-            return;
-        }
-        overviewScope.dontAutoCancelSearch = true;
-        panelWindow.setSearchingText(Config.options.search.prefix.symbols);
+    property bool keepQuery: false
+    function show(query) {
+        LauncherSearch.query = query;
+        overviewScope.keepQuery = !GlobalStates.overviewOpen;
         GlobalStates.overviewOpen = true;
     }
 
     IpcHandler {
         target: "search"
 
-        function toggle() {
-            GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
+        function toggle(): void {
+            overviewScope.toggle();
         }
-        function workspacesToggle() {
-            GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
-        }
-        function close() {
+        function close(): void {
             GlobalStates.overviewOpen = false;
         }
-        function open() {
-            GlobalStates.overviewOpen = true;
+        function open(): void {
+            overviewScope.openIn("search");
         }
-        function toggleReleaseInterrupt() {
-            GlobalStates.superReleaseMightTrigger = false;
+        // open with a query, prefix included: `qs ipc call search query "v "`
+        function query(text: string): void {
+            overviewScope.show(text);
         }
-        function clipboardToggle() {
-            overviewScope.toggleClipboard();
+        function clipboardToggle(): void {
+            overviewScope.openIn("clipboard");
+        }
+        function emojiToggle(): void {
+            overviewScope.openIn("emoji");
         }
     }
 
     CompositorGlobalShortcut {
         name: "searchToggle"
-        description: "Toggles search on press"
-
-        onPressed: {
-            GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
-        }
-    }
-    CompositorGlobalShortcut {
-        name: "overviewWorkspacesClose"
-        description: "Closes overview on press"
-
-        onPressed: {
-            GlobalStates.overviewOpen = false;
-        }
-    }
-    CompositorGlobalShortcut {
-        name: "overviewWorkspacesToggle"
-        description: "Toggles overview on press"
-
-        onPressed: {
-            GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
-        }
-    }
-    CompositorGlobalShortcut {
-        name: "searchToggleRelease"
-        description: "Toggles search on release"
-
-        onPressed: {
-            GlobalStates.superReleaseMightTrigger = true;
-        }
-
-        onReleased: {
-            if (!GlobalStates.superReleaseMightTrigger) {
-                GlobalStates.superReleaseMightTrigger = true;
-                return;
-            }
-            GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
-        }
-    }
-    CompositorGlobalShortcut {
-        name: "searchToggleReleaseInterrupt"
-        description: "Interrupts possibility of search being toggled on release. " + "This is necessary because GlobalShortcut.onReleased in quickshell triggers whether or not you press something else while holding the key. " + "To make sure this works consistently, use binditn = MODKEYS, catchall in an automatically triggered submap that includes everything."
-
-        onPressed: {
-            GlobalStates.superReleaseMightTrigger = false;
-        }
+        description: "Opens or closes the launcher (Mod+A)"
+        onPressed: overviewScope.toggle()
     }
     CompositorGlobalShortcut {
         name: "overviewClipboardToggle"
-        description: "Toggle clipboard query on overview widget"
-
-        onPressed: {
-            overviewScope.toggleClipboard();
-        }
+        description: "Opens the launcher on the clipboard (Mod+V)"
+        onPressed: overviewScope.openIn("clipboard")
     }
-
     CompositorGlobalShortcut {
         name: "overviewEmojiToggle"
-        description: "Toggle emoji query on overview widget"
-
-        onPressed: {
-            overviewScope.toggleEmojis();
-        }
-    }
-
-    CompositorGlobalShortcut {
-        name: "overviewSymbolsToggle"
-        description: "Toggle material symbols search on overview widget"
-
-        onPressed: {
-            overviewScope.toggleSymbols();
-        }
+        description: "Opens the launcher on the emoji picker (Mod+.)"
+        onPressed: overviewScope.openIn("emoji")
     }
 }

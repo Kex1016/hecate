@@ -4,14 +4,15 @@ import qs.modules.common
 import qs.modules.common.functions
 import Quickshell
 
+import "../modules/ii/overview/LauncherMatch.js" as Match
+
 /**
- * - Eases fuzzy searching for applications by name
+ * - Ranks applications for the launcher by name, generic name, desktop-entry
+ *   Keywords and the user's aliases (LauncherMatch.js, unit-checked)
  * - Guesses icon name for window class name
  */
 Singleton {
     id: root
-    property bool sloppySearch: Config.options?.search.sloppy ?? false
-    property real scoreThreshold: 0.2
     property var substitutions: ({
         "code-url-handler": "visual-studio-code",
         "Code": "visual-studio-code",
@@ -47,9 +48,13 @@ Singleton {
                 t.id === app.id
             ))
     )
-    
-    readonly property var preppedNames: list.map(a => ({
-        name: Fuzzy.prepare(`${a.name} `),
+
+    // What the matcher sees of each entry
+    readonly property var searchable: list.map(a => ({
+        id: a.id,
+        name: a.name,
+        genericName: a.genericName,
+        keywords: Array.from(a.keywords ?? []),
         entry: a
     }))
 
@@ -58,23 +63,25 @@ Singleton {
         entry: a
     }))
 
-    function fuzzyQuery(search: string): var { // Idk why list<DesktopEntry> doesn't work
-        if (root.sloppySearch) {
-            const results = list.map(obj => ({
-                entry: obj,
-                score: Levendist.computeScore(obj.name.toLowerCase(), search.toLowerCase())
-            })).filter(item => item.score > root.scoreThreshold)
-                .sort((a, b) => b.score - a.score)
-            return results
-                .map(item => item.entry)
-        }
+    // [{ entry, alias, score, field }] best first. `aliases` is
+    // LauncherMatch.normalizeAliases() output; `alias` is the user alias or
+    // Keyword that matched, empty when the name or generic name did.
+    function query(search: string, aliases: var): var {
+        return Match.rank(root.searchable, search, aliases ?? {}).map(r => ({
+            entry: r.app.entry,
+            alias: r.alias,
+            score: r.score,
+            field: r.field
+        }));
+    }
 
-        return Fuzzy.go(search, preppedNames, {
-            all: true,
-            key: "name"
-        }).map(r => {
-            return r.obj.entry
-        });
+    // Aliases that name a command rather than an app: [{ alias, command }].
+    function commandAliases(search: string, aliases: var): var {
+        return Match.commandAliases(root.searchable, search, aliases ?? {});
+    }
+
+    function fuzzyQuery(search: string): var { // Idk why list<DesktopEntry> doesn't work
+        return root.query(search, {}).map(r => r.entry);
     }
 
     function iconExists(iconName) {
