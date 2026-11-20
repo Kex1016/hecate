@@ -23,6 +23,7 @@ import qs.modules.ii.idle
 import qs.modules.ii.sharePicker
 import qs.modules.ii.altTab
 import qs.modules.ii.cakeosUpdater
+import qs.modules.ii.claude
 import qs.services
 
 Scope {
@@ -31,7 +32,6 @@ Scope {
 
     // On screen
     PanelLoader { id: background; component: Background {} }
-    PanelLoader { component: NiriBackdrop {} }
     PanelLoader { id: bar; component: Bar {} }
 
     // hecate's login splash (a picture of this desktop) covers the screen until the wallpaper
@@ -56,6 +56,11 @@ Scope {
     PanelLoader { extraCondition: WM.compositor === "hecate"; component: SharePicker {} }
     PanelLoader { component: SidebarRight {} }
     PanelLoader { component: Overview {} }
+    // Claude is opt-in (claude.enable): Mod+/, Mod+Shift+/, the launcher's `?` and the
+    // calendar and music cards exist only once it is on.
+    PanelLoader { extraCondition: Config.options.claude.enable; component: Sessions {} }
+    PanelLoader { extraCondition: Config.options.claude.enable; component: AskPanel {} }
+    PanelLoader { extraCondition: Config.options.claude.enable; component: AppleCardsPanel {} }
     PanelLoader { component: MediaControls {} }
     PanelLoader { component: EqualizerPopup {} }
     PanelLoader { component: RegionSelector {} }
