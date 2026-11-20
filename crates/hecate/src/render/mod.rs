@@ -3,6 +3,7 @@
 pub mod blur;
 pub mod border;
 pub mod capture;
+pub mod fonts;
 pub mod label;
 pub mod screencopy;
 
