@@ -17,8 +17,8 @@ import qs.modules.common.functions
  * cached on disk (`--vfs-cache-mode full`), so apps can write to them like local ones;
  * rclone's remote control socket says what is still uploading.
  *
- * Signing in is rclone's own config flow, in a terminal: password and the two-factor code.
- * Apple's session runs out after a while; `signIn()` again then (rclone config reconnect).
+ * Signing in runs scripts/apple/icloud-drive-signin.sh in a terminal: password and the
+ * two-factor code. Apple's session runs out after a while; `signIn()` again then.
  *
  * rclone can't reach iCloud Drive when Advanced Data Protection is on for the account: Apple
  * only hands the web API to trusted Apple devices then. Turning ADP off (iPhone: Settings →
@@ -38,6 +38,7 @@ Singleton {
     readonly property string unit: "hecate-icloud-drive"
     readonly property string socket: `${Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"}/hecate-icloud-drive.sock`
     readonly property string adpNote: "not available with Advanced Data Protection"
+    readonly property string signInScript: FileUtils.trimFileProtocol(`${Directories.scriptPath}/apple/icloud-drive-signin.sh`)
 
     property bool installed: false
     // an iclouddrive remote called `remote` is in rclone's config
@@ -55,16 +56,11 @@ Singleton {
     property int consumers: 0
 
     function signIn() {
-        const q = s => `'${String(s).replace(/'/g, "'\\''")}'`;
-        const script = root.configured
-            ? `rclone config reconnect ${q(root.remote + ":")}; echo; echo "done, you can close this window"; read -r _`
-            : [
-                `echo "iCloud Drive for "${q(root.appleId || "your Apple ID")}". It does not work with Advanced Data Protection."`,
-                `printf "Apple ID password: "; stty -echo; read -r pw; stty echo; echo`,
-                `rclone config create ${q(root.remote)} iclouddrive apple_id=${q(root.appleId)} password="$pw" --obscure`,
-                `unset pw; echo; echo "done, you can close this window"; read -r _`,
-            ].join("; ");
-        Photos.openTerminal(script);
+        // scripts/apple/icloud-drive-signin.sh drives rclone's config state machine itself and
+        // reads the password and the two-factor code from the terminal. The shell's PATH goes
+        // along: a terminal that was already running may not have rclone or jq on its own.
+        Photos.openTerminal(`export PATH=${Photos.quote(Quickshell.env("PATH") || "")}; `
+            + `bash ${Photos.quote(root.signInScript)} ${Photos.quote(root.remote)} ${Photos.quote(root.appleId)}`);
         root.signInPending = true;
     }
     property bool signInPending: false
