@@ -32,6 +32,13 @@ Scope {
     Component.onDestruction: {
         if (ClaudeAsk.cardsHook !== null)
             ClaudeAsk.cardsHook = null;
+        ClaudeAsk.cardOpen = false;
+    }
+    // the fail toast steps aside for a card the launcher opened (a note is a toast itself)
+    Binding {
+        target: ClaudeAsk
+        property: "cardOpen"
+        value: root.open && !root.asToast
     }
 
     // ── the note before an event ───────────────────────────────────────────────

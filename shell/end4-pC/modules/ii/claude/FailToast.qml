@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 import qs
 import qs.services
+import qs.services.claude
 import qs.modules.common
 import qs.modules.common.widgets.haiiro as H
 import QtQuick
@@ -18,7 +19,9 @@ Scope {
 
     readonly property string screenName: WM.focusedMonitor?.name ?? ""
     readonly property bool present: widget.item?.present ?? false
+    // out of the way while the quick panel, the ask panel or a card sits over its corner
     readonly property bool shown: root.present && !GlobalStates.screenLocked && !GlobalStates.sidebarRightOpen
+        && !ClaudeAsk.open && !ClaudeAsk.cardOpen
         && !WM.fullscreenOnMonitor(root.screenName)
 
     onShownChanged: SessionsState.failToastHeight = root.shown ? fx.implicitHeight + 22 : 0
