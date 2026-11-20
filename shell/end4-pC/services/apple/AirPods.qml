@@ -131,7 +131,7 @@ Singleton {
             root.caseLevel = -1;
         } else if ((m = line.match(/Primary Pod:\s*\S*?(Left|Right|Headset)\b/))) {
             root.primarySide = m[1] === "Right" ? "right" : "left";
-        } else if ((m = line.match(/Primary - \S*?(NotInEar|InEar|InCase|Disconnected)\s*,\s*Secondary - \S*?(NotInEar|InEar|InCase|Disconnected)/))) {
+        } else if ((m = line.match(/Primary -\s*\S*?(NotInEar|InEar|InCase|Disconnected)\s*,\s*Secondary -\s*\S*?(NotInEar|InEar|InCase|Disconnected)/))) {
             const primary = root.stateNames[m[1]];
             const secondary = root.stateNames[m[2]];
             root.setEars(root.primarySide === "left" ? primary : secondary, root.primarySide === "left" ? secondary : primary);
@@ -184,10 +184,12 @@ Singleton {
         command: ["sh", "-c", root.probeScript]
         stdout: StdioCollector {
             onStreamFinished: {
+                // Our own librepods would look like someone else's.
+                if (daemon.running) return;
                 const answer = text.trim();
                 root.installed = answer !== "missing";
                 root.external = answer === "external";
-                if (root.shouldRun && !daemon.running)
+                if (root.shouldRun)
                     daemon.running = true;
             }
         }
