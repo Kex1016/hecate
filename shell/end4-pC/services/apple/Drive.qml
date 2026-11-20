@@ -28,7 +28,7 @@ Singleton {
     id: root
 
     // Config.options.apple.* once Config declares it; these are the defaults.
-    readonly property bool wanted: Config.options?.apple?.drive?.enable ?? true
+    readonly property bool wanted: Config.options?.apple?.drive?.enable ?? false
     readonly property string remote: Config.options?.apple?.drive?.remote || "icloud"
     readonly property string mountPoint: {
         const p = Config.options?.apple?.drive?.path || "~/iCloud";

@@ -75,12 +75,18 @@ SettingsPage {
             to: 48
             suffix: "h"
         }
+        SetToggle {
+            name: "cider"
+            description: "Library, lyrics and the queue from Cider's local RPC server, while Cider plays."
+            key: "apple.cider.enable"
+        }
         SetText {
             name: "cider token"
             description: "Cider's RPC token (Settings, Connectivity). Empty: the keyring's."
             key: "apple.cider.token"
             secret: true
             columns: 20
+            enabled: Config.options.apple.cider.enable
         }
         SetSection { text: "weather" }
         SetToggle {

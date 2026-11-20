@@ -29,7 +29,7 @@ Singleton {
     id: root
 
     // Config.options.apple.airpods.* once Config declares it; these are the defaults.
-    readonly property bool wanted: Config.options?.apple?.airpods?.enable ?? true
+    readonly property bool wanted: Config.options?.apple?.airpods?.enable ?? false
     readonly property bool pauseOnRemove: Config.options?.apple?.airpods?.pauseOnRemove ?? true
 
     // librepods and librepods-ctl are on PATH

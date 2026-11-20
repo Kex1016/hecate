@@ -393,12 +393,13 @@ Singleton {
                 }
             }
 
-            // AirPods (librepods), iCloud Photos and Drive, and Cider. The Apple ID is the
+            // AirPods (librepods), iCloud Photos and Drive, and Cider, each off until switched
+            // on (Photos needs wallpaper mode and an album). The Apple ID is the
             // first iCloud account in calendars.toml unless appleId names one.
             property JsonObject apple: JsonObject {
                 property string appleId: ""
                 property JsonObject airpods: JsonObject {
-                    property bool enable: true
+                    property bool enable: false
                     // Taking a bud out pauses what plays.
                     property bool pauseOnRemove: true
                 }
@@ -407,11 +408,12 @@ Singleton {
                     property int syncHours: 6
                 }
                 property JsonObject drive: JsonObject {
-                    property bool enable: true
+                    property bool enable: false
                     property string remote: "icloud"
                     property string path: "~/iCloud"
                 }
                 property JsonObject cider: JsonObject {
+                    property bool enable: false
                     property string url: "http://localhost:10767"
                     // "" reads it from the keyring (application hecate service cider)
                     property string token: ""

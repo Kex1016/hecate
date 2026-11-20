@@ -24,18 +24,20 @@ import qs.services
  * `apple.cider.token`, else the keyring item `application hecate service cider`
  * (`secret-tool store --label "Cider" application hecate service cider`).
  *
- * Nothing is asked while no Cider MPRIS player exists.
+ * Off until `apple.cider.enable` is on, and nothing is asked while no Cider MPRIS player
+ * exists. Without it Cider is an ordinary MPRIS player.
  */
 Singleton {
     id: root
 
+    readonly property bool enabled: Config.options?.apple?.cider?.enable ?? false
     readonly property string base: Config.options?.apple?.cider?.url || "http://localhost:10767"
     readonly property string configuredToken: Config.options?.apple?.cider?.token ?? ""
     property string keyringToken: ""
     readonly property string token: root.configuredToken || root.keyringToken
 
     // The Cider MPRIS player, if one is open.
-    readonly property var player: MprisController.players.find(p => root.isCiderPlayer(p)) ?? null
+    readonly property var player: root.enabled ? (MprisController.players.find(p => root.isCiderPlayer(p)) ?? null) : null
     readonly property bool open: root.player !== null
     // Cider is the player the shell shows.
     readonly property bool active: root.open && MprisController.activePlayer === root.player
@@ -445,7 +447,7 @@ Singleton {
     }
 
     Process {
-        running: true
+        running: root.enabled
         command: ["sh", "-c", "command -v secret-tool >/dev/null && secret-tool lookup application hecate service cider 2>/dev/null"]
         stdout: StdioCollector {
             onStreamFinished: root.keyringToken = text.trim()
