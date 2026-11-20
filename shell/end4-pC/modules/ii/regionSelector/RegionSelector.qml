@@ -4,6 +4,7 @@ import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.models.gCloud
 import qs.services
+import qs.services.claude
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -74,9 +75,17 @@ Scope {
             pickProc.running = true;
             break;
         case RegionSelection.SnipAction.Ask:
-            // The Claude integration lands later and takes the region from here. Until then it is
-            // on the clipboard, so it can be pasted into the chat by hand.
-            askProc.command = ["bash", "-c", `${crop} png:- | wl-copy --type image/png; ${cleanup}`];
+            if (!(Config.options.claude?.enable ?? false)) {
+                Quickshell.execDetached(["rm", "-f", path]);
+                toast.show("claude: ~/ask", "gold", [
+                    { text: "Claude is off." },
+                    { text: "Switch it on under settings, services.", role: "caption", ink: "c1" }
+                ]);
+                break;
+            }
+            // The ask panel (ClaudeAsk) takes the region as a PNG and opens with only it on.
+            askProc.region = { path: ClaudeAsk.regionPath, width: width, height: height };
+            askProc.command = ["bash", "-c", `mkdir -p "$(dirname ${root.q(ClaudeAsk.regionPath)})" && ${crop} ${root.q("png:" + ClaudeAsk.regionPath)}; status=$?; ${cleanup}; exit $status`];
             askProc.running = true;
             break;
         }
@@ -121,10 +130,13 @@ Scope {
 
     Process {
         id: askProc
-        onExited: toast.show("claude: ~/ask", "gold", [
-            { text: "Asking Claude about a region is not wired up yet." },
-            { text: "The region is on the clipboard.", role: "caption", ink: "c1" }
-        ])
+        property var region: null
+        onExited: code => {
+            if (code === 0)
+                ClaudeAsk.askAboutRegion(region.path, region.width, region.height);
+            else
+                toast.show("claude: ~/ask", "love", [{ text: "Could not take the region." }]);
+        }
     }
 
     property string translating: ""
