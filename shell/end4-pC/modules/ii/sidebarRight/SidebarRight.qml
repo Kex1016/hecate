@@ -1,59 +1,38 @@
 import qs
 import qs.services
 import qs.modules.common
+import qs.modules.common.widgets.haiiro as H
 import QtQuick
-import Quickshell.Io
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
-import Quickshell.Hyprland
 
+// The quick panel (Mod+N): one window, one layout, on the right under the bar.
+// It pixelates in and out (PixelTransition); the layer stays mapped until the
+// close frames have played.
 Scope {
     id: root
-    property int sidebarWidth: Appearance.sizes.sidebarWidth
-    readonly property bool centerOnly: Config.options.bar.layouts.leftLayout.length === 0 && Config.options.bar.layouts.rightLayout.length === 0 && !Config.options.bar.vertical
-    readonly property real barCenterOnlyOffset: (Config.options.bar.centerOnlyReserveFrame && root.centerOnly)
-        ? Config.options.bar.frameThickness
-        : Appearance.sizes.barHeight
+
+    // QuickPanel board: 480px wide, 24px from the right, the bar and the bottom.
+    readonly property int panelWidth: 480
+    readonly property int gap: H.HTokens.space6
+
+    Component.onCompleted: QuickState.gameMode // start the Game Mode state with the shell
 
     PanelWindow {
         id: panelWindow
 
-        readonly property bool animatedEntrance: WM.compositor !== "hyprland"
-        property bool reallyVisible: false
-        visible: reallyVisible
-
-        Component.onCompleted: reallyVisible = GlobalStates.sidebarRightOpen
-
-        Connections {
-            target: GlobalStates
-            function onSidebarRightOpenChanged() {
-                if (GlobalStates.sidebarRightOpen) {
-                    closeAnimTimer.stop();
-                    panelWindow.reallyVisible = true;
-                } else if (panelWindow.animatedEntrance) {
-                    closeAnimTimer.restart();
-                } else {
-                    panelWindow.reallyVisible = false;
-                }
-            }
-        }
-
-        Timer {
-            id: closeAnimTimer
-            interval: 150
-            onTriggered: panelWindow.reallyVisible = false
-        }
+        visible: transition.present
 
         function hide() {
             GlobalStates.sidebarRightOpen = false;
         }
 
         onVisibleChanged: {
-            if (visible) {
+            if (visible)
                 GlobalFocusGrab.addDismissable(panelWindow);
-            } else {
+            else
                 GlobalFocusGrab.removeDismissable(panelWindow);
-            }
         }
 
         Connections {
@@ -63,8 +42,27 @@ Scope {
             }
         }
 
+        Connections {
+            target: GlobalStates
+            function onSidebarRightOpenChanged() {
+                if (!GlobalStates.sidebarRightOpen)
+                    QuickState.view = "";
+            }
+            function onRequestBluetoothDialog() {
+                if (BluetoothStatus.available)
+                    QuickState.openView("bluetooth");
+            }
+        }
+
+        Connections {
+            target: Vpn
+            function onDialogRequested() {
+                QuickState.openView("vpn");
+            }
+        }
+
+        // Exclusive zone 0: the layer keeps clear of the bar, so the bar stays usable.
         exclusiveZone: 0
-        implicitWidth: sidebarWidth
         WlrLayershell.namespace: "quickshell:sidebarRight"
         WlrLayershell.keyboardFocus: GlobalStates.sidebarRightOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
         color: "transparent"
@@ -73,111 +71,47 @@ Scope {
             top: true
             right: true
             bottom: true
-            left: animatedEntrance
+            left: true
         }
 
-        margins {
-            top: {
-                if (Config.options.bar.bottom) return 0;
-                if (Config?.options.bar.autoHide.enable) return 0;
-                if (!centerOnly) return 0;
-                switch (Config.options.bar.cornerStyle) {
-                case 0:
-                case 4:
-                case 6: return -root.barCenterOnlyOffset;
-                case 1: return -root.barCenterOnlyOffset + Appearance.sizes.hyprlandGapsOut;
-                case 2: return -root.barCenterOnlyOffset + Appearance.sizes.hyprlandGapsOut;
-                case 3: return -root.barCenterOnlyOffset - Appearance.sizes.hyprlandGapsOut;
-                default: return 0;
-                }
-            }
-            bottom: {
-                if (!Config.options.bar.bottom) return 0;
-                if (Config?.options.bar.autoHide.enable) return 0;
-                if (!centerOnly) return 0;
-                switch (Config.options.bar.cornerStyle) {
-                case 0:
-                case 4:
-                case 6: return -root.barCenterOnlyOffset;
-                case 1: return -root.barCenterOnlyOffset + Appearance.sizes.hyprlandGapsOut;
-                case 2: return -root.barCenterOnlyOffset + Appearance.sizes.hyprlandGapsOut;
-                case 3: return -root.barCenterOnlyOffset - Appearance.sizes.hyprlandGapsOut;
-                default: return 0;
-                }
-            }
-        }
-
-        Item {
+        // a click beside the panel closes it
+        MouseArea {
             anchors.fill: parent
+            onClicked: panelWindow.hide()
+        }
 
+        H.PixelTransition {
+            id: transition
+            shown: GlobalStates.sidebarRightOpen
+            anchors {
+                top: parent.top
+                bottom: parent.bottom
+                right: parent.right
+                margins: root.gap
+            }
+            width: root.panelWidth
+
+            // keep clicks inside the panel from closing it
             MouseArea {
-                id: outsideClickArea
                 anchors.fill: parent
-                enabled: panelWindow.animatedEntrance
-                visible: panelWindow.animatedEntrance
-                onClicked: panelWindow.hide()
+                onClicked: mouse => mouse.accepted = true
             }
 
-            Item {
-                id: entranceWrapper
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                width: sidebarWidth
-                clip: true
+            Loader {
+                id: content
+                anchors.fill: parent
+                active: transition.present
+                focus: GlobalStates.sidebarRightOpen
+                sourceComponent: QuickPanel {}
 
-                readonly property bool open: GlobalStates.sidebarRightOpen
-                property real cachedParentWidth: sidebarWidth
-                readonly property real restX: cachedParentWidth - width
-                x: panelWindow.animatedEntrance ? (open ? restX : cachedParentWidth) : restX
-
-                Connections {
-                    target: entranceWrapper.parent
-                    function onWidthChanged() {
-                        if (entranceWrapper.parent.width > 0)
-                            entranceWrapper.cachedParentWidth = entranceWrapper.parent.width;
-                    }
-                }
-
-                Behavior on x {
-                    enabled: panelWindow.animatedEntrance
-                    NumberAnimation {
-                        duration: entranceWrapper.open
-                            ? Appearance.animation.sidebarSlideEnter.duration
-                            : Appearance.animation.sidebarSlideExit.duration
-                        easing.type: entranceWrapper.open
-                            ? Appearance.animation.sidebarSlideEnter.type
-                            : Appearance.animation.sidebarSlideExit.type
-                        easing.bezierCurve: entranceWrapper.open
-                            ? Appearance.animation.sidebarSlideEnter.bezierCurve
-                            : Appearance.animation.sidebarSlideExit.bezierCurve
-                    }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: (mouse) => { mouse.accepted = true }
-                    z: -1
-                }
-
-                Loader {
-                    id: sidebarContentLoader
-                    active: panelWindow.reallyVisible || Config?.options.sidebar.keepRightSidebarLoaded
-                    anchors {
-                        fill: parent
-                        margins: Appearance.sizes.hyprlandGapsOut
-                        leftMargin: Appearance.sizes.elevationMargin
-                    }
-                    width: sidebarWidth - Appearance.sizes.hyprlandGapsOut - Appearance.sizes.elevationMargin
-                    height: parent.height - Appearance.sizes.hyprlandGapsOut * 2
-
-                    focus: GlobalStates.sidebarRightOpen
-                    Keys.onPressed: event => {
-                        if (event.key === Qt.Key_Escape) {
-                            panelWindow.hide();
-                        }
-                    }
-
-                    sourceComponent: SidebarRightContent {}
+                Keys.onPressed: event => {
+                    if (event.key !== Qt.Key_Escape)
+                        return;
+                    if (QuickState.view !== "")
+                        QuickState.view = "";
+                    else
+                        panelWindow.hide();
+                    event.accepted = true;
                 }
             }
         }
@@ -200,27 +134,21 @@ Scope {
 
         CompositorGlobalShortcut {
             name: "sidebarRightToggle"
-            description: "Toggles right sidebar on press"
+            description: "Toggles the quick panel"
 
-            onPressed: {
-                GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen;
-            }
+            onPressed: GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen
         }
         CompositorGlobalShortcut {
             name: "sidebarRightOpen"
-            description: "Opens right sidebar on press"
+            description: "Opens the quick panel"
 
-            onPressed: {
-                GlobalStates.sidebarRightOpen = true;
-            }
+            onPressed: GlobalStates.sidebarRightOpen = true
         }
         CompositorGlobalShortcut {
             name: "sidebarRightClose"
-            description: "Closes right sidebar on press"
+            description: "Closes the quick panel"
 
-            onPressed: {
-                GlobalStates.sidebarRightOpen = false;
-            }
+            onPressed: GlobalStates.sidebarRightOpen = false
         }
     }
 }
