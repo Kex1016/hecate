@@ -1,95 +1,80 @@
-import qs.modules.common
-import qs.modules.common.widgets
-import qs.services
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
+import Quickshell.Services.UPower
+import qs
+import qs.services
+import qs.modules.common.widgets.haiiro
 
-MouseArea {
+// "bat 87%", the value in foam, love when low and not charging, with a +
+// while charging. Only on machines with a battery. Hover: the charge, the
+// time left and the power profile chips; click: the quick panel.
+BarSegment {
     id: root
-    property color contentColor: Appearance.colors.colOnSecondaryContainer
-    property bool contentColorOverridden: false
-    property bool vertical: false
-    property bool borderless: Config.options.bar.borderless
-    property bool isMaterial: Config.options.bar.cornerStyle === 3 || Config.options.bar.cornerStyle === 4
-    readonly property var chargeState: Battery.chargeState
-    readonly property bool isCharging: Battery.isCharging
-    readonly property bool isPluggedIn: Battery.isPluggedIn
-    readonly property real percentage: Battery.percentage
-    readonly property bool isLow: percentage <= Config.options.battery.low / 100
-    readonly property string displayText: (root.vertical && root.percentage > 99) ? "" : batteryProgress.text
 
-    implicitWidth:  vertical ? Appearance.sizes.verticalBarWidth : batteryProgress.valueBarWidth + 8
-    implicitHeight: vertical ? batteryProgress.valueBarWidth + 8 : Appearance.sizes.barHeight
+    readonly property int percent: Math.round(Battery.percentage * 100)
+    readonly property bool low: Battery.isLowAndNotCharging
+    readonly property string charge: Battery.isCharging ? "charging"
+        : Battery.chargeState === UPowerDeviceState.FullyCharged ? "full"
+        : Battery.isPluggedIn ? "plugged in" : "discharging"
 
-    hoverEnabled: !Config.options.bar.tooltips.clickToShow
+    visible: Battery.available
+    popupLabel: "bat"
+    popupWidth: 300
+    popupVariant: root.low ? "love" : "pine"
+    onClicked: GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen
 
-    ClippedProgressBar {
-        id: batteryProgress
-        anchors.centerIn: parent
-        value: percentage
-        rotation: root.vertical ? -90 : 0
-        highlightColor: (isLow && !isCharging) ? Appearance.m3colors.m3error : root.contentColor
-        Item {
-            anchors.centerIn: parent
-            width: batteryProgress.valueBarWidth
-            height: batteryProgress.valueBarHeight
-            // Horizontal
-            Loader {
-                id: rowLoader
-                active: !root.vertical
-                visible: active
-                anchors.centerIn: parent
-                sourceComponent: RowLayout {
-                    spacing: 0
-                    MaterialSymbol {
-                        Layout.alignment: Qt.AlignVCenter
-                        Layout.topMargin: 2
-                        Layout.leftMargin: -2
-                        Layout.rightMargin: -2
-                        fill: 1
-                        text: "bolt"
-                        iconSize: Appearance.font.pixelSize.smaller
-                        visible: root.isCharging && root.percentage < 1
-                    }
-                    StyledText {
-                        Layout.alignment: Qt.AlignVCenter
-                        Layout.topMargin: 2
-                        font: batteryProgress.font
-                        text: batteryProgress.text
-                    }
+    HText {
+        text: "bat"
+    }
+    HText {
+        text: root.percent + "%" + (Battery.isCharging ? "+" : "")
+        ink: root.low ? "love" : "foam"
+    }
+
+    popup: Component {
+        ColumnLayout {
+            spacing: HTokens.space2
+
+            Progress {
+                Layout.fillWidth: true
+                label: root.charge
+                count: root.percent + "%"
+                value: Battery.percentage
+            }
+            Column {
+                id: left
+                readonly property real seconds: Battery.isCharging ? Battery.timeToFull : Battery.timeToEmpty
+                Layout.fillWidth: true
+                visible: left.seconds > 0
+
+                HLabel {
+                    text: Battery.isCharging ? "until full" : "time left"
+                }
+                HText {
+                    text: BarState.duration(left.seconds)
+                    role: "valueLg"
                 }
             }
-            // Vertical
-            Loader {
-                id: colLoader
-                active: root.vertical
-                visible: active
-                anchors.centerIn: parent
-                sourceComponent: ColumnLayout {
-                    rotation: 90
-                    spacing: -7
-                    MaterialSymbol {
-                        Layout.alignment: Qt.AlignHCenter
-                        fill: 1
-                        text: "bolt"
-                        Layout.topMargin: 4
-                        iconSize: Appearance.font.pixelSize.smaller
-                        visible: root.isCharging && root.percentage < 1
-                    }
-                    StyledText {
-                        Layout.alignment: Qt.AlignHCenter
-                        Layout.topMargin: root.isCharging ? 2 : 4
-                        font: batteryProgress.font
-                        text: root.percentage * 100 
-                        visible: root.percentage < 1
+            Row {
+                spacing: HTokens.space2
+
+                Repeater {
+                    model: [
+                        { name: "saver", profile: PowerProfile.PowerSaver },
+                        { name: "balanced", profile: PowerProfile.Balanced },
+                        { name: "perf", profile: PowerProfile.Performance }
+                    ].filter(p => p.profile !== PowerProfile.Performance || PowerProfiles.hasPerformanceProfile)
+
+                    Chip {
+                        required property var modelData
+                        text: modelData.name
+                        on: PowerProfiles.profile === modelData.profile
+                        interactive: true
+                        onClicked: PowerProfiles.profile = modelData.profile
                     }
                 }
             }
         }
-    }
-
-    BatteryPopup {
-        id: batteryPopup
-        hoverTarget: root
     }
 }

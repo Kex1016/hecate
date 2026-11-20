@@ -1,201 +1,144 @@
-
-import qs.modules.common
-import qs.modules.common.widgets
-import qs.services
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
+import qs
+import qs.services
+import qs.modules.common
+import qs.modules.common.widgets.haiiro
 
-BarWidgetSwitcher {
+// The clock and the date in the middle of the bar ("21:34 thu 19 nov").
+// 24h or 12h and the seconds are the only bar settings (time.format,
+// time.secondPrecision). Hover: the weather, or the month when weather is
+// off; click: the quick panel, which holds the calendar.
+BarSegment {
     id: root
-    property color contentColor: Appearance.colors.colOnLayer1
-    property bool contentColorOverridden: false
-    property bool borderless: Config.options.bar.borderless
-    property bool showDate: Config.options.time.showDate
-    property var today: new Date()
-    readonly property string dateTimeString: DateTime.time
-    readonly property bool hasAmPm: dateTimeString.toLowerCase().includes("am") || dateTimeString.toLowerCase().includes("pm")
 
-    Timer {
-        interval: 60000
-        running: true
-        repeat: true
-        onTriggered: root.today = new Date()
+    readonly property bool seconds: Config.options.time.secondPrecision
+    readonly property string format: {
+        const f = Config.options.time.format || "hh:mm";
+        return root.seconds && f.indexOf("ss") < 0 ? f.replace("mm", "mm:ss") : f;
+    }
+    readonly property bool weather: Config.options.bar.weather.enable
+
+    spacing: HTokens.space4
+    popupLabel: root.weather ? "weather" : "cal"
+    popupWidth: root.weather ? 360 : 300
+    onClicked: GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen
+
+    SystemClock {
+        id: clock
+        precision: root.seconds ? SystemClock.Seconds : SystemClock.Minutes
     }
 
-    colDefault: Component {
+    HText {
+        text: Qt.locale("en_GB").toString(clock.date, root.format).toLowerCase()
+    }
+    HText {
+        text: Qt.locale("en_GB").toString(clock.date, "ddd d MMM").toLowerCase()
+        ink: "muted"
+    }
+
+    popup: root.weather ? weatherWindow : monthWindow
+
+    Component {
+        id: monthWindow
+        CalendarGrid {
+            year: clock.date.getFullYear()
+            month: clock.date.getMonth()
+            today: clock.date
+        }
+    }
+
+    Component {
+        id: weatherWindow
         ColumnLayout {
-            id: column
-            anchors.centerIn: parent
-            spacing: root.hasAmPm ? 1 : 0
+            id: sky
+            spacing: HTokens.space2
 
-            Column {
-                Layout.alignment: Qt.AlignHCenter
-                spacing: -4
+            // a line of narration for the sky outside, by OpenWeather condition code
+            readonly property int code: Number(Weather.data?.wCode ?? 0)
+            readonly property string narration: {
+                const c = sky.code;
+                if (c >= 200 && c < 300) return "Thunder rolls somewhere past the rooftops.";
+                if (c >= 300 && c < 400) return "A fine drizzle mists the glass.";
+                if (c >= 500 && c < 600) return "You hear rain against the window.";
+                if (c >= 600 && c < 700) return "Snow settles on the window sill.";
+                if (c >= 700 && c < 800) return "The street lights blur in the haze.";
+                if (c === 800) return "The sky is clear.";
+                if (c > 800) return "Clouds drift over the city.";
+                return "The weather has not reported in yet.";
+            }
 
-                Repeater {
-                    model: root.dateTimeString.split(/[: ]/)
-                    delegate: StyledText {
-                        required property string modelData
-                        width: implicitWidth
-                        horizontalAlignment: Text.AlignHCenter
-                        font.letterSpacing: -0.9
-                        font.features: { "tnum": 1 }
-                        font.pixelSize: {
-                            if (modelData.match(/am|pm/i))
-                                return Appearance.font.pixelSize.smaller;
-                            else
-                                return Appearance.font.pixelSize.large;
+            Row {
+                spacing: HTokens.ch()
+                HText {
+                    anchors.baseline: desc.baseline
+                    text: Weather.data?.temp || "--"
+                    role: "nav"
+                }
+                HText {
+                    id: desc
+                    text: String(Weather.data?.description ?? "").toLowerCase()
+                    ink: "foam"
+                }
+            }
+            HText {
+                Layout.fillWidth: true
+                text: sky.narration
+                ink: "rose"
+                wrapMode: Text.Wrap
+            }
+
+            // the stat panel: hairline cells
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: cells.implicitHeight + 2
+                color: "transparent"
+                border.width: HTokens.borderHairline
+                border.color: HTokens.text
+
+                RowLayout {
+                    id: cells
+                    x: 1
+                    y: 1
+                    width: parent.width - 2
+                    spacing: 0
+
+                    Repeater {
+                        model: [
+                            { label: "feels", value: Weather.data?.tempFeelsLike || "--" },
+                            { label: "humid", value: Weather.data?.humidity || "--" },
+                            { label: "wind", value: Weather.data?.wind || "--" }
+                        ]
+                        Rectangle {
+                            id: cell
+                            required property var modelData
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 1
+                            implicitHeight: kv.implicitHeight + 2 * HTokens.space2
+                            color: "transparent"
+                            border.width: HTokens.borderHairline
+                            border.color: HTokens.text
+
+                            Column {
+                                id: kv
+                                x: HTokens.space2
+                                y: HTokens.space2
+                                width: parent.width - 2 * HTokens.space2
+                                HLabel {
+                                    text: cell.modelData.label
+                                }
+                                HText {
+                                    width: parent.width
+                                    text: cell.modelData.value
+                                    elide: Text.ElideRight
+                                }
+                            }
                         }
-                        color: root.contentColor
-                        text: modelData.padStart(2, "0")
                     }
                 }
             }
-
-            StyledText {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.bottomMargin: 5
-                font.pixelSize: Appearance.font.pixelSize.smallest
-                color: root.contentColor
-                text: DateTime.shortDate
-            }
-        }
-    }
-
-    colMaterial: Component {
-        ColumnLayout {
-            id: clockWidget
-            spacing: 2
-            Layout.alignment: Qt.AlignHCenter
-
-            Column {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 2
-                spacing: -4
-
-                Repeater {
-                    model: DateTime.time.split(/[: ]/)
-                    delegate: StyledText {
-                        required property string modelData
-                        width: implicitWidth
-                        horizontalAlignment: Text.AlignHCenter
-                        font.letterSpacing: -0.2
-                        font.features: { "tnum": 1 }
-                        font.pixelSize: modelData.match(/am|pm/i)
-                            ? Appearance.font.pixelSize.smallest - 2
-                            : Appearance.font.pixelSize.small
-                        color: Appearance.colors.colPrimary
-                        text: modelData.padStart(2, "0")
-                    }
-                }
-            }
-
-            Rectangle {
-                width: 25
-                height: 25
-                radius: Appearance.rounding.full
-                color: Appearance.colors.colPrimary
-                Layout.alignment: Qt.AlignHCenter
-
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    fill: 0
-                    text: "calendar_clock"
-                    iconSize: Appearance.font.pixelSize.normal
-                    color: Appearance.colors.colOnPrimary
-                }
-            }
-        }
-    }
-
-    rowDefault: Component {
-        RowLayout {
-            spacing: 4
-            StyledText {
-                visible: root.showDate
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: root.contentColor
-                text: DateTime.longDate
-            }
-            StyledText {
-                visible: root.showDate
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: root.contentColor
-                text: "•"
-            }
-            StyledText {
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: root.contentColor
-                text: DateTime.time
-                font.letterSpacing: -0.4
-                font.features: { "tnum": 1 }
-            }
-        }
-    }
-
-    rowMaterial: Component {
-        RowLayout {
-            spacing: 4
-            id: pill
-
-            property var timeParts: DateTime.time.split(/[: ]/)
-            property string ampm: timeParts.find(part => /^(am|pm)$/i.test(part)) ?? ""
-            property string time: timeParts.filter(part => !/^(am|pm)$/i.test(part)).join(":")
-
-            StyledText {
-                visible: root.showDate
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: Appearance.colors.colOnPrimaryContainer
-                text: DateTime.longDate
-                Layout.alignment: Qt.AlignVCenter
-                leftPadding: 5
-            }
-
-            Rectangle {
-                implicitWidth: timeText.implicitWidth + 16
-                implicitHeight: 24
-                radius: Appearance.rounding.full
-                color: Appearance.colors.colPrimary
-
-                StyledText {
-                    id: timeText
-                    anchors.centerIn: parent
-                    font.pixelSize: Appearance.font.pixelSize.smallie
-                    color: Appearance.colors.colOnPrimary
-                    font.weight: Font.Bold
-                    text: pill.time
-                    font.features: { "tnum": 1 }
-                    font.letterSpacing: -0.4
-                }
-            }
-
-            Rectangle {
-                visible: pill.ampm !== ""
-                z: 1
-                implicitWidth: ampmText.implicitWidth + 8
-                implicitHeight: 24
-                radius: Appearance.rounding.full
-                color: Appearance.colors.colTertiaryContainer
-                Layout.alignment: Qt.AlignVCenter
-                Layout.leftMargin: -10
-                StyledText {
-                    id: ampmText
-                    anchors.centerIn: parent
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: Appearance.colors.colPrimary
-                    text: pill.ampm
-                }
-            }
-        }
-    }
-
-    MouseArea {
-        id: mouseArea
-        anchors.fill: parent
-        hoverEnabled: !Config.options.bar.tooltips.clickToShow
-        ClockWidgetPopup {
-            hoverTarget: mouseArea
-            today: root.today
         }
     }
 }
