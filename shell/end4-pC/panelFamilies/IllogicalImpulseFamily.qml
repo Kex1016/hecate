@@ -33,8 +33,9 @@ Scope {
     PanelLoader { id: background; component: Background {} }
     PanelLoader { id: bar; component: Bar {} }
 
-    // hecate's login splash (a picture of this desktop) covers the screen until the wallpaper
-    // and bar are up; the delay lets their first frames land before it fades.
+    // Tells hecate the shell is up once the background and bar are, which ends its login
+    // splash (with the haiiro look there is none to see: it hands over with a cut); the
+    // delay lets their first frames land first.
     Timer {
         interval: 300
         running: WM.compositor === "hecate" && background.item !== null

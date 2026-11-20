@@ -69,7 +69,7 @@ craneLib.buildPackage (
 
     meta = {
       description = "A stacking Wayland compositor";
-      homepage = "https://github.com/kex1016/wl-hex";
+      homepage = "https://github.com/Kex1016/hecate";
       license = lib.licenses.gpl3Plus;
       mainProgram = "hecate";
       platforms = lib.platforms.linux;

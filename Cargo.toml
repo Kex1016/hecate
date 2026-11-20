@@ -6,7 +6,7 @@ members = ["crates/hecate", "crates/hecate-ipc", "crates/hecate-mcp"]
 version = "1.0.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
-repository = "https://github.com/kex1016/wl-hex"
+repository = "https://github.com/Kex1016/hecate"
 rust-version = "1.89"
 
 [workspace.dependencies]

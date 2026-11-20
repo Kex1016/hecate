@@ -37,7 +37,7 @@ configurable width and per-corner radii.
 ```nix
 # flake.nix
 {
-  inputs.hecate.url = "github:Kex1016/wl-hex";
+  inputs.hecate.url = "github:Kex1016/hecate";
 
   outputs = { nixpkgs, home-manager, hecate, ... }: {
     nixosConfigurations.box = nixpkgs.lib.nixosSystem {
