@@ -281,16 +281,31 @@ fn list_outputs_summary() {
     assert_eq!(o["logical"]["scale"], 2.0);
 }
 
+/// Writes an executable script without this process ever holding it open for writing.
+///
+/// Tests run on parallel threads that spawn processes. Had this process written the file, a
+/// child forked on another thread meanwhile would inherit the write handle until its own exec,
+/// and running the script in that window fails with ETXTBSY ("Text file busy"). A separate
+/// `sh` writes it instead, and has exited by the time this returns.
+fn write_script(path: &std::path::Path, contents: &str) {
+    use std::io::Write;
+    let mut sh = std::process::Command::new("sh")
+        .args(["-c", "cat > \"$1\" && chmod 755 \"$1\"", "sh"])
+        .arg(path)
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    sh.stdin.take().unwrap().write_all(contents.as_bytes()).unwrap();
+    assert!(sh.wait().unwrap().success(), "writing {}", path.display());
+}
+
 /// A pretend grim: a shell script that prints its arguments as the "image".
 fn fake_grim(dir: &std::path::Path) -> String {
     let path = dir.join("grim");
-    std::fs::write(
+    write_script(
         &path,
         "#!/bin/sh\nprintf '%s|' \"$@\"\nprintf 'WAYLAND_DISPLAY=%s' \"$WAYLAND_DISPLAY\"\n",
-    )
-    .unwrap();
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    );
     path.to_string_lossy().into_owned()
 }
 
@@ -401,13 +416,10 @@ fn send_notification_runs_notify_send() {
     let fake = FakeHecate::start("send", compositor);
     let script = fake.dir.join("notify-send");
     let log = fake.dir.join("args");
-    std::fs::write(
+    write_script(
         &script,
-        format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > {}\necho 42\n", log.display()),
-    )
-    .unwrap();
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        &format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > {}\necho 42\n", log.display()),
+    );
     let mut config = Config {
         notify_send: script.to_string_lossy().into_owned(),
         ..Config::default()
