@@ -153,19 +153,6 @@ Variants {
                     wallpaperSafetyTriggered: false
                 }
             }
-
-            /* Desktop menu */
-            MouseArea {
-                anchors.fill: parent
-                z: -2
-                acceptedButtons: Qt.RightButton
-                onClicked: mouse => {
-                    GlobalStates.desktopMenuScreen = bgRoot.screen;
-                    GlobalStates.desktopMenuX = mouse.x;
-                    GlobalStates.desktopMenuY = mouse.y;
-                    GlobalStates.desktopMenuOpen = true;
-                }
-            }
         }
     }
 }
