@@ -59,7 +59,7 @@ Singleton {
         const script = root.configured
             ? `rclone config reconnect ${q(root.remote + ":")}; echo; echo "done, you can close this window"; read -r _`
             : [
-                `echo "iCloud Drive for ${root.appleId || "your Apple ID"}. It does not work with Advanced Data Protection."`,
+                `echo "iCloud Drive for "${q(root.appleId || "your Apple ID")}". It does not work with Advanced Data Protection."`,
                 `printf "Apple ID password: "; stty -echo; read -r pw; stty echo; echo`,
                 `rclone config create ${q(root.remote)} iclouddrive apple_id=${q(root.appleId)} password="$pw" --obscure`,
                 `unset pw; echo; echo "done, you can close this window"; read -r _`,
