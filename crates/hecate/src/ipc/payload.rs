@@ -67,7 +67,19 @@ impl State {
             omnipresent: d.omnipresent,
             is_x11: false,
             focus_serial: d.focus_serial,
+            border_tint: self.ipc_border_tint(w),
         }
+    }
+
+    /// The window's tint by the name it has in `border.tint`, else as `#rrggbb`.
+    fn ipc_border_tint(&self, w: &Window) -> Option<String> {
+        let color = crate::render::border::tint(w)?;
+        let tints = &self.hecate.config.border.tint;
+        let named = [("gold", tints.gold), ("love", tints.love), ("foam", tints.foam)];
+        Some(match named.iter().find(|(_, c)| *c == color) {
+            Some((name, _)) => (*name).to_string(),
+            None => color.to_hex(),
+        })
     }
 
     pub fn ipc_windows(&self) -> Vec<ipc::Window> {
