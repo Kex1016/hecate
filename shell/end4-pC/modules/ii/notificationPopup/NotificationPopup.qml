@@ -3,6 +3,7 @@ import qs
 import qs.modules.common
 import qs.modules.common.widgets.haiiro as H
 import qs.services
+import qs.modules.ii.claude
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -101,7 +102,7 @@ Scope {
 
     PanelWindow {
         id: root
-        visible: entries.count > 0 && !GlobalStates.screenLocked && !GlobalStates.dynamicIslandEnabled
+        visible: entries.count > 0 && !GlobalStates.screenLocked
         screen: Quickshell.screens.find(s => s.name === notificationPopup.screenName) ?? null
 
         WlrLayershell.namespace: "quickshell:notificationPopup"
@@ -113,7 +114,9 @@ Scope {
             right: true
         }
         margins {
-            top: H.HTokens.barHeight + 32 - notificationPopup.pad
+            // under the claude toasts and the failed-command toast, which start at the same
+            // corner (0 when none shows)
+            top: H.HTokens.barHeight + 32 + SessionsState.toastsHeight + SessionsState.failToastHeight - notificationPopup.pad
             right: 24 - notificationPopup.pad
         }
 

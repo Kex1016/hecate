@@ -140,8 +140,8 @@ Rectangle {
                         Column {
                             width: 360
                             spacing: 18
-                            Slider { width: 360; label: "volume"; value: 0.64; stepSize: 0.01 }
-                            Slider { width: 360; label: "bright"; value: 0.45; stepSize: 0.01 }
+                            Slider { width: 360; label: "volume"; value: 0.64; stepSize: 0.01; onMoved: v => value = v }
+                            Slider { width: 360; label: "bright"; value: 0.45; stepSize: 0.01; onMoved: v => value = v }
                             Slider { width: 360; label: "osd"; value: 0.3; thumb: false }
                         }
                     }

@@ -50,7 +50,7 @@ in
   "Mod+V" = trigger "overviewClipboardToggle";
   "Mod+Period" = trigger "overviewEmojiToggle";
   "Mod+A" = trigger "searchToggle";
-  # Claude: ask panel and sessions panel. Bind only; the panels register these shortcuts later.
+  # Claude: the ask panel and the sessions panel.
   "Mod+Slash" = trigger "claudeAskToggle";
   "Mod+Shift+Slash" = trigger "claudeSessionsToggle";
   "Mod+N" = trigger "sidebarRightToggle";
@@ -65,10 +65,12 @@ in
   "Print" = trigger "regionScreenshot";
   "Mod+Shift+A" = trigger "regionSearch";
   "Mod+Shift+X" = trigger "regionOcr";
-  "Mod+Shift+T" = trigger "screenTranslate";
+  "Mod+Shift+T" = trigger "regionTranslate";
+  "Mod+Ctrl+Shift+T" = trigger "screenTranslate";
+  "Mod+Shift+Q" = trigger "regionAsk";
   "Mod+Shift+R" = trigger "regionRecord";
   "Mod+Alt+R" = trigger "regionRecord";
-  "Mod+Shift+C" = sh "hyprpicker -a";
+  "Mod+Shift+C" = trigger "regionPick";
 
   "Mod+L" = {
     spawn = [

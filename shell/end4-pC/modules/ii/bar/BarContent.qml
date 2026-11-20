@@ -9,6 +9,8 @@ import qs.modules.common.widgets.haiiro
 // in the middle of the screen. Right: media, tray, updates, keyboard
 // layout, volume, network, battery, unread. Left and right share what the
 // centre leaves; the window title and the track title give way first.
+// Two segments show only when they have something: claude (Claude switched
+// on, a gold count when sessions wait) and pods (AirPods connected).
 Item {
     id: root
 
@@ -74,7 +76,9 @@ Item {
             SysTray {}
             UpdatesCount {}
             KeyboardLayout {}
+            ClaudeSegment {}
             Volume {}
+            AirPodsSegment {}
             NetworkIndicator {}
             BatteryIndicator {}
             NotificationUnreadCount {}

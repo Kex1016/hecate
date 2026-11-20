@@ -37,8 +37,27 @@ Singleton {
         { key: "network",    icon: "network_check",  name: "Network",         file: "system/NetworkWidget.qml" },
         { key: "disks",      icon: "hard_drive",     name: "Disks",           file: "system/DisksWidget.qml" },
         { key: "repos",      icon: "source",         name: "Repos",           file: "system/ReposWidget.qml" },
-        { key: "updates",    icon: "system_update",  name: "Updates",         file: "system/UpdatesWidget.qml" }
+        { key: "updates",    icon: "system_update",  name: "Updates",         file: "system/UpdatesWidget.qml" },
+        // Apple (widgets/Apple*.qml): AirPods through librepods, iCloud Drive, Cider
+        { key: "airpods",    icon: "earbuds",        name: "AirPods",         file: "AppleAirPodsWidget.qml" },
+        { key: "icloudDrive", icon: "cloud",         name: "iCloud Drive",    file: "AppleDriveWidget.qml" },
+        { key: "lyrics",     icon: "lyrics",         name: "Lyrics",          file: "AppleLyricsWidget.qml" },
+        { key: "queue",      icon: "queue_music",    name: "Up next",         file: "AppleQueueWidget.qml" },
+        // Claude (widgets/Claude*.qml): only while Claude is switched on (claude.enable).
+        // Each runs only on a press and shows what it sends.
+        { key: "claudeUsage",    icon: "data_usage",  name: "Claude usage",    file: "ClaudeUsageWidget.qml",       needs: "claude" },
+        { key: "claudeSessions", icon: "terminal",    name: "Claude sessions", file: "ClaudeSessionsWidget.qml",    needs: "claude" },
+        { key: "claudeBrief",    icon: "wb_twilight", name: "Brief",           file: "ClaudeBriefWidget.qml",       needs: "claude" },
+        { key: "claudeUpdates",  icon: "update",      name: "What changed",    file: "ClaudeUpdateNotesWidget.qml", needs: "claude" },
+        { key: "claudeDigest",   icon: "inbox",       name: "Digest",          file: "ClaudeDigestWidget.qml",      needs: "claude" },
+        { key: "claudeSettings", icon: "tune",        name: "Ask about a setting", file: "ClaudeSettingsWidget.qml", needs: "claude" },
+        { key: "claudeClipboard", icon: "content_paste", name: "Explain the clipboard", file: "ClaudeClipboardWidget.qml", needs: "claude" }
     ]
+    // what this machine can show: the catalog less what needs something that is off
+    readonly property var available: catalog.filter(w => !w.needs || root.has(w.needs))
+    function has(need) {
+        return need === "claude" ? (Config.options?.claude?.enable ?? false) : true;
+    }
 
     // the Desktop-with-widgets board: who and when on the left, what is going
     // on on the right, the clock and the narrator at the bottom centre
@@ -55,8 +74,8 @@ Singleton {
     readonly property var defaultEnabled: ["sheet", "sky", "countdown", "nowPlaying", "todo", "timer", "clock", "narrator"]
 
     readonly property var hidden: st.hidden ?? []
-    readonly property var menuItems: catalog.filter(w => !hidden.includes(w.key))
-    readonly property int enabledCount: catalog.filter(w => isEnabled(w.key)).length
+    readonly property var menuItems: available.filter(w => !hidden.includes(w.key))
+    readonly property int enabledCount: available.filter(w => isEnabled(w.key)).length
 
     // saved state: { enabled: {key: bool}, pos: {key: {x, y, z}}, hidden: [], profile: {race, klass} }
     property var st: ({})
@@ -83,6 +102,8 @@ Singleton {
     property string systemVersion: ""
 
     function isEnabled(key) {
+        const w = catalog.find(c => c.key === key);
+        if (w?.needs && !root.has(w.needs)) return false;
         return st.enabled?.[key] ?? defaultEnabled.includes(key);
     }
 

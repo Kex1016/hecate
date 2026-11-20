@@ -28,6 +28,16 @@ in
 
     gaming.enable = lib.mkEnableOption "32-bit graphics drivers and gamescope";
 
+    fonts.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Install the haiiro fonts system-wide (IBM VGA 8x16, Jacquard 24, GNU Unifont as the
+        glyph fallback) with their fontconfig fallback order, so the login screen and every
+        program can use the shell's faces.
+      '';
+    };
+
     shell.enable = lib.mkEnableOption ''
       the system services the bundled shell relies on (lock screen PAM, geoclue, upower,
       NetworkManager, i2c for ddcutil, ydotool, bluetooth). Turn the shell itself on with the
@@ -63,6 +73,11 @@ in
           configPackages = [ cfg.package ];
         };
       }
+
+      (lib.mkIf cfg.fonts.enable {
+        fonts.packages = [ self.packages.${pkgs.stdenv.hostPlatform.system}.haiiro-fonts ];
+        fonts.fontconfig.confPackages = [ self.packages.${pkgs.stdenv.hostPlatform.system}.haiiro-fonts ];
+      })
 
       (lib.mkIf cfg.shell.enable {
         # QuickShell's lock screen authenticates through PAM.

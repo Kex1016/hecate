@@ -9,6 +9,7 @@ import qs.modules.common.widgets.haiiro
 //
 //   HWindow {
 //       label: "cat desktop.toml"
+//       labelInk: "c7"               // the label's colour, text by default
 //       variant: "gold"              // pine (default), love, gold, foam
 //       hints: [{ key: "enter", text: "go" }, { key: "esc", text: "close" }]
 //       note: "saved to ~/.config/hecate/shell.toml"
@@ -18,6 +19,8 @@ Item {
     id: root
 
     property string label: ""
+    // the label's colour (c1-c8 or a token name): `♪ spotify` in iris, `next` in gold
+    property string labelInk: "text"
     // pine: everything; love: critical or failed; gold: needs you; foam: done.
     property string variant: "pine"
     // Desktop widgets: lines get an 8px gap instead of none.
@@ -72,6 +75,7 @@ Item {
             id: labelText
             x: HTokens.ch()
             text: root.label
+            ink: root.labelInk
         }
     }
 

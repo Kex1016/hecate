@@ -7,6 +7,8 @@
 ////@ pragma Env QT_SCALE_FACTOR=1
 import "modules/common"
 import "services"
+import "services/apple"
+import "services/claude"
 import "panelFamilies"
 import QtQuick
 import QtQuick.Window
@@ -29,11 +31,6 @@ ShellRoot {
         function onReadyChanged() {
             if (!Config.ready) return
 
-            if (WM.niriLike) {
-                Config.options.background.lockWall = ""
-                Config.options.overview.enable = false
-            }
-
             if (Config.options.hyprland.autostartApps.enable &&
                 Config.options.hyprland.autostartApps.apps.length > 0) {
                 autostartProc.running = true
@@ -50,15 +47,17 @@ ShellRoot {
         Updates.load()
         LyricsService.restartLyrics()
         GreeterSync.load()
+        // iCloud: calendars and contacts sync, the photo album rotates the wallpaper, Drive
+        // mounts at login. Each does nothing until its account is set up.
+        Calendars.load()
+        Photos.load()
+        Drive.load()
+        // The hourly brief's schedule and the lock time the digest counts from.
+        ClaudeBrief.load()
     }
     
-    PanelFamilyLoader {
-        identifier: "ii"
+    LazyLoader {
+        active: Config.ready
         component: IllogicalImpulseFamily {}
-    }
-
-    component PanelFamilyLoader: LazyLoader {
-        required property string identifier
-        active: Config.ready && Config.options.panelFamily === identifier
     }
 }

@@ -20,10 +20,8 @@ Scope {
         Loader {
             active: GlobalStates.screenLocked
             anchors.fill: parent
+            // a cut, like every haiiro transition
             opacity: active ? 1 : 0
-            Behavior on opacity {
-                animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
-            }
             sourceComponent: root.lockSurface
         }
     }

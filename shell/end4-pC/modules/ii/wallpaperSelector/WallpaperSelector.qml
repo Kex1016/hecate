@@ -80,10 +80,6 @@ Scope {
     function toggleWallpaperSelector() {
         // wallpapers are opt-in: no picker until Settings > desktop > background says so
         if (!Wallpapers.enabled) return;
-        if (Config.options.wallpaperSelector.useSystemFileDialog) {
-            Wallpapers.openFallbackPicker(Appearance.m3colors.darkmode);
-            return;
-        }
         GlobalStates.wallpaperSelectorOpen = !GlobalStates.wallpaperSelectorOpen
     }
 

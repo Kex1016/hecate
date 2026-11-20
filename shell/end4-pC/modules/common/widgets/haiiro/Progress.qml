@@ -3,7 +3,9 @@ import qs.modules.common.widgets.haiiro
 
 // A square progress bar: label and a tabular count above a 10px hairline
 // track filled with text colour. Without a label or count it is the bare
-// track (the OSD). Stack several in a Column with spacing 10.
+// track (the OSD). Stack several in a Column with spacing 10. `ink` (c1-c8
+// or a token name) recolours label, count, border and fill: "love" for a disk
+// that is nearly full.
 //   Progress { label: "Main story"; count: "7 / 9"; value: 7 / 9 }
 Item {
     id: root
@@ -11,6 +13,8 @@ Item {
     property string label: ""
     property string count: ""
     property real value: 0
+    property string ink: "text"
+    readonly property color inkColor: HTokens.ink(ink)
     readonly property real position: Math.max(0, Math.min(1, value))
 
     implicitWidth: 360
@@ -31,7 +35,8 @@ Item {
                 id: name
                 text: root.label
                 role: "code"
-                elide: Text.ElideRight
+                ink: root.ink
+                elide: Text.ElideMiddle
                 width: parent.width - num.implicitWidth - 8
             }
             HText {
@@ -39,7 +44,7 @@ Item {
                 anchors.right: parent.right
                 text: root.count
                 role: "code"
-                ink: "inkMuted"
+                ink: root.ink === "text" ? "inkMuted" : root.ink
             }
         }
 
@@ -51,14 +56,14 @@ Item {
                 anchors.fill: parent
                 color: HTokens.inkTrack
                 border.width: HTokens.borderHairline
-                border.color: HTokens.text
+                border.color: root.inkColor
             }
             Rectangle {
                 x: HTokens.borderHairline
                 y: HTokens.borderHairline
                 width: Math.round((parent.width - 2 * HTokens.borderHairline) * root.position)
                 height: parent.height - 2 * HTokens.borderHairline
-                color: HTokens.text
+                color: root.inkColor
             }
         }
     }

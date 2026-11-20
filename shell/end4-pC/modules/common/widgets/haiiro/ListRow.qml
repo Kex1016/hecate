@@ -40,6 +40,15 @@ Item {
         color: HTokens.overlay
     }
 
+    // declared before the row, so buttons passed as trailing children take their own clicks
+    MouseArea {
+        id: mouse
+        anchors.fill: parent
+        hoverEnabled: true
+        onClicked: root.clicked()
+        onEntered: root.entered()
+    }
+
     RowLayout {
         id: row
         x: 8
@@ -79,11 +88,4 @@ Item {
         }
     }
 
-    MouseArea {
-        id: mouse
-        anchors.fill: parent
-        hoverEnabled: true
-        onClicked: root.clicked()
-        onEntered: root.entered()
-    }
 }

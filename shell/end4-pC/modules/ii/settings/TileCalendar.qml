@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import qs.services
+import qs.services.apple
 import qs.modules.common.widgets.haiiro as H
 
 // the month: this month's grid, days with events in gold, and the next event
@@ -20,7 +21,8 @@ DashTile {
         year: root.now.getFullYear()
         month: root.now.getMonth()
         today: root.now
-        eventDays: root.monthEvents.map(e => new Date(e.start).getDate())
+        // every day an event touches, multi-day ones included
+        eventDays: Calendars.eventDays(root.now.getFullYear(), root.now.getMonth())
         onDayClicked: root.clicked()
     }
 

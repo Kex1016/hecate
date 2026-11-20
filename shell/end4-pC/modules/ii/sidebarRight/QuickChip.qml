@@ -26,28 +26,10 @@ H.Chip {
         }
     }
 
-    MouseArea {
-        id: press
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
-        pressAndHoldInterval: 400
-        property bool held: false
-        onPressed: held = false
-        onPressAndHold: {
-            if (root.list === "")
-                return;
-            held = true;
+    hoverable: true
+    onClicked: root.toggled()
+    onPressAndHold: {
+        if (root.list !== "")
             root.listRequested();
-        }
-        onClicked: mouse => {
-            if (held)
-                return;
-            if (mouse.button === Qt.RightButton && root.list !== "")
-                root.listRequested();
-            else if (mouse.button === Qt.LeftButton)
-                root.toggled();
-        }
     }
 }

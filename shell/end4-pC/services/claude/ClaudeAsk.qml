@@ -91,6 +91,12 @@ Singleton {
             root.openWith({ kind: "desktop" });
     }
 
+    // Words about the calendar or music go to a card first (AppleCardsPanel sets this to
+    // AppleCards.route, which returns true when a card took them); the rest come here.
+    property var cardsHook: null
+    // a card the launcher opened (AppleCardsPanel) is showing in the ask panel's place
+    property bool cardOpen: false
+
     // Mod+A then `?`: a question with no context at all, sent right away.
     function askFromLauncher(text) {
         launcherDelay.text = String(text ?? "");
@@ -101,7 +107,11 @@ Singleton {
         property string text: ""
         // the launcher closes and gives keyboard focus back first
         interval: 120
-        onTriggered: root.openWith({ kind: "bare", question: text })
+        onTriggered: {
+            if (typeof root.cardsHook === "function" && root.cardsHook(text))
+                return;
+            root.openWith({ kind: "bare", question: text });
+        }
     }
 
     // The region tools' ask mode: `path` is a PNG of the region (write it to
@@ -396,7 +406,9 @@ print(json.dumps({
         environment: ({
             CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1",
             CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
-            CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY: "1"
+            CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY: "1",
+            // a question from the panel is not a session for the sessions panel
+            HECATE_CLAUDE_BRIDGE: "0"
         })
         stdout: SplitParser {
             onRead: line => root.onEvent(line)

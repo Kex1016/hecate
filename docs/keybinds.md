@@ -108,9 +108,11 @@ so `hecate msg binds` shows each bind's layer.
 | `Mod+Shift+S`, `Print`       | `shell:regionScreenshot`                |
 | `Mod+Shift+A`                | `shell:regionSearch` (Google Lens)      |
 | `Mod+Shift+X`                | `shell:regionOcr`                       |
-| `Mod+Shift+T`                | `shell:screenTranslate`                 |
+| `Mod+Shift+T`                | `shell:regionTranslate`                 |
+| `Mod+Ctrl+Shift+T`           | `shell:screenTranslate`                 |
+| `Mod+Shift+Q`                | `shell:regionAsk` (ask Claude about a region) |
 | `Mod+Shift+R`, `Mod+Alt+R`   | `shell:regionRecord`                    |
-| `Mod+Shift+C`                | colour picker (`hyprpicker` works on any wlr-screencopy compositor) |
+| `Mod+Shift+C`                | `shell:regionPick` (colour picker)      |
 | `Mod+Ctrl+R`                 | restart the shell (`systemctl --user restart hecate-shell`) |
 | `Mod+Shift+N` / `B` / `P` / `M` | media next / previous / play-pause / mute |
 | `Mod+Alt+M`                  | mic mute                                |

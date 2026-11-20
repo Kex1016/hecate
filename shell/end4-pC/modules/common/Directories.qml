@@ -1,7 +1,6 @@
 pragma Singleton
 pragma ComponentBehavior: Bound
 
-import qs.services
 import qs.modules.common.functions
 import QtCore
 import QtQuick
@@ -23,9 +22,6 @@ Singleton {
     // Other dirs used by the shell, without "file://"
     property string assetsPath: Quickshell.shellPath("assets")
     property string scriptPath: Quickshell.shellPath("scripts")
-    property string favicons: FileUtils.trimFileProtocol(`${Directories.cache}/media/favicons`)
-    property string coverArt: FileUtils.trimFileProtocol(`${Directories.cache}/media/coverart`)
-    property string latexOutput: FileUtils.trimFileProtocol(`${Directories.cache}/media/latex`)
     property string shellConfig: FileUtils.trimFileProtocol(`${Directories.config}/illogical-impulse`)
     property string shellConfigName: "config.json"
     property string shellConfigPath: `${Directories.shellConfig}/${Directories.shellConfigName}`
@@ -34,26 +30,14 @@ Singleton {
     property string hecateConfig: FileUtils.trimFileProtocol(`${Directories.config}/hecate`)
     property string calendarsPath: `${Directories.hecateConfig}/calendars.toml`
     property string todoPath: FileUtils.trimFileProtocol(`${Directories.state}/user/todo.json`)
-    property string desktopNotesPath: FileUtils.trimFileProtocol(`${Directories.state}/user/desktopnotes.txt`)
     property string notificationsPath: FileUtils.trimFileProtocol(`${Directories.cache}/notifications/notifications.json`)
-    property string cliphistDecode: FileUtils.trimFileProtocol(`/tmp/quickshell/media/cliphist`)
     property string screenshotTemp: "/tmp/quickshell/media/screenshot"
-    property string wallpaperSwitchScriptPath: FileUtils.trimFileProtocol(`${Directories.scriptPath}/colors/switchwall.sh`)
-    property string userActions: FileUtils.trimFileProtocol(`${Directories.shellConfig}/actions`)
     property string recordScriptPath: FileUtils.trimFileProtocol(`${Directories.scriptPath}/videos/record.sh`)
-    property string userAvatarPathAccountsService: FileUtils.trimFileProtocol(`/var/lib/AccountsService/icons/${SystemInfo.username}`)
-    property string userAvatarPathRicersAndWeirdSystems: FileUtils.trimFileProtocol(`${Directories.home}.face`)
-    property string userAvatarPathRicersAndWeirdSystems2: FileUtils.trimFileProtocol(`${Directories.home}.face.icon`)
     property string eqScriptPath: FileUtils.trimFileProtocol(`${Directories.scriptPath}/eq/equalizer.sh`)
     property string eqStateDir: FileUtils.trimFileProtocol(`${Directories.state}/user/eq`)
-    // Cleanup on init
+    // Created on start
     Component.onCompleted: {
         Quickshell.execDetached(["mkdir", "-p", `${shellConfig}`])
-        Quickshell.execDetached(["mkdir", "-p", `${favicons}`])
-        Quickshell.execDetached(["bash", "-c", `rm -rf '${coverArt}'; mkdir -p '${coverArt}'`])
-        Quickshell.execDetached(["bash", "-c", `rm -rf '${latexOutput}'; mkdir -p '${latexOutput}'`])
-        Quickshell.execDetached(["bash", "-c", `rm -rf '${cliphistDecode}'; mkdir -p '${cliphistDecode}'`])
-        Quickshell.execDetached(["mkdir", "-p", `${userActions}`])
         Quickshell.execDetached(["mkdir", "-p", `${eqStateDir}`])
     }
 }

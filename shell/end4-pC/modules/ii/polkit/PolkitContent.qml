@@ -4,7 +4,6 @@ import Quickshell
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets.haiiro as H
-import qs.modules.ii.sessionScreen
 
 Item {
     id: root
@@ -85,7 +84,7 @@ Item {
                     ink: "c1"
                     wrapMode: Text.WrapAnywhere
                 }
-                PasswordLine {
+                H.PasswordLine {
                     id: line
                     stars: root.usePasswordChars
                     echoMode: root.usePasswordChars ? TextInput.Password : TextInput.Normal

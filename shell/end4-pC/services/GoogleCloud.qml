@@ -8,7 +8,7 @@ Singleton {
     id: root
 
     property var keyContent: ({})
-    property string keyProjectId: keyContent?.project_id
+    property string keyProjectId: keyContent?.project_id ?? ""
     property bool keyError: false
     property bool keyReady: false
     property string token: ""

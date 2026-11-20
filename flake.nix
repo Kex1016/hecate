@@ -39,6 +39,9 @@
           common = common pkgs;
         };
         hecate-shell = pkgs.callPackage ./nix/shell-package.nix { };
+        # The haiiro faces and their fontconfig fallback order, for the system, the login
+        # screen and the installer.
+        haiiro-fonts = pkgs.callPackage ./nix/fonts.nix { };
         default = hecate;
       });
 
@@ -48,6 +51,7 @@
       overlays.default = final: _prev: {
         hecate = self.packages.${final.stdenv.hostPlatform.system}.hecate;
         hecate-shell = self.packages.${final.stdenv.hostPlatform.system}.hecate-shell;
+        haiiro-fonts = self.packages.${final.stdenv.hostPlatform.system}.haiiro-fonts;
       };
 
       devShells = forAllSystems (pkgs: {

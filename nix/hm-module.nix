@@ -59,6 +59,13 @@ let
       workspace_switch.style = "none";
     };
     splash.handover = "cut";
+    # The live blob background is the desktop until you pick wallpaper mode (the shell
+    # switches it over IPC). Set here too so the first frames, before the shell is up, are
+    # blobs and not the bare ground colour; `resume` carries on from the login screen's.
+    background.blobs = {
+      enable = true;
+    }
+    // lib.optionalAttrs (shellCfg.blobs.resume != null) { inherit (shellCfg.blobs) resume; };
   };
   # With that look a panel appears the way everything does: the shell's per-panel slides,
   # fades and pop-ins are left out (a rule that says "none" still means it).
@@ -74,13 +81,10 @@ let
       )
     )
     ++ (cfg.settings.layer_rules or [ ]);
-  # Included in this order, later wins: the shell's wallpaper colours (matugen writes
-  # ~/.config/hecate/colors.toml), what its settings page writes (shell.toml), then yours.
+  # Included in this order, later wins: what the shell's settings page writes (shell.toml),
+  # then yours. The colours are haiiro's and fixed, so nothing is generated from the wallpaper.
   includes =
-    lib.optional (
-      shellCfg.enable && shellCfg.theming.borders
-    ) "${config.xdg.configHome}/hecate/colors.toml"
-    ++ lib.optional shellCfg.enable "${config.xdg.configHome}/hecate/shell.toml"
+    lib.optional shellCfg.enable "${config.xdg.configHome}/hecate/shell.toml"
     ++ map toString cfg.extraConfigFiles;
   configFile = toml.generate "hecate-config.toml" (
     lib.recursiveUpdate (
@@ -104,6 +108,13 @@ let
   '';
 in
 {
+  imports = [
+    (lib.mkRemovedOptionModule [ "wayland" "windowManager" "hecate" "shell" "theming" "borders" ] ''
+      The shell no longer colours borders from the wallpaper (matugen is gone): haiiro's frame
+      colours are fixed, and `settings.border.color` overrides them.
+    '')
+  ];
+
   options.wayland.windowManager.hecate = {
     enable = lib.mkEnableOption "the hecate Wayland compositor";
 
@@ -215,26 +226,14 @@ in
           '';
         };
 
-        borders = lib.mkOption {
-          type = lib.types.bool;
-          default = !shellCfg.theming.compositor && !(cfg.settings ? border.color);
-          defaultText = lib.literalExpression "!shell.theming.compositor && !(settings ? border.color)";
-          description = ''
-            Colour hecate's borders from the wallpaper: the shell's matugen run writes
-            `~/.config/hecate/colors.toml`, which the config includes. Off with the haiiro
-            look (`shell.theming.compositor`), whose frames are pine, and when
-            `settings.border.color` is set, since the include would override either.
-          '';
-        };
-
         qt = lib.mkOption {
           type = lib.types.bool;
           default = true;
           description = ''
-            Theme Qt apps from the wallpaper the way illogical-impulse does on Plasma: the KDE
-            platform theme (`QT_QPA_PLATFORMTHEME=kde`) with the Darkly style, reading the
-            colour scheme the shell writes into `~/.config/kdeglobals`. That file is seeded
-            once (writable) if it doesn't exist.
+            Theme Qt apps the way Plasma does: the KDE platform theme
+            (`QT_QPA_PLATFORMTHEME=kde`) with the Darkly style, reading the colour scheme in
+            `~/.config/kdeglobals`. That file is seeded once (writable) if it doesn't exist; the
+            shell's settings change its icons and fonts, never its colours.
           '';
         };
 
@@ -242,10 +241,20 @@ in
           type = lib.types.bool;
           default = true;
           description = ''
-            Use Papirus with its folders recoloured to the wallpaper's primary colour as the
-            GTK and KDE icon theme (`~/.local/share/icons/Papirus-Hecate*`).
+            Use Papirus-Dark as the KDE icon theme (seeded into `kdeglobals`) and install
+            Papirus. The shell no longer recolours its folders from the wallpaper.
           '';
         };
+      };
+
+      blobs.resume = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = "/run/hecate-greetd/blobs.json";
+        description = ''
+          File the blob background carries on from at startup, so the desktop's first blob
+          frame follows the login screen's last one. hecate-greetd writes it when you log in;
+          a missing file just starts the blobs afresh. `null` leaves it out.
+        '';
       };
 
       dotfiles = lib.mkOption {
@@ -261,15 +270,11 @@ in
             "fish"
           ]
         );
-        default = [
-          "matugen"
-          "kde-material-you-colors"
-          "Kvantum"
-          "fuzzel"
-        ];
+        default = [ "fuzzel" ];
         description = ''
-          illogical-impulse dotfiles to install into `~/.config`. matugen's templates are what
-          wallpaper theming needs; the terminal and shell configs are opt-in.
+          illogical-impulse dotfiles to install into `~/.config`. The shell no longer themes
+          anything from the wallpaper, so matugen's, kde-material-you-colors' and Kvantum's are
+          opt-in like the terminal and shell configs.
         '';
       };
     };
@@ -320,8 +325,10 @@ in
           twemoji-color-font
           adw-gtk3
           kdePackages.breeze-icons
-          bibata-cursors
         ])
+        # The haiiro faces for every other program, with their fallback order (the shell
+        # loads its own copies).
+        ++ [ self.packages.${pkgs.stdenv.hostPlatform.system}.haiiro-fonts ]
         ++ lib.optional shellCfg.theming.folderIcons pkgs.papirus-icon-theme
         ++ lib.optionals shellCfg.theming.qt [
           pkgs.darkly
@@ -349,7 +356,6 @@ in
             ConditionEnvironment = "WAYLAND_DISPLAY";
           };
           Service = {
-            Environment = lib.optional (!shellCfg.theming.folderIcons) "HECATE_FOLDER_COLORS=0";
             ExecStart = lib.getExe shellCfg.finalPackage;
             Restart = "on-failure";
             RestartSec = 1;
@@ -366,7 +372,7 @@ in
           platformTheme.name = lib.mkDefault "kde";
         };
 
-        # The shell rewrites kdeglobals on every wallpaper change, so it can't be a store
+        # The shell's settings write icons and fonts into kdeglobals, so it can't be a store
         # symlink. Seed it from illogical-impulse's, minus fonts and icons nixpkgs lacks.
         home.activation.hecateKdeglobals = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
           kdeglobals="${config.xdg.configHome}/kdeglobals"

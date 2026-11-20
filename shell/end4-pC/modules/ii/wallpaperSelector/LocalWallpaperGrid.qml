@@ -80,23 +80,22 @@ Item {
                         color: H.HTokens.base
                     }
                     Image {
+                        id: thumb
                         anchors.fill: parent
                         anchors.margins: cell.current ? 5 : 2
-                        source: "file://" + cell.modelData.path
-                        sourceSize: Qt.size(480, 300)
+                        // dithering on: the copy pressed into two tones at this cell's size
+                        // (what the desktop will show); the plain picture until it is made
+                        readonly property real dpr: Screen.devicePixelRatio || 1
+                        readonly property string pressed: root.dither && width > 0
+                            ? Wallpapers.ditheredPath(cell.modelData.path, Math.round(width * dpr), Math.round(height * dpr))
+                            : ""
+                        source: "file://" + (pressed !== "" ? pressed : cell.modelData.path)
+                        sourceSize: pressed !== "" ? Qt.size(Math.round(width * dpr), Math.round(height * dpr)) : Qt.size(480, 300)
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
                         smooth: false
+                        mipmap: false
                         cache: true
-                    }
-                    // dither preview: the checker over the picture. The background
-                    // layer does the real two-tone pressing.
-                    H.Dither {
-                        visible: root.dither
-                        anchors.fill: parent
-                        anchors.margins: cell.current ? 5 : 2
-                        ground: "transparent"
-                        ink: Qt.rgba(H.HTokens.base.r, H.HTokens.base.g, H.HTokens.base.b, 0.45)
                     }
                     // 2px highlight-high frame; the current one gets pine 5px double
                     Rectangle {

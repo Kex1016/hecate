@@ -603,15 +603,9 @@ HWindow {
         from: -root.preampRange
         to: root.preampRange
         stepSize: 1
-        valueText: (value > 0 ? "+" : "") + Math.round(value)
+        valueText: (shown > 0 ? "+" : "") + Math.round(shown)
         onMoved: value => root.setPreamp(value)
-        // setValue() replaces the value, so a plain binding would stop following
-        Binding {
-            target: preampSlider
-            property: "value"
-            value: root.preamp
-            when: !preampSlider.pressed
-        }
+        value: root.preamp
     }
 
     HRule {

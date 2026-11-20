@@ -1,10 +1,12 @@
 import qs
 import qs.services
 import qs.modules.common
+import qs.services.apple
 import QtQuick
 import QtQuick.Layouts
 
-// The nine toggles, three to a row. wifi, bluetooth, vpn and night light open
+// The nine toggles, three to a row, and a tenth while AirPods are connected
+// (their noise mode; a click goes to the next one). wifi, bluetooth, vpn and night light open
 // their list in place on a long press. A toggle the machine can't do (no
 // bluetooth adapter, no EasyEffects) stays in its cell, at 55%.
 GridLayout {
@@ -86,5 +88,16 @@ GridLayout {
         list: "source"
         onToggled: Audio.toggleMicMute()
         onListRequested: QuickState.view = list
+    }
+    QuickChip {
+        Layout.fillWidth: true
+        visible: AirPods.connected
+        readonly property var mode: AirPods.modes.find(m => m.id === AirPods.noiseMode) ?? null
+        text: "airpods" + (mode ? ": " + mode.label : "")
+        on: AirPods.noiseMode !== "" && AirPods.noiseMode !== "off"
+        onToggled: {
+            const i = AirPods.modes.findIndex(m => m.id === AirPods.noiseMode);
+            AirPods.setNoiseMode(AirPods.modes[(i + 1) % AirPods.modes.length].id);
+        }
     }
 }

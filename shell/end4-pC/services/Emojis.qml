@@ -8,11 +8,12 @@ import Quickshell
 import Quickshell.Io
 
 /**
- * Emojis.
+ * The emoji the launcher's `:` lists, from assets/emoji.txt (Unicode's emoji-test.txt,
+ * fully-qualified, no skin tones): one `<emoji> <name>` per line after `### DATA ###`.
  */
 Singleton {
     id: root
-    property string emojiScriptPath: `${Directories.config}/hypr/hyprland/scripts/fuzzel-emoji.sh`
+    property string emojiScriptPath: Quickshell.shellPath("assets/emoji.txt")
 	property string lineBeforeData: "### DATA ###"
     property list<var> list
     readonly property var preparedEntries: list.map(a => ({
@@ -20,16 +21,6 @@ Singleton {
         entry: a
     }))
     function fuzzyQuery(search: string): var {
-        if (root.sloppySearch) {
-            const results = entries.slice(0, 100).map(str => ({
-                entry: str,
-                score: Levendist.computeTextMatchScore(str.toLowerCase(), search.toLowerCase())
-            })).filter(item => item.score > root.scoreThreshold)
-                .sort((a, b) => b.score - a.score)
-            return results
-                .map(item => item.entry)
-        }
-
         return Fuzzy.go(search, preparedEntries, {
             all: true,
             key: "name"

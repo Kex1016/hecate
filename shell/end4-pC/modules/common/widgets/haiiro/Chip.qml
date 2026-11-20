@@ -12,8 +12,11 @@ Item {
     property bool badge: false
     // a chip that toggles: clicked() fires, the owner flips `on`
     property bool interactive: false
+    // hover highlight and pressAndHold() without being a toggle (the quick chips open a list)
+    property bool hoverable: interactive
     readonly property bool hovered: mouse.containsMouse
     signal clicked()
+    signal pressAndHold()
 
     activeFocusOnTab: interactive && enabled
     implicitWidth: caption.implicitWidth + 12 + 2 * HTokens.borderHairline
@@ -54,9 +57,25 @@ Item {
     MouseArea {
         id: mouse
         anchors.fill: parent
-        enabled: root.interactive
-        hoverEnabled: root.interactive
+        enabled: root.interactive || root.hoverable
+        hoverEnabled: enabled
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.clicked()
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        pressAndHoldInterval: 400
+        // a long press is not also a click
+        property bool held: false
+        onPressed: held = false
+        onPressAndHold: {
+            held = true;
+            root.pressAndHold();
+        }
+        onClicked: mouse => {
+            if (held)
+                return;
+            if (mouse.button === Qt.RightButton)
+                root.pressAndHold();
+            else
+                root.clicked();
+        }
     }
 }

@@ -18,6 +18,7 @@ H.HWindow {
         ? root.player.position / root.player.length : 0
 
     label: root.player ? `♪ ${root.playerName}` : "♪ media"
+    labelInk: "c7"
     widget: true
     implicitWidth: 360
 

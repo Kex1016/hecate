@@ -1,6 +1,7 @@
 import QtQuick
 import qs
 import qs.modules.common
+import qs.services
 import qs.modules.ii.settings
 
 SettingsPage {
@@ -101,6 +102,30 @@ SettingsPage {
         SetToggle {
             name: "seconds in the bar"
             key: "time.secondPrecision"
+        }
+        SetSection { text: "desktop widgets" }
+        SetText {
+            name: "race"
+            description: "The character sheet's first line of flavour."
+            value: DesktopWidgets.race
+            onEdited: v => DesktopWidgets.setProfile(String(v).trim() || "human", DesktopWidgets.klass)
+        }
+        SetText {
+            name: "class"
+            description: "And its second."
+            value: DesktopWidgets.klass
+            onEdited: v => DesktopWidgets.setProfile(DesktopWidgets.race, String(v).trim() || "nix tinkerer")
+        }
+        SetText {
+            name: "repos folder"
+            description: "The repos widget lists the git checkouts in here."
+            key: "repos.path"
+            placeholder: "~/src"
+        }
+        SetToggle {
+            name: "fetch repos"
+            description: "git fetch them in the background, so ahead/behind is current."
+            key: "repos.fetch"
         }
     }
 }

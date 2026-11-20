@@ -125,6 +125,15 @@ Item {
                 }
             }
 
+            // an iCloud album as the source instead of the folder (it hides itself outside
+            // wallpaper mode)
+            Loader {
+                Layout.preferredWidth: 360
+                active: Wallpapers.enabled
+                visible: active && status === Loader.Ready
+                source: active ? Qt.resolvedUrl("../background/widgets/ApplePhotosWidget.qml") : ""
+            }
+
             LocalWallpaperGrid {
                 id: grid
                 Layout.fillWidth: true
