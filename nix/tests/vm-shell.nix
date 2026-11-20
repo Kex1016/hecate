@@ -111,7 +111,9 @@ pkgs.testers.runNixOSTest {
 
         # Nothing the shell loaded may have failed to compile or bind: a component that cannot
         # load is dropped silently by its loader, so the journal is the only place it shows.
-        # (Runtime tools the VM lacks, like a player or a network, are not QML errors.)
+        # Double quotes: as_alice already wraps the command in single ones.
+        # (Runtime tools the VM lacks, like a player or a network, are not QML errors, and
+        # neither is the shell's own logging, such as "[To Do] File not found, creating new file.")
         qml_errors = (
             "is not a type|is not installed|Cannot assign|Cannot read property|"
             "ReferenceError|TypeError|Unable to assign|"
@@ -120,7 +122,8 @@ pkgs.testers.runNixOSTest {
         errors = machine.execute(
             as_alice(
                 "journalctl --user -u hecate-shell --no-pager | grep -v icon "
-                f"| grep -E '{qml_errors}'"
+                '| grep -v "qml: \\[" '
+                f'| grep -E "{qml_errors}"'
             )
         )[1]
         assert not errors.strip(), "the shell logged QML errors:\n" + errors
