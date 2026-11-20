@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Docs for the haiiro shell: the look and its config (`docs/config.md#haiiro-look`), the blob
+  background's keys and IPC, border tints in the IPC and as a bind (`docs/ipc.md`,
+  `docs/keybinds.md`), the optional Claude and Apple services (`docs/shell.md`), the nix outputs
+  (`docs/nix.md`), and the new `docs/hecate-mcp.md`.
+- `hecate-mcp`, a read-only MCP server for hecate (windows, workspaces, outputs, notifications,
+  screenshots), with `windows`, `tint` and `notify` permissions that are off by default.
+  Exported as `packages.hecate-mcp`.
+- `border_tint` is a window field in `windows` and an action: `hecate msg tint gold`, or bind it.
 - Snapping counts the border: a window snapped to an edge or corner keeps its border inside
   the usable area and clear of the other half, and edge resistance lines windows up border to
   border, instead of the border sitting under the bar or on top of the next window.

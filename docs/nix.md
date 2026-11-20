@@ -109,6 +109,20 @@ sync with the compositor). After v1, generate fully typed Nix options with
 descriptions from the JSON Schema, like niri-flake's typed `settings`,
 so `nixos-option` and editor completion work in Nix too.
 
+## Haiiro fonts and hecate-mcp
+
+- `packages.<system>.haiiro-fonts` (from `nix/fonts.nix`): IBM VGA 8x16,
+  Jacquard 24 and GNU Unifont, with their fontconfig fallback order.
+  `programs.hecate.fonts.enable` (NixOS) installs them system-wide. The Home
+  Manager module adds them to the shell's font fallbacks.
+- `packages.<system>.hecate-mcp`: the MCP server alone, with `grim` and
+  `notify-send` on its `PATH`. See [hecate-mcp.md](hecate-mcp.md).
+- `wayland.windowManager.hecate.shell.blobs.resume` (default
+  `/run/hecate-greetd/blobs.json`): where the blob background carries on
+  from at startup. `null` leaves it out.
+- `wayland.windowManager.hecate.shell.theming.compositor`: the haiiro look
+  for the compositor's frame and animations ([config.md](config.md#haiiro-look)).
+
 ## Bundled shell
 
 `wayland.windowManager.hecate.shell`:

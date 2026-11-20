@@ -164,3 +164,12 @@ Resolution in the last column, **agreed in round 3**.
 
 The Noctalia binds from your niri config (`noctalia-shell ipc call ...`)
 are replaced by their end-4 equivalents above.
+
+A bind can also tint a window's border, which is an action like any other:
+
+```toml
+[binds]
+"Mod+G" = { border_tint = "gold" }
+```
+
+See [ipc.md](ipc.md#border-tints) for the colours and the timed form.

@@ -36,7 +36,8 @@ debugging.
 | `"outputs"`               | name, make/model, mode, scale, transform, position, VRR, focused |
 | `"focused_output"`        | output or null                               |
 | `"workspaces"`            | id, name, output (per_output mode), active, urgent, window ids |
-| `"windows"`               | id, app_id, title, workspace id, output, geometry, state flags, is_x11, pid |
+| `"windows"`               | id, app_id, title, workspace id, output, geometry, state flags, is_x11, pid, `border_tint` (see below) |
+| `{"blobs": "status"}` / `{"blobs": {"enable": true}}` | the blob background: whether it is drawn, per output its cell size and blob count. `hecate msg blobs on\|off` sets the override (see [config.md](config.md#haiiro-look)) |
 | `"focused_window"`        | window or null                               |
 | `"keyboard_layouts"`      | names, current index                         |
 | `"layers"`                | layer-shell surfaces: namespace, layer, output, exclusive zone, keyboard mode |
@@ -77,6 +78,28 @@ next|prev|<index>`, `set_cursor_theme <name> <size>` (re-exports
 `XCURSOR_*` and updates the default cursor), `power_off_outputs` /
 `power_on_outputs` (same effect as wlr-output-power), `focus_output
 <name>`, `move_cursor <x> <y>`.
+
+### Border tints
+
+`border_tint` on a window is the tint it is drawn in right now, as a name
+(`"gold"`, `"love"`, `"foam"`, from `border.tint` in the config) or as
+`#rrggbb` for a colour set some other way, and `null` when it has none.
+Shells that show what needs attention read it from `windows` and the
+event stream instead of keeping their own copy.
+
+A tint is an action too, so the same request sets it:
+
+```json
+{"action": {"border_tint": "gold"}, "target": {"id": 42}}
+{"action": {"border_tint": {"color": "gold", "ms": 3000}}}
+```
+
+The colour is `gold`, `love` or `foam`, any `#rrggbb`, or `none` to clear
+it. Leave the target out to tint the focused window. The `ms` form clears
+the tint again by itself. A bad name (`"mauve"`) is an error back to the
+caller. It can also be bound (`"Super+G" = { border_tint = "gold" }`); a
+bad tint in a bind is logged as a warning. `hecate msg tint` wraps the same
+request.
 
 ## Events
 
