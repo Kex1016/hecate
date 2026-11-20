@@ -13,8 +13,9 @@ import Quickshell.Wayland
 // It has no background of its own. hecate draws the blobs under every layer
 // (`background.blobs`), behind the lock screen and in hecate-greetd too, so the same blobs
 // keep moving through login and while the shell restarts. With `background.mode`
-// "wallpaper" each screen shows its picture here instead, and once every screen has one
-// the compositor is told to stop the blobs nobody sees (`hecate msg blobs off`).
+// "wallpaper" each screen shows its picture here instead (with `background.dither`, the copy
+// Wallpapers dithered to two haiiro tones), and once every screen has one the compositor is
+// told to stop the blobs nobody sees (`hecate msg blobs off`).
 Variants {
     id: root
     model: Quickshell.screens
@@ -67,6 +68,29 @@ Variants {
             const own = Config.options.background.perMonitor ? Wallpapers.monitorWallpaper(bgRoot.modelData.name) : "";
             return Wallpapers.previewPath || own || Wallpapers.confirmedPath || Config.options.background.wallpaperPath;
         }
+        // The screen in device pixels: the picture is decoded, and dithered, at this size.
+        readonly property size pixelSize: Qt.size(Math.ceil(bgRoot.modelData.width * bgRoot.modelData.devicePixelRatio),
+            Math.ceil(bgRoot.modelData.height * bgRoot.modelData.devicePixelRatio))
+        readonly property bool dithered: root.wallpaperMode && Config.options.background.dither
+        // What the Image loads. With dithering on it is the copy Wallpapers presses into two
+        // tones for this screen's size; until that copy is ready this is "" and the Image
+        // keeps what it shows. If the copy can't be made (no ImageMagick), the picture itself.
+        readonly property string displayPath: {
+            const path = bgRoot.wallpaperPath;
+            if (!path || !bgRoot.dithered)
+                return path;
+            const copy = Wallpapers.ditheredScreenPath(path, bgRoot.pixelSize.width, bgRoot.pixelSize.height);
+            if (copy.length > 0)
+                return copy;
+            return Wallpapers.ditherFailed(path, bgRoot.pixelSize.width, bgRoot.pixelSize.height) ? path : "";
+        }
+        // The last path worth loading: a copy still being made doesn't blank the screen.
+        property string shownPath: ""
+        onDisplayPathChanged: {
+            if (bgRoot.displayPath.length > 0 || !bgRoot.wallpaperPath)
+                bgRoot.shownPath = bgRoot.displayPath;
+        }
+        Component.onCompleted: bgRoot.shownPath = bgRoot.displayPath
         // The picture is up: nothing the compositor draws below shows on this screen.
         readonly property bool covered: wallpaper.shown && !GlobalStates.startupLockPending
 
@@ -101,17 +125,17 @@ Variants {
 
                 anchors.fill: parent
                 visible: shown
-                source: bgRoot.wallpaperPath
+                source: bgRoot.shownPath
                 fillMode: Image.PreserveAspectCrop
                 // Decoded at the screen's resolution: a 5K picture and its mipmaps stall the
-                // render thread on their way to the GPU.
-                sourceSize: Qt.size(Math.ceil(bgRoot.modelData.width * bgRoot.modelData.devicePixelRatio),
-                    Math.ceil(bgRoot.modelData.height * bgRoot.modelData.devicePixelRatio))
+                // render thread on their way to the GPU. A dithered copy is already exactly that
+                // size, and is drawn pixel for pixel: no filtering, no mipmaps.
+                sourceSize: bgRoot.pixelSize
                 asynchronous: true
                 retainWhileLoading: true
                 cache: true
-                smooth: true
-                mipmap: true
+                smooth: !bgRoot.dithered
+                mipmap: !bgRoot.dithered
                 onStatusChanged: {
                     if (status === Image.Ready)
                         shown = true;

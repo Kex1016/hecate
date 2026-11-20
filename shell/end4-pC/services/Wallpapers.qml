@@ -104,8 +104,147 @@ Singleton {
         if (!on) Config.options.background.monitorWallpapers = [];
     }
 
+    // ── dithering ────────────────────────────────────────────────────────────────
+    // With `background.dither` on, the background shows a copy of the picture pressed into
+    // two tones of the night sky (base and muted): fitted to the screen like the original,
+    // turned grey and stretched to the full range (like the album art), ordered-dithered with
+    // the 4x4 Bayer matrix at one cell per ditherCell pixels and scaled back up with
+    // nearest-neighbour. The copies are PNGs in ditherDir,
+    // named after the picture, its mtime, the size and the tones, so a copy is made once and
+    // a changed picture gets a new one. ImageMagick does the work in a child process, one
+    // picture at a time, never on the UI thread. The picker's previews come from the same
+    // call at their own size.
+
+    readonly property string ditherDir: FileUtils.trimFileProtocol(`${Directories.cache}/wallpapers/dithered`)
+    readonly property color ditherDark: Appearance.haiiro.color.base
+    readonly property color ditherLight: Appearance.haiiro.color.muted
+    // Screen pixels per dither cell: half the design system's 4px checker tile, so a
+    // dithered wallpaper has the same grain as the placeholders and the album art.
+    readonly property int ditherCell: Math.max(1, Appearance.haiiro.size.ditherTile / 2)
+    // "<path>|<w>x<h>" -> the dithered file, or "!" when it could not be made.
+    property var ditherCache: ({})
+    // Picked up by the queue, not bound to anything.
+    property var ditherPending: []
+
+    function ditherKey(path, width, height) {
+        return `${FileUtils.trimFileProtocol(String(path))}|${Math.round(width)}x${Math.round(height)}`;
+    }
+
+    // The dithered copy of `path` at width x height (device pixels), as a path, or "" while it
+    // is being made (or when it can't be: `ditherFailed`). Safe to call from a binding: it
+    // reads ditherCache, so the binding updates when the copy is ready.
+    function ditheredPath(path, width, height) {
+        const clean = FileUtils.trimFileProtocol(String(path ?? ""));
+        if (clean.length === 0 || !(width > 0) || !(height > 0)) return "";
+        const key = root.ditherKey(clean, width, height);
+        const hit = root.ditherCache[key];
+        if (hit === "!") return "";
+        if (hit) return hit;
+        root.requestDither(clean, Math.round(width), Math.round(height), false);
+        return "";
+    }
+
+    // The same, for a screen: its copy is made before any waiting preview.
+    function ditheredScreenPath(path, width, height) {
+        const clean = FileUtils.trimFileProtocol(String(path ?? ""));
+        if (clean.length === 0 || !(width > 0) || !(height > 0)) return "";
+        const hit = root.ditherCache[root.ditherKey(clean, width, height)];
+        if (hit === "!") return "";
+        if (hit) return hit;
+        root.requestDither(clean, Math.round(width), Math.round(height), true);
+        return "";
+    }
+
+    function ditherFailed(path, width, height) {
+        return root.ditherCache[root.ditherKey(path, width, height)] === "!";
+    }
+
+    // What a background or preview should show for `path`: the dithered copy when dithering
+    // is on (or "" until it is ready), else the picture itself.
+    function displayPath(path, width, height) {
+        if (!root.dither) return FileUtils.trimFileProtocol(String(path ?? ""));
+        return root.ditheredPath(path, width, height);
+    }
+
+    function requestDither(path, width, height, urgent) {
+        const key = root.ditherKey(path, width, height);
+        if (ditherProc.key === key) return;
+        const queued = root.ditherPending.findIndex(j => j.key === key);
+        if (queued >= 0 && !urgent) return;
+        if (queued >= 0) root.ditherPending.splice(queued, 1);
+        const job = { key: key, path: path, width: width, height: height };
+        // The screens' own sizes go first; previews wait.
+        if (urgent) root.ditherPending.unshift(job);
+        else root.ditherPending.push(job);
+        ditherQueueTimer.restart();
+    }
+
+    Timer {
+        id: ditherQueueTimer
+        interval: 0
+        onTriggered: root.nextDither()
+    }
+
+    function nextDither() {
+        if (ditherProc.running || ditherProc.key.length > 0 || root.ditherPending.length === 0) return;
+        const job = root.ditherPending.shift();
+        ditherProc.key = job.key;
+        ditherProc.command = ["sh", "-c", root.ditherScript, "dither", job.path, String(job.width), String(job.height),
+            String(root.ditherCell), String(root.ditherDark), String(root.ditherLight), root.ditherDir];
+        ditherProc.running = true;
+    }
+
+    // $1 picture, $2 width, $3 height, $4 cell, $5 dark, $6 light, $7 cache dir.
+    // Prints "ok <file>" or "error <why>". Keeps the 48 newest copies.
+    readonly property string ditherScript: [
+        'src=$1; w=$2; h=$3; cell=$4; dark=$5; light=$6; dir=$7',
+        'mt=$(stat -c %Y "$src" 2>/dev/null) || { echo "error missing"; exit 1; }',
+        'key=$(printf "%s|%s|%sx%s|%s|%s|%s|1" "$src" "$mt" "$w" "$h" "$cell" "$dark" "$light" | sha1sum | cut -c1-20)',
+        'out="$dir/$key.png"',
+        'if [ -s "$out" ]; then touch "$out"; echo "ok $out"; exit 0; fi',
+        'mkdir -p "$dir" || { echo "error mkdir"; exit 1; }',
+        'sw=$(( (w + cell - 1) / cell )); sh=$(( (h + cell - 1) / cell ))',
+        'tmp="$dir/.$key.$$.png"',
+        'if magick "$src[0]" -auto-orient -resize "${sw}x${sh}^" -gravity center -extent "${sw}x${sh}" \\',
+        '    -colorspace Gray -auto-level -ordered-dither o4x4 -clamp \\',
+        '    +level-colors "$dark,$light" -scale "$((cell * 100))%" -extent "${w}x${h}" \\',
+        '    "PNG8:$tmp" 2>/dev/null; then mv -f "$tmp" "$out"; else rm -f "$tmp"; echo "error magick"; exit 1; fi',
+        'ls -1t "$dir"/*.png 2>/dev/null | tail -n +49 | while read -r f; do rm -f "$f"; done',
+        'echo "ok $out"',
+    ].join("\n")
+
+    Process {
+        id: ditherProc
+        property string key: ""
+        // The script always prints one line; it is the whole answer.
+        stdout: StdioCollector {
+            onStreamFinished: ditherProc.finish(text.trim())
+        }
+        function finish(line) {
+            if (ditherProc.key.length === 0) return;
+            const next = Object.assign({}, root.ditherCache);
+            if (line.startsWith("ok ")) {
+                next[ditherProc.key] = line.slice(3);
+            } else {
+                console.warn(`[Wallpapers] could not dither ${ditherProc.key.split("|")[0]}: ${line || "no answer"}`);
+                next[ditherProc.key] = "!";
+            }
+            root.ditherCache = next;
+            ditherProc.key = "";
+            ditherQueueTimer.restart();
+        }
+        // A process that never started has no output to finish it.
+        onRunningChanged: if (!running) ditherWatchdog.restart()
+    }
+
+    Timer {
+        id: ditherWatchdog
+        interval: 1000
+        onTriggered: if (ditherProc.key.length > 0 && !ditherProc.running) ditherProc.finish("")
+    }
+
     // No recolouring: the palette never follows the picture. The background layer
-    // reads wallpaperPath and, with dither on, presses it into haiiro tones.
+    // reads wallpaperPath and, with dither on, shows ditheredScreenPath() of it.
     function apply(path, darkMode = Appearance.m3colors.darkmode) {
         if (!path || path.length === 0) return;
         root.confirmedPath = path;
