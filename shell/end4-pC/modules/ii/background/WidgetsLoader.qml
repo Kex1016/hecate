@@ -6,6 +6,10 @@ import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets.haiiro as H
+// The widgets are loaded by file name; importing their directories is what makes
+// quickshell index them, so the helpers they share there (ConsumerTicket, DiskBar) resolve.
+import qs.modules.ii.background.widgets.desk as Desk
+import qs.modules.ii.background.widgets.system as System
 
 // Places the desktop widgets. Which ones are on, and where, is
 // DesktopWidgets' state. Drag a widget by its top edge: it snaps to an 8px
