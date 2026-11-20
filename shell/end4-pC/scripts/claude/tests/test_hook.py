@@ -128,6 +128,15 @@ class Message(unittest.TestCase):
         proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"] + list(args))
         self.addCleanup(proc.wait)
         self.addCleanup(proc.kill)
+        # A wrapped interpreter execs once more; read its command line only once that is done.
+        for _ in range(200):
+            try:
+                with open("/proc/%d/cmdline" % proc.pid, "rb") as f:
+                    if b"time.sleep(60)" in f.read():
+                        break
+            except OSError:
+                pass
+            time.sleep(0.01)
         return proc.pid
 
     def test_headless_is_read_from_claude_codes_command_line(self):
