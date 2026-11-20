@@ -13,9 +13,66 @@ let
   shellBinds = lib.optionalAttrs (shellCfg.enable && shellCfg.keybinds) (
     import ./shell-binds.nix { shell = shellCfg.finalPackage; }
   );
+  haiiro = shellCfg.enable && shellCfg.theming.compositor;
+  # The haiiro look for what the compositor draws (Rosé Pine): no blur, square windows in
+  # a 5px double frame (2px line, 1px gap, 2px line) with their name in a notch, and
+  # nothing that slides or fades. Things pixelate in and out in four steps, workspace
+  # switches, programmatic moves and border colour changes are cuts, and the login splash
+  # hands over with one. `settings` overrides any of it.
+  pixelate = {
+    style = "pixelate";
+    ms = 500;
+    curve = "stepped";
+    cell = 16;
+    fade = false;
+  };
+  haiiroSettings = {
+    general.background_color = "#191724";
+    blur.enable = false;
+    border = {
+      width = 5;
+      style = "double";
+      radius = 0;
+      background = "#1f1d2e";
+      color = {
+        active = "#31748f";
+        inactive = "#403d52";
+        urgent = "#eb6f92";
+      };
+      label = {
+        enable = true;
+        color = "#e0def4";
+      };
+      tint = {
+        gold = "#f6c177";
+        love = "#eb6f92";
+        foam = "#9ccfd8";
+      };
+    };
+    animations = {
+      window_open = pixelate;
+      window_close = pixelate;
+      layer_open = pixelate;
+      layer_close = pixelate;
+      window_move.style = "none";
+      border.style = "none";
+      workspace_switch.style = "none";
+    };
+    splash.handover = "cut";
+  };
+  # With that look a panel appears the way everything does: the shell's per-panel slides,
+  # fades and pop-ins are left out (a rule that says "none" still means it).
+  shellLayerRule =
+    rule:
+    if haiiro && (rule.animation or "none") != "none" then removeAttrs rule [ "animation" ] else rule;
   # Shell layer rules first: later rules win, so yours override them.
   layerRules =
-    lib.optionals (shellCfg.enable && shellCfg.layerRules) (import ./shell-layer-rules.nix)
+    lib.optionals (shellCfg.enable && shellCfg.layerRules) (
+      # A rule that was only an animation has nothing left to say.
+      lib.filter (rule: removeAttrs rule [ "match" ] != { }) (
+        map shellLayerRule (import ./shell-layer-rules.nix)
+      )
+    )
     ++ (cfg.settings.layer_rules or [ ]);
   # Included in this order, later wins: the shell's wallpaper colours (matugen writes
   # ~/.config/hecate/colors.toml), what its settings page writes (shell.toml), then yours.
@@ -27,10 +84,15 @@ let
     ++ map toString cfg.extraConfigFiles;
   configFile = toml.generate "hecate-config.toml" (
     lib.recursiveUpdate (
-      lib.optionalAttrs (shellBinds != { }) { shell_binds = shellBinds; }
+      lib.optionalAttrs haiiro haiiroSettings
+      // lib.optionalAttrs (shellBinds != { }) { shell_binds = shellBinds; }
       // lib.optionalAttrs (cfg.systemd.variables != [ ]) { session_variables = cfg.systemd.variables; }
       # The shell tells hecate when it's up, which ends the login splash.
-      // lib.optionalAttrs shellCfg.enable { splash.enable = true; }
+      // lib.optionalAttrs shellCfg.enable {
+        splash = lib.optionalAttrs haiiro haiiroSettings.splash // {
+          enable = true;
+        };
+      }
     ) cfg.settings
     // lib.optionalAttrs (layerRules != [ ]) { layer_rules = layerRules; }
     // lib.optionalAttrs (includes != [ ]) { include = includes; }
@@ -134,19 +196,34 @@ in
         default = true;
         description = ''
           Add the shell's layer rules (blur behind panels, per-panel animations) before
-          `settings.layer_rules`, which can override them.
+          `settings.layer_rules`, which can override them. With `theming.compositor` the
+          per-panel animations are left out: panels pixelate like everything else.
         '';
       };
 
       theming = {
+        compositor = lib.mkOption {
+          type = lib.types.bool;
+          default = true;
+          description = ''
+            Give what the compositor draws the haiiro look: blur off, square windows in a
+            5px double pine frame with "app: title" in a notch on its top edge, windows and
+            layers that pixelate in and out in four steps, and cuts for workspace switches,
+            border colour changes and the login splash. These are defaults under
+            `settings`, which overrides any of them. The shell's per-panel slide, fade and
+            pop-in layer rules are left out with it.
+          '';
+        };
+
         borders = lib.mkOption {
           type = lib.types.bool;
-          default = !(cfg.settings ? border.color);
-          defaultText = lib.literalExpression "!(settings ? border.color)";
+          default = !shellCfg.theming.compositor && !(cfg.settings ? border.color);
+          defaultText = lib.literalExpression "!shell.theming.compositor && !(settings ? border.color)";
           description = ''
             Colour hecate's borders from the wallpaper: the shell's matugen run writes
-            `~/.config/hecate/colors.toml`, which the config includes. Off when
-            `settings.border.color` is set, since the include would override it.
+            `~/.config/hecate/colors.toml`, which the config includes. Off with the haiiro
+            look (`shell.theming.compositor`), whose frames are pine, and when
+            `settings.border.color` is set, since the include would override either.
           '';
         };
 
