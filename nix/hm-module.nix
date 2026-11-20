@@ -130,7 +130,7 @@ in
       default = { };
       example = lib.literalExpression ''
         {
-          border = { width = 2; radius = 15; };
+          border.color.active = "#9ccfd8";
           workspaces = { scope = "per_output"; kind = "fixed"; count = 9; };
           binds."Mod+Return".spawn = [ "kitty" ];
         }
@@ -231,9 +231,25 @@ in
           default = true;
           description = ''
             Theme Qt apps the way Plasma does: the KDE platform theme
-            (`QT_QPA_PLATFORMTHEME=kde`) with the Darkly style, reading the colour scheme in
-            `~/.config/kdeglobals`. That file is seeded once (writable) if it doesn't exist; the
+            (`QT_QPA_PLATFORMTHEME=kde`) with the Darkly style and the haiiro colour scheme
+            (`~/.local/share/color-schemes/Haiiro.colors`). `~/.config/kdeglobals` is seeded once
+            (writable) from nix/haiiro/kdeglobals if it doesn't exist, or still names the old
+            MaterialYouDark scheme (the old file is kept as `kdeglobals.material-bak`); the
             shell's settings change its icons and fonts, never its colours.
+          '';
+        };
+
+        apps = lib.mkOption {
+          type = lib.types.bool;
+          default = true;
+          description = ''
+            The fixed haiiro templates for programs the shell does not draw (nix/haiiro/):
+            kitty and foot (`~/.config/kitty/haiiro.conf`, `~/.config/foot/haiiro.ini`, included
+            from their config: added to `programs.kitty`/`programs.foot` when those are on,
+            otherwise written into a new kitty.conf/foot.ini once), GTK 3 and 4
+            (`gtk.css` with adw-gtk3-dark, and the GTK theme, dark style and haiiro fonts in
+            dconf, set once while unset) and fontconfig's `monospace` (the haiiro mono stack
+            first). Leave Home Manager's `gtk` module off with it: both write gtk.css.
           '';
         };
 
@@ -260,21 +276,15 @@ in
       dotfiles = lib.mkOption {
         type = lib.types.listOf (
           lib.types.enum [
-            "matugen"
-            "kde-material-you-colors"
-            "Kvantum"
-            "fontconfig"
             "fuzzel"
-            "kitty"
-            "foot"
             "fish"
           ]
         );
         default = [ "fuzzel" ];
         description = ''
-          illogical-impulse dotfiles to install into `~/.config`. The shell no longer themes
-          anything from the wallpaper, so matugen's, kde-material-you-colors' and Kvantum's are
-          opt-in like the terminal and shell configs.
+          illogical-impulse dotfiles to install into `~/.config`: fuzzel (in haiiro colours, the
+          screen-share picker when the shell is not running) and fish. kitty, foot, GTK and Qt
+          get the haiiro templates instead (`theming.apps`, `theming.qt`).
         '';
       };
     };
@@ -318,11 +328,8 @@ in
           shellCfg.finalPackage
         ]
         ++ (with pkgs; [
-          # Fonts and themes the shell's look assumes.
-          rubik
-          nerd-fonts.jetbrains-mono
-          material-symbols
-          twemoji-color-font
+          # adw-gtk3 is the GTK 3 theme the haiiro gtk.css recolours; Breeze fills icons the
+          # icon theme lacks in KDE apps.
           adw-gtk3
           kdePackages.breeze-icons
         ])
@@ -372,20 +379,90 @@ in
           platformTheme.name = lib.mkDefault "kde";
         };
 
+        xdg.dataFile."color-schemes/Haiiro.colors".source = ./haiiro/Haiiro.colors;
+
         # The shell's settings write icons and fonts into kdeglobals, so it can't be a store
-        # symlink. Seed it from illogical-impulse's, minus fonts and icons nixpkgs lacks.
-        home.activation.hecateKdeglobals = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        # symlink. Seeded from nix/haiiro/kdeglobals when missing, or when it is still the
+        # illogical-impulse Material seed of older versions.
+        home.activation.hecateKdeglobals = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
           kdeglobals="${config.xdg.configHome}/kdeglobals"
-          if [ ! -e "$kdeglobals" ]; then
-            run mkdir -p "${config.xdg.configHome}"
-            run sed -e 's/Google Sans Flex/Rubik/g' \
-              -e 's/^Theme=breeze-dark$/Theme=${
-                if shellCfg.theming.folderIcons then "Papirus-Dark" else "breeze-dark"
-              }/' \
-              ${dots}/kdeglobals > "$kdeglobals"
+          if [ -e "$kdeglobals" ] && grep -q '^ColorScheme=MaterialYouDark$' "$kdeglobals"; then
+            run mv "$kdeglobals" "$kdeglobals.material-bak"
+          fi
+          if [ ! -e "$kdeglobals" ] && [[ ! -v DRY_RUN ]]; then
+            mkdir -p "${config.xdg.configHome}"
+            sed -e 's/@ICON_THEME@/${
+              if shellCfg.theming.folderIcons then "Papirus-Dark" else "breeze-dark"
+            }/' ${./haiiro/kdeglobals} > "$kdeglobals"
+            chmod u+w "$kdeglobals"
           fi
         '';
       })
+
+      (lib.mkIf (shellCfg.enable && shellCfg.theming.apps) (
+        let
+          dconf = lib.getExe pkgs.dconf;
+          dbusRun = "${pkgs.dbus}/bin/dbus-run-session --dbus-daemon=${pkgs.dbus}/bin/dbus-daemon";
+          font = "IBM VGA 8x16 12";
+          # Set once while unset, so a choice made in the shell's settings later stays.
+          gsettings = {
+            "/org/gnome/desktop/interface/gtk-theme" = "'adw-gtk3-dark'";
+            "/org/gnome/desktop/interface/color-scheme" = "'prefer-dark'";
+            "/org/gnome/desktop/interface/font-name" = "'${font}'";
+            "/org/gnome/desktop/interface/document-font-name" = "'${font}'";
+            "/org/gnome/desktop/interface/monospace-font-name" = "'${font}'";
+          };
+          kittyInclude = "include haiiro.conf";
+          footInclude = "~/.config/foot/haiiro.ini";
+        in
+        {
+          xdg.configFile = {
+            "kitty/haiiro.conf".source = ./haiiro/kitty.conf;
+            "foot/haiiro.ini".source = ./haiiro/foot.ini;
+            "gtk-3.0/gtk.css".source = ./haiiro/gtk3.css;
+            "gtk-4.0/gtk.css".source = ./haiiro/gtk4.css;
+            "fontconfig/conf.d/50-haiiro-mono.conf".source = ./haiiro/50-haiiro-mono.conf;
+          };
+
+          # With Home Manager's kitty/foot modules on, the include goes into what they write
+          # (first, so their settings win); without them, into a new config file below.
+          programs.kitty.extraConfig = lib.mkIf config.programs.kitty.enable (lib.mkBefore kittyInclude);
+          programs.foot.settings.main.include = lib.mkIf config.programs.foot.enable footInclude;
+
+          home.activation.hecateAppTemplates = lib.hm.dag.entryAfter [ "linkGeneration" ] (
+            lib.optionalString (!config.programs.kitty.enable) ''
+              kitty="${config.xdg.configHome}/kitty/kitty.conf"
+              if [ ! -e "$kitty" ] && [ ! -L "$kitty" ] && [[ ! -v DRY_RUN ]]; then
+                mkdir -p "$(dirname "$kitty")"
+                printf '%s\n' "# Seeded once by hecate's Home Manager module; yours to edit." "${kittyInclude}" > "$kitty"
+              fi
+            ''
+            + lib.optionalString (!config.programs.foot.enable) ''
+              foot="${config.xdg.configHome}/foot/foot.ini"
+              if [ ! -e "$foot" ] && [ ! -L "$foot" ] && [[ ! -v DRY_RUN ]]; then
+                mkdir -p "$(dirname "$foot")"
+                {
+                  echo "# Seeded once by hecate's Home Manager module; yours to edit."
+                  [ ! -e /etc/xdg/foot/foot.ini ] || echo "include=/etc/xdg/foot/foot.ini"
+                  echo "include=${footInclude}"
+                } > "$foot"
+              fi
+            ''
+            + ''
+              hecate_dconf() {
+                if [ -n "''${DBUS_SESSION_BUS_ADDRESS:-}" ]; then ${dconf} "$@"; else ${dbusRun} ${dconf} "$@"; fi
+              }
+            ''
+            + lib.concatStrings (
+              lib.mapAttrsToList (key: value: ''
+                if [ -z "$(${dconf} read ${key} 2>/dev/null)" ]; then
+                  run hecate_dconf write ${key} ${lib.escapeShellArg value} || true
+                fi
+              '') gsettings
+            )
+          );
+        }
+      ))
     ]
   );
 }
