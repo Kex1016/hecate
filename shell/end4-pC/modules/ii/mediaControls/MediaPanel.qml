@@ -3,6 +3,8 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell.Services.Mpris
 import qs.modules.common.widgets.haiiro
+import qs.services
+import qs.services.apple
 import "playerPriority.js" as Priority
 
 // The media panel (Mod+M): the haiiro window `hecate: ~/media` with the
@@ -207,6 +209,44 @@ HWindow {
             on: root.hasPlayer && root.player.loopState !== MprisLoopState.None
             onClicked: root.cycleLoop()
         }
+    }
+
+    // ---- lyrics: Cider's synced lines while it plays, else the lyrics service's ----
+    // Cider follows the line closely only while someone shows it.
+    property bool ciderHeld: false
+    readonly property bool wantsCider: root.visible && Cider.open
+    onWantsCiderChanged: {
+        if (root.wantsCider && !root.ciderHeld) { Cider.consumers++; root.ciderHeld = true; }
+        else if (!root.wantsCider && root.ciderHeld) { Cider.consumers--; root.ciderHeld = false; }
+    }
+    Component.onDestruction: if (root.ciderHeld) Cider.consumers--
+    ColumnLayout {
+        id: lyrics
+        readonly property bool fromCider: Cider.active && Cider.hasLines
+        readonly property bool fromService: !fromCider && LyricsService.synced
+            && LyricsService.activePlayer === root.player
+        readonly property var lines: fromCider ? [Cider.previousLine, Cider.currentLine, Cider.nextLine]
+            : fromService ? LyricsService.slots.slice(LyricsService.before - 1, LyricsService.before + 2) : []
+        visible: root.hasPlayer && lines.length === 3 && lines[1] !== ""
+        Layout.fillWidth: true
+        Layout.topMargin: 14
+        spacing: 2
+
+        HText { Layout.fillWidth: true; text: lyrics.lines[0] ?? ""; ink: "c1"; elide: Text.ElideRight }
+        HText { Layout.fillWidth: true; text: "» " + (lyrics.lines[1] ?? ""); ink: "c4"; elide: Text.ElideRight }
+        HText { Layout.fillWidth: true; text: lyrics.lines[2] ?? ""; ink: "c1"; elide: Text.ElideRight }
+    }
+    RowLayout {
+        visible: root.hasPlayer && Cider.active && Cider.track !== null
+        Layout.topMargin: 6
+        spacing: 8
+        InkButton {
+            text: Cider.inLibrary ? "♥ in library" : "♥ add to library"
+            ink: Cider.inLibrary ? "c1" : "c3"
+            enabled: !Cider.inLibrary
+            onClicked: Cider.addToLibrary()
+        }
+        HText { text: "via cider"; role: "caption"; ink: "c1" }
     }
 
     // ---- players ----
