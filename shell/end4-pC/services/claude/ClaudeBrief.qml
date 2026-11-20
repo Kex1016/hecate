@@ -12,8 +12,9 @@ import qs.modules.common.functions
 // The hourly brief: a few lines about the evening written by `claude -p` from
 // what the shell already knows (next event, weather, repos, updates).
 //
-// Nothing here runs by itself. A brief is written when the narrator widget's
-// button is pressed, or on the hour once the user turned the schedule on; that
+// Nothing here runs by itself, and nothing at all while Claude is off. A brief is
+// written when the brief widget's button is pressed, or on the hour once the user
+// turned the schedule on; that
 // switch is off until then and is remembered in claude-brief.json. The exact
 // text handed to Claude is `context`, and the widget shows it.
 //
@@ -25,6 +26,21 @@ Singleton {
 
     readonly property string statePath: FileUtils.trimFileProtocol(`${Directories.state}/user/claude-brief.json`)
     readonly property string binary: Quickshell.env("HECATE_CLAUDE_BIN") || "claude"
+    // Every `claude -p` outside the ask panel runs like the ask panel does: no tools, no MCP
+    // servers, no slash commands, no hooks, no CLAUDE.md and no memory, in a directory of its
+    // own, so the user's Claude Code setup never attaches to text other people wrote
+    // (notifications, invites, the clipboard).
+    readonly property var isolationArgs: ["--tools", "", "--strict-mcp-config", "--disable-slash-commands",
+        "--settings", JSON.stringify({ disableAllHooks: true }), "--no-session-persistence"]
+    readonly property var isolationEnv: ({
+        PATH: root.toolPath,
+        CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1",
+        CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
+        CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY: "1",
+        HECATE_CLAUDE_BRIDGE: "0"
+    })
+    readonly property string workDir: Quickshell.env("XDG_RUNTIME_DIR") || FileUtils.trimFileProtocol(Directories.cache)
+    readonly property bool claudeOn: Config.options?.claude?.enable ?? false
     readonly property string toolPath: `${Quickshell.env("PATH")}:${Quickshell.env("HOME")}/.local/bin:/run/current-system/sw/bin:/etc/profiles/per-user/${Quickshell.env("USER")}/bin:${Quickshell.env("HOME")}/.nix-profile/bin`
 
     // saved: { enabled: bool, everyMinutes: int, text: string, writtenAt: ms }
@@ -74,7 +90,8 @@ Singleton {
     function generate() {
         if (proc.running) return;
         root.error = "";
-        proc.command = [root.binary, "-p", "--tools", "", "--no-session-persistence", "--output-format", "text", "--append-system-prompt", root.systemPrompt];
+        if (!root.claudeOn) return;
+        proc.command = [root.binary, "-p"].concat(root.isolationArgs).concat(["--output-format", "text", "--system-prompt", root.systemPrompt]);
         proc.running = true;
     }
 
@@ -90,7 +107,8 @@ Singleton {
     Process {
         id: proc
         stdinEnabled: true
-        environment: ({ PATH: root.toolPath, HECATE_CLAUDE_BRIDGE: "0" })
+        environment: root.isolationEnv
+        workingDirectory: root.workDir
         onStarted: {
             write(root.context + "\n");
             stdinEnabled = false;
@@ -118,7 +136,7 @@ Singleton {
     Timer {
         interval: 60000
         repeat: true
-        running: root.loaded && root.scheduled
+        running: root.loaded && root.scheduled && root.claudeOn
         onTriggered: {
             if (!proc.running && Date.now() >= root.nextAt && !GlobalStates.screenLocked)
                 root.generate();

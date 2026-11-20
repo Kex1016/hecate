@@ -34,7 +34,12 @@ Item {
         root.error = "";
         root.reply = "";
         root.sent = prompt;
-        proc.command = ["sh", "-c", "exec \"$0\" \"$@\"", root.bin, "-p", "--output-format", "json", "--tools", "", "--no-session-persistence", prompt];
+        // The prompt goes on stdin, not argv (which any process of the same user can read).
+        // No MCP servers, slash commands, hooks, CLAUDE.md or memory: the prompt carries text
+        // other people wrote (invites, notifications).
+        proc.command = ["sh", "-c", "exec \"$0\" \"$@\"", root.bin, "-p", "--output-format", "json", "--tools", "",
+            "--strict-mcp-config", "--disable-slash-commands", "--settings", JSON.stringify({ disableAllHooks: true }),
+            "--no-session-persistence"];
         proc.running = true;
         guard.restart();
         return true;
@@ -97,7 +102,18 @@ Item {
     Process {
         id: proc
         // a card's question is not a session for the sessions panel
-        environment: ({ HECATE_CLAUDE_BRIDGE: "0" })
+        environment: ({
+            HECATE_CLAUDE_BRIDGE: "0",
+            CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1",
+            CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
+            CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY: "1"
+        })
+        workingDirectory: Quickshell.env("XDG_RUNTIME_DIR") || Quickshell.env("HOME")
+        stdinEnabled: true
+        onStarted: {
+            write(root.sent + "\n");
+            stdinEnabled = false;
+        }
         onRunningChanged: if (running) {
             root.outDone = false;
             root.exited = false;
@@ -115,6 +131,7 @@ Item {
             onStreamFinished: root.err = text
         }
         onExited: (exitCode, exitStatus) => {
+            stdinEnabled = true;
             root.code = exitCode;
             root.exited = true;
             root.settle();

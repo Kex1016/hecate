@@ -30,7 +30,13 @@ Singleton {
     // answering: words arriving; done; error
     property string phase: "compose"
     readonly property bool busy: phase === "asking" || phase === "answering"
-    // Claude Code found on this machine (the opt-in: nothing runs without it)
+    // claude.enable, the opt-in: while it is off nothing opens, nothing is sent
+    readonly property bool enabled: Config.options?.claude?.enable ?? false
+    onEnabledChanged: {
+        if (!root.enabled) root.close();
+        root.hookLauncher();
+    }
+    // Claude Code found on this machine
     property bool available: false
     property bool checked: false
     property string claudePath: ""
@@ -65,7 +71,7 @@ Singleton {
     readonly property string terminalName: root.terminal.split(/\s+/)[0].split("/").pop()
     readonly property string workdir: Ask.pathFromTitle(root.ctx.window?.title ?? "")
 
-    readonly property string runDir: `${Quickshell.env("XDG_RUNTIME_DIR") || "/tmp"}/hecate-claude-ask`
+    readonly property string runDir: `${Quickshell.env("XDG_RUNTIME_DIR") || FileUtils.trimFileProtocol(Directories.cache)}/hecate-claude-ask`
     readonly property string askDir: FileUtils.trimFileProtocol(`${Directories.state}/user/claude-ask`)
     readonly property string regionPath: `${root.runDir}/region.png`
 
@@ -85,6 +91,8 @@ Singleton {
 
     // Mod+/: about what is in front of you.
     function toggle() {
+        if (!root.enabled && !root.open)
+            return;
         if (root.open || root.capturing)
             root.close();
         else
@@ -99,6 +107,8 @@ Singleton {
 
     // Mod+A then `?`: a question with no context at all, sent right away.
     function askFromLauncher(text) {
+        if (!root.enabled)
+            return;
         launcherDelay.text = String(text ?? "");
         launcherDelay.restart();
     }
@@ -137,6 +147,8 @@ Singleton {
     property string pendingQuestion: ""
 
     function openWith(how) {
+        if (!root.enabled)
+            return;
         root.stop();
         root.phase = "compose";
         root.question = "";
@@ -218,7 +230,7 @@ print(json.dumps({
     "clipboardImage": image("clipboard.png"),
     "screenshot": image("screenshot.png"),
 }))
-' "$dir" "$claude"
+' "$dir"
     `
 
     Process {
@@ -339,7 +351,7 @@ print(json.dumps({
     `
 
     function ask(text) {
-        if (!root.available || root.busy)
+        if (!root.enabled || !root.available || root.busy)
             return;
         const q = String(text ?? "").trim();
         const on = root.chipsOn;
@@ -519,8 +531,12 @@ print(json.dumps({
     // ── wiring ─────────────────────────────────────────────────────────────
 
     // The launcher's `?` prefix (LauncherSearch.claudeHook).
+    // Only while Claude is on: with it off the `?` row stays a placeholder.
+    function hookLauncher() {
+        LauncherSearch.claudeHook = root.enabled ? (text => root.askFromLauncher(text)) : null;
+    }
     Component.onCompleted: {
-        LauncherSearch.claudeHook = text => root.askFromLauncher(text);
+        root.hookLauncher();
         finder.running = true;
     }
 

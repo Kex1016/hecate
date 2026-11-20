@@ -6,7 +6,7 @@ import qs.services.claude
 // One `claude -p` call, started by `run()` and nothing else. Claude Code's own
 // login is used (no key is read or stored here) and every built-in tool is
 // switched off, so the model can only answer: it cannot read files or run
-// anything. `input` is the whole of what is sent on stdin; the widget that owns
+// anything. It runs isolated from the user's Claude Code setup (ClaudeBrief.isolationArgs). `input` is the whole of what is sent on stdin; the widget that owns
 // the runner shows the same text, so nothing leaves the machine unseen.
 //
 //   ClaudeRunner { id: r; system: "Explain in two sentences."; input: text }
@@ -29,7 +29,8 @@ Item {
         root.result = "";
         root.error = "";
         root.done = false;
-        proc.command = [ClaudeBrief.binary, "-p", "--tools", "", "--no-session-persistence", "--output-format", "text", "--append-system-prompt", root.system];
+        if (!ClaudeBrief.claudeOn) return;
+        proc.command = [ClaudeBrief.binary, "-p"].concat(ClaudeBrief.isolationArgs).concat(["--output-format", "text", "--system-prompt", root.system]);
         proc.running = true;
     }
 
@@ -46,7 +47,8 @@ Item {
     Process {
         id: proc
         stdinEnabled: true
-        environment: ({ PATH: ClaudeBrief.toolPath, HECATE_CLAUDE_BRIDGE: "0" })
+        environment: ClaudeBrief.isolationEnv
+        workingDirectory: ClaudeBrief.workDir
         onStarted: {
             write(root.input + "\n");
             stdinEnabled = false;
