@@ -117,7 +117,8 @@ Singleton {
         const q = String(text ?? "").toLowerCase().trim();
         if (q === "") return [];
         const hit = root.events.filter(e => [e.title, e.location, e.notes].some(s => String(s ?? "").toLowerCase().includes(q)));
-        const today = new Date(new Date().toDateString()).getTime();
+        const n = new Date();
+        const today = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
         const ahead = hit.filter(e => root.endMs(e) > today);
         const past = hit.filter(e => root.endMs(e) <= today).reverse();
         return ahead.concat(past).slice(0, count ?? 20);
