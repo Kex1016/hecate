@@ -10,6 +10,8 @@ import qs.modules.common.widgets.haiiro as H
 // quickshell index them, so the helpers they share there (ConsumerTicket, DiskBar) resolve.
 import qs.modules.ii.background.widgets.desk as Desk
 import qs.modules.ii.background.widgets.system as System
+// the Claude and Apple widgets sit in widgets/ itself (ClaudeRunner is theirs)
+import qs.modules.ii.background.widgets as Cards
 
 // Places the desktop widgets. Which ones are on, and where, is
 // DesktopWidgets' state. Drag a widget by its top edge: it snaps to an 8px
@@ -129,7 +131,7 @@ Item {
                 Layout.fillWidth: true
                 spacing: 8
                 Repeater {
-                    model: DesktopWidgets.catalog
+                    model: DesktopWidgets.available
                     delegate: H.Chip {
                         required property var modelData
                         text: modelData.name.toLowerCase()
