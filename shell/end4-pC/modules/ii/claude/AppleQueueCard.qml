@@ -12,8 +12,10 @@ import "AppleLogic.js" as Logic
 //
 //   AppleQueueCard { claude: claudeRunner; cider: Cider; request: "play something for focus" }
 //
-// `cider` is the W2-apple service: `library` (list of { id, title, artist,
-// album, seconds }), `playQueue(tracks)`, `savePlaylist(name, tracks)`.
+// `cider` is the Cider service: `library` (list of { id, title, artist,
+// album, seconds }, filled by `loadLibrary()`) and `playQueue(tracks)`.
+// `savePlaylist(name, tracks)` is optional: without it (Cider's RPC has no
+// playlist call) the card has no "save as playlist" press.
 H.HWindow {
     id: root
 
@@ -30,6 +32,7 @@ H.HWindow {
     readonly property int libTotal: root.cider && root.cider.library ? root.cider.library.length : 0
     readonly property var tracks: root.queue ? root.queue.tracks : []
     readonly property int shownRows: root.expanded ? root.tracks.length : Math.min(2, root.tracks.length)
+    readonly property bool canSave: root.cider !== null && typeof root.cider.savePlaylist === "function"
 
     signal dismissed()
 
@@ -48,6 +51,9 @@ H.HWindow {
         root.message = "";
         root.expanded = false;
         root.phase = "pending";
+        // the titles Claude may choose from; nothing is sent until the press
+        if (root.cider && typeof root.cider.loadLibrary === "function")
+            root.cider.loadLibrary();
         root.forceActiveFocus();
     }
 
@@ -55,7 +61,8 @@ H.HWindow {
         if ((root.phase !== "pending" && root.phase !== "error") || root.request.trim() === "" || !root.claude)
             return;
         if (root.libCtx.length === 0) {
-            root.message = "cider has no library to pick from yet";
+            root.message = root.cider && root.cider.libraryLoading ? "still reading your library from cider"
+                : root.cider && root.cider.open === false ? "cider is not running" : "cider has no library to pick from yet";
             root.phase = "error";
             return;
         }
@@ -237,7 +244,7 @@ H.HWindow {
             onClicked: root.ask()
         }
         H.InkButton { visible: root.phase === "proposed"; text: "play in cider"; ink: "c3"; onClicked: root.play() }
-        H.InkButton { visible: root.phase === "proposed"; text: "save as playlist"; ink: "c1"; onClicked: root.save() }
+        H.InkButton { visible: root.phase === "proposed" && root.canSave; text: "save as playlist"; ink: "c1"; onClicked: root.save() }
         H.InkButton { text: root.phase === "proposed" ? "no" : "close"; ink: "c1"; onClicked: root.phase === "proposed" ? root.no() : root.dismissed() }
     }
 }

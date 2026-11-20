@@ -161,6 +161,53 @@ Singleton {
         });
     }
 
+    // Your Apple Music library's songs, for the Claude queue card, which may only choose from
+    // them: [{ id, type, title, artist, album, seconds }]. Fetched on loadLibrary(), newest
+    // additions first, at most `libraryMax`. Songs that are also in the catalogue carry the
+    // catalogue id, which Cider plays like any other; the rest play by their library id.
+    property var library: []
+    property bool libraryLoading: false
+    property double libraryAt: 0
+    readonly property int libraryMax: 300
+
+    function loadLibrary(force) {
+        if (!root.open || root.libraryLoading) return;
+        // once every ten minutes is plenty for a list the queue card reads
+        if (!force && root.library.length > 0 && Date.now() - root.libraryAt < 10 * 60 * 1000) return;
+        root.libraryLoading = true;
+        const got = [];
+        const page = offset => root.amapi(`/v1/me/library/songs?limit=100&offset=${offset}`, json => {
+            const data = json?.data ?? [];
+            for (const s of data) {
+                const a = s.attributes ?? {};
+                const catalogId = a.playParams?.catalogId ?? "";
+                got.push({
+                    id: String(catalogId || s.id),
+                    type: catalogId ? "songs" : (s.type ?? "library-songs"),
+                    title: a.name ?? "",
+                    artist: a.artistName ?? "",
+                    album: a.albumName ?? "",
+                    seconds: Math.round((a.durationInMillis ?? 0) / 1000),
+                });
+            }
+            if (data.length === 100 && got.length < root.libraryMax && json?.next) {
+                page(offset + 100);
+                return;
+            }
+            root.library = got.slice(0, root.libraryMax);
+            root.libraryAt = Date.now();
+            root.libraryLoading = false;
+        });
+        page(0);
+    }
+
+    // The queue card's "play in cider": the tracks it chose, in order, replacing what plays.
+    function playQueue(tracks) {
+        root.playItems((tracks ?? []).map(t => ({ id: t.id, type: t.type ?? "songs" })));
+    }
+    // There is no savePlaylist(): Cider's RPC has no playlist call and run-v3 only passes GETs,
+    // so the card hides its "save as playlist" press.
+
     // 1 love, -1 dislike, 0 neither
     function rate(rating) {
         root.post("/api/v1/playback/set-rating", { rating: rating });
@@ -389,6 +436,9 @@ Singleton {
             root.lines = [];
             root.lyricsStatus = "";
             root.upNext = [];
+            root.library = [];
+            root.libraryAt = 0;
+            root.libraryLoading = false;
             root.reachable = false;
             root.status = "";
         }
