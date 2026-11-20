@@ -130,7 +130,7 @@ impl Unifont {
     fn load() -> anyhow::Result<Unifont> {
         let mut runs = Vec::with_capacity(UNIFONT_INDEX.len() / 8);
         let mut cell = 0;
-        for r in UNIFONT_INDEX.chunks_exact(8) {
+        for r in UNIFONT_INDEX.as_chunks::<8>().0 {
             let run = Run {
                 start: u32::from_le_bytes(r[0..4].try_into().unwrap()),
                 len: u16::from_le_bytes(r[4..6].try_into().unwrap()) as u32,
@@ -161,7 +161,7 @@ impl Unifont {
             "the index wants more cells than the picture has"
         );
         let mut cells = vec![0; cell * HEIGHT];
-        for (i, out) in cells.chunks_exact_mut(HEIGHT).enumerate() {
+        for (i, out) in cells.as_chunks_mut::<HEIGHT>().0.iter_mut().enumerate() {
             let (x, y) = (i % 256, i / 256 * HEIGHT);
             for (r, b) in out.iter_mut().enumerate() {
                 *b = pixels[(y + r) * 256 + x];
