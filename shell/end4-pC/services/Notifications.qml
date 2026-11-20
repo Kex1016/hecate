@@ -168,8 +168,10 @@ Singleton {
             });
 			root.list = [...root.list, newNotifObject];
 
-            // Popup
-            if (!root.popupInhibited) {
+            // Popup. Claude permission requests already have their own toast,
+            // so they only go to the history.
+            const claudeRequest = notification.hints?.["x-hecate-claude-request"] !== undefined;
+            if (!root.popupInhibited && !claudeRequest) {
                 newNotifObject.popup = true;
                 if (notification.expireTimeout != 0) {
                     newNotifObject.timer = notifTimerComponent.createObject(root, {
