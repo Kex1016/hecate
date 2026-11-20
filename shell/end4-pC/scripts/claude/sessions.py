@@ -29,8 +29,8 @@ WAITING_NOTIFICATIONS = {
     "agent_needs_input": "input",
 }
 
-# Suggested permission updates "always" may apply (the same rule as hook.py's).
-ALWAYS_TYPES = ("addRules", "addDirectories")
+# The kind of suggested permission update "always" may apply: an allow rule, as in hook.py.
+ALWAYS_TYPE = "addRules"
 
 DESTINATIONS = {
     "session": "for this session",
@@ -108,6 +108,18 @@ def tilde(path, home):
     if path.startswith(home + "/"):
         return "~" + path[len(home) :]
     return path
+
+
+def brief(directory, limit=28):
+    """A directory short enough for a title: a long one keeps its last two names."""
+    if len(directory) <= limit:
+        return directory
+    names = [name for name in directory.split("/") if name]
+    for keep in (2, 1):
+        short = "\u2026/" + "/".join(names[-keep:])
+        if len(short) <= limit:
+            return short
+    return "\u2026/" + names[-1][-(limit - 2) :] if names else directory[:limit]
 
 
 def relative(path, cwd, home):
@@ -204,35 +216,31 @@ def describe(tool, tool_input, cwd="", home=""):
 
 def always_entry_ok(entry):
     """True when "always" may apply this suggested permission update (hook.py agrees)."""
-    if not isinstance(entry, dict) or entry.get("type") not in ALWAYS_TYPES:
+    if not isinstance(entry, dict) or entry.get("type") != ALWAYS_TYPE:
         return False
-    if entry["type"] == "addRules":
-        rules = entry.get("rules")
-        if entry.get("behavior") != "allow" or not isinstance(rules, list) or not rules:
-            return False
-        return all(isinstance(r, dict) and isinstance(r.get("toolName"), str) for r in rules)
-    directories = entry.get("directories")
-    return isinstance(directories, list) and bool(directories) and all(isinstance(d, str) for d in directories)
+    rules = entry.get("rules")
+    if entry.get("behavior") != "allow" or not isinstance(rules, list) or not rules:
+        return False
+    return all(isinstance(r, dict) and isinstance(r.get("toolName"), str) for r in rules)
 
 
 def always_choice(suggestions, home=""):
-    """(index, label) of the update "always" applies, a rule before a directory, or (-1, "")."""
+    """(index, label) of the allow rule "always" applies, or (-1, "") when none was offered."""
     if not isinstance(suggestions, list):
         return -1, ""
-    for kind in ALWAYS_TYPES:
-        for index, entry in enumerate(suggestions):
-            if not always_entry_ok(entry) or entry["type"] != kind:
-                continue
-            where = DESTINATIONS.get(entry.get("destination"), "")
-            if kind == "addRules":
-                rules = []
-                for rule in entry["rules"]:
-                    content = rule.get("ruleContent")
-                    rules.append(rule["toolName"] + ("(" + content + ")" if isinstance(content, str) and content else ""))
-                what = ", ".join(rules)
-            else:
-                what = "access to " + ", ".join(tilde(d, home) for d in entry["directories"])
-            return index, text((what + " " + where).strip(), 200)
+    for index, entry in enumerate(suggestions):
+        if not always_entry_ok(entry):
+            continue
+        rules = []
+        for rule in entry["rules"]:
+            content = rule.get("ruleContent")
+            if isinstance(content, str) and content.startswith("//"):
+                # "//path" is an absolute path in a rule; under the home directory "~/path" says the same
+                short = tilde(content[1:], home)
+                content = short if short.startswith("~") else content
+            rules.append(rule["toolName"] + ("(" + content + ")" if isinstance(content, str) and content else ""))
+        where = DESTINATIONS.get(entry.get("destination"), "")
+        return index, text((", ".join(rules) + " " + where).strip(), 200)
     return -1, ""
 
 
@@ -318,7 +326,7 @@ class Store:
             "tool": r["tool"],
             "verb": r["verb"],
             "subject": r["subject"],
-            "title": "%s wants to %s %s" % (directory or "claude", r["verb"], r["subject"]),
+            "title": "%s wants to %s %s" % (brief(directory) or "claude", r["verb"], r["subject"]),
             "detail": r["detail"],
             "input": r["input"],
             "agentType": r["agent_type"],

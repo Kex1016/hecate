@@ -129,7 +129,11 @@ class Describe(unittest.TestCase):
 
     def test_always_choice_prefers_a_rule(self):
         self.assertEqual(sessions.always_choice([MODE, DIRS, RULE], HOME), (2, "Bash(nix build:*) in this repo"))
-        self.assertEqual(sessions.always_choice([MODE, DIRS], HOME), (1, "access to ~/src/cakeos for this session"))
+        self.assertEqual(sessions.always_choice([MODE, DIRS], HOME), (-1, ""))  # a directory grant is not a rule
+        outside = {"type": "addRules", "rules": [{"toolName": "Read", "ruleContent": "/" + HOME + "/notes/**"}], "behavior": "allow", "destination": "session"}
+        self.assertEqual(sessions.always_choice([outside], HOME), (0, "Read(~/notes/**) for this session"))
+        outside["rules"][0]["ruleContent"] = "//etc/nixos/**"
+        self.assertEqual(sessions.always_choice([outside], HOME), (0, "Read(//etc/nixos/**) for this session"))
         self.assertEqual(sessions.always_choice([MODE], HOME), (-1, ""))
         self.assertEqual(sessions.always_choice(None, HOME), (-1, ""))
         self.assertEqual(sessions.always_choice([{"type": "setMode", "mode": "bypassPermissions"}], HOME), (-1, ""))
@@ -271,6 +275,13 @@ class Requests(Harness):
         self.assertEqual((s["state"], s["waitingFor"], s["requests"]), ("waiting", "permission", [rid]))
         self.assertEqual(self.store.snapshot()["requests"][0]["id"], rid)
         self.assertIn(("permissionRequested", ""), self.events())
+
+    def test_a_long_directory_is_cut_in_the_title_only(self):
+        self.assertEqual(sessions.brief("~/src/cakeos"), "~/src/cakeos")
+        self.assertEqual(sessions.brief("/tmp/a-very-long-scratch-directory/probe/work"), "\u2026/probe/work")
+        self.assertEqual(sessions.brief("~/src/an-unreasonably-long-project-name/sub"), "\u2026/sub")
+        self.assertEqual(sessions.brief("/" + "x" * 80), "\u2026/" + "x" * 26)
+        self.assertEqual(sessions.brief(""), "")
 
     def test_allow_once(self):
         rid, _ = self.ask(permission_suggestions=[RULE])

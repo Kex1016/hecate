@@ -43,9 +43,11 @@ SWITCH_ENV = "HECATE_CLAUDE_BRIDGE"
 # The only event this script may answer.
 ANSWERED_EVENT = "PermissionRequest"
 
-# Suggested permission updates that "always" may apply. Mode changes (acceptEdits, auto,
-# bypassPermissions) are never applied from here.
-ALWAYS_TYPES = ("addRules", "addDirectories")
+# The one kind of suggested permission update "always" may apply: an allow rule. Mode changes
+# (acceptEdits, auto, bypassPermissions) are never applied from here, and neither are
+# directory grants, which Claude Code offers together with a mode change and which do not
+# stop the asking by themselves.
+ALWAYS_TYPE = "addRules"
 
 
 def socket_path(environ=None, uid=None):
@@ -138,9 +140,15 @@ def read_proc_stat(pid):
         return None
 
 
-def is_headless(pid):
+def is_headless(pid, environ=None):
     """True when the Claude Code process `pid` runs with -p / --print: it has no prompt of its
-    own, and a permission request nobody answers is denied."""
+    own, and a permission request nobody answers is denied.
+
+    Claude Code says so itself in CLAUDE_CODE_SESSION_ATTENDED ("1" next to a terminal prompt,
+    "0" for -p); that variable is not documented, so without it the command line decides."""
+    attended = (os.environ if environ is None else environ).get("CLAUDE_CODE_SESSION_ATTENDED")
+    if attended in ("0", "1"):
+        return attended == "0"
     try:
         with open("/proc/%d/cmdline" % pid, "rb") as f:
             args = f.read(1 << 16).split(b"\0")
@@ -184,7 +192,7 @@ def describe_client(environ=None):
         "time": int(time.time() * 1000),
         "tty": tty,
         "ancestors": ancestors,
-        "headless": is_headless(claude_pid),
+        "headless": is_headless(claude_pid, environ),
     }
 
 
@@ -213,20 +221,13 @@ def always_entry(hook_input, index):
     if index < 0 or index >= len(suggestions):
         return None
     entry = suggestions[index]
-    if not isinstance(entry, dict) or entry.get("type") not in ALWAYS_TYPES:
+    if not isinstance(entry, dict) or entry.get("type") != ALWAYS_TYPE:
         return None
-    if entry["type"] == "addRules":
-        rules = entry.get("rules")
-        if entry.get("behavior") != "allow" or not isinstance(rules, list) or not rules:
-            return None
-        for rule in rules:
-            if not isinstance(rule, dict) or not isinstance(rule.get("toolName"), str):
-                return None
-    else:
-        directories = entry.get("directories")
-        if not isinstance(directories, list) or not directories:
-            return None
-        if not all(isinstance(d, str) for d in directories):
+    rules = entry.get("rules")
+    if entry.get("behavior") != "allow" or not isinstance(rules, list) or not rules:
+        return None
+    for rule in rules:
+        if not isinstance(rule, dict) or not isinstance(rule.get("toolName"), str):
             return None
     return entry
 
@@ -273,6 +274,16 @@ def parse_line(line):
     return message if isinstance(message, dict) else None
 
 
+def say_expired(sock, request_id):
+    """Tell the bridge that this hook stops waiting, so it can take the request down."""
+    try:
+        sock.setblocking(True)
+        sock.settimeout(0.5)
+        sock.sendall(json.dumps({"v": VERSION, "type": "expired", "id": request_id}).encode("utf-8") + b"\n")
+    except OSError:
+        pass
+
+
 def wait_for_decision(sock, request_id, max_wait=None, out_fd=1, pending_timeout=PENDING_TIMEOUT):
     """The bridge's decision message for `request_id`, or None.
 
@@ -297,6 +308,8 @@ def wait_for_decision(sock, request_id, max_wait=None, out_fd=1, pending_timeout
         if not pending:
             limit = pending_deadline if limit is None else min(limit, pending_deadline)
         if limit is not None and now >= limit:
+            if pending:
+                say_expired(sock, request_id)
             return None
         timeout = 1.0 if limit is None else min(1.0, limit - now)
         try:

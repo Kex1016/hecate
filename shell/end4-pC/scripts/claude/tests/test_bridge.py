@@ -210,7 +210,7 @@ class Answers(Case):
         args = self.bridge.note_args(request["id"])
         self.assertIn("--category=permission", args)
         self.assertIn("--app-name=claude", args)
-        self.assertIn("--urgency=critical", args)
+        self.assertIn("--urgency=normal", args)
         self.assertIn("--action=allow=allow", args)
         self.assertIn("--action=deny=deny", args)
         self.assertIn("--hint=string:x-hecate-claude-request:" + request["id"], args)
@@ -323,7 +323,7 @@ class NoAnswer(Case):
     def test_hook_gives_up_waiting(self):
         proc, request = self.ask(env={"HECATE_CLAUDE_WAIT": "0.3"})
         self.assertIsNone(self.finish(proc))
-        self.assertEqual(self.resolved(request), "terminal")
+        self.assertEqual(self.resolved(request), "expired")
 
     def test_shell_gone(self):
         proc, request = self.ask()
@@ -376,6 +376,7 @@ class Socket(Case):
     def test_a_socket_client_cannot_answer(self):
         proc, request = self.ask()
         for line in ({"v": 1, "type": "decision", "id": request["id"], "behavior": "allow"},
+                     {"v": 1, "type": "expired", "id": request["id"]},
                      {"type": "decide", "id": request["id"], "behavior": "allow", "scope": "once"},
                      {"v": 1, "type": "hook", "id": request["id"], "reply": False,
                       "input": {"session_id": "s1", "hook_event_name": "PermissionGranted", "decision": "allow"}}):

@@ -5,6 +5,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.modules.common
+import qs.services
 
 /**
  * Every Claude Code session on the machine, as its hooks report it, and the permission
@@ -33,12 +34,16 @@ Singleton {
     property bool available: false
     // Where the hook finds the bridge: $XDG_RUNTIME_DIR/hecate-claude/bridge.sock
     property string socketPath: ""
+    // Why the bridge is not listening, "" when it is or was never tried.
+    property string error: ""
     // What Claude Code's hook entries run: `python3 <hookScript>` (the cakeos option writes them).
     readonly property string hookScript: Quickshell.shellPath("scripts/claude/hook.py")
     readonly property string bridgeScript: Quickshell.shellPath("scripts/claude/bridge.py")
 
-    // Off switches (both default on; the keys are optional until Config.qml declares them).
-    readonly property bool enabled: Config.options?.claude?.bridge?.enable ?? true
+    // The bridge runs only while Claude is switched on in the shell (claude.enable, off by
+    // default) and claude.bridge.enable is not switched off (on by default; that key and
+    // the next are optional until Config.qml declares them).
+    readonly property bool enabled: (Config.options?.claude?.enable ?? false) && (Config.options?.claude?.bridge?.enable ?? true)
     // Send each permission request as a desktop notification (category "permission",
     // actions allow / deny / look), so it shows as a toast and lands in history.
     readonly property bool notifications: Config.options?.claude?.bridge?.notifications ?? true
@@ -69,7 +74,9 @@ Singleton {
     //   turnStartedAt:  ms, when the running turn began (0 unless working or waiting)
     //   doneAt:         ms, when the last turn finished (0 until one has)
     //   pid:            the claude process (0 when unknown)
-    //   terminal:       { name: "kitty", pid: 4242, windowId: "7", tty: "/dev/pts/3" }, fields empty or 0 when unknown
+    //   terminal:       { name: "kitty", pid: 4242, windowId: "7", tty: "/dev/pts/3" }, fields empty or 0 when unknown.
+    //                   windowId is the compositor's id of the terminal's window (WM.windowList), known only
+    //                   when the terminal's process has exactly one window; "" otherwise, then use pid
     //   subagents:      how many subagents are running
     //   ended:          true once the session has exited; it stays listed while it has a result to show
     //   requests:       ids of its pending permission requests
@@ -132,9 +139,13 @@ Singleton {
         root.send({ type: "decide", id: requestId, behavior: "allow", scope: "always" });
     }
 
-    // Deny it. `message` (optional) tells Claude why.
-    function deny(requestId: string, message: string): void {
-        root.send({ type: "decide", id: requestId, behavior: "deny", message: message ?? "" });
+    // Deny it. `message` (optional) tells Claude why. `stop` (optional, true) also ends
+    // Claude's turn, as Esc does in the terminal.
+    function deny(requestId, message, stop) {
+        const decision = { type: "decide", id: String(requestId), behavior: "deny" };
+        if (typeof message === "string" && message !== "") decision.message = message;
+        if (stop === true) decision.interrupt = true;
+        root.send(decision);
     }
 
     // Give no answer: the prompt in the terminal stands and the request leaves the list.
@@ -150,8 +161,11 @@ Singleton {
     // Focus the terminal window the session runs in.
     function focus(sessionId: string): void {
         const s = root.sessionById(sessionId);
-        if (!s || !(s.terminal?.pid > 0)) return;
-        Quickshell.execDetached(["hecate", "msg", "focus", "--pid", String(s.terminal.pid)]);
+        if (!s) return;
+        if ((s.terminal?.windowId ?? "") !== "")
+            Quickshell.execDetached(["hecate", "msg", "focus", "--id", String(s.terminal.windowId)]);
+        else if (s.terminal?.pid > 0)
+            Quickshell.execDetached(["hecate", "msg", "focus", "--pid", String(s.terminal.pid)]);
     }
 
     function sessionById(id: string): var {
@@ -168,8 +182,154 @@ Singleton {
 
     // ---- the bridge ------------------------------------------------------------------------
 
-    // Interface stub: the bridge process is wired up in the next commits on this branch.
+    // The sessions as the bridge reports them; `sessions` adds each terminal's window.
+    property var bridgeSessions: []
+    property int restartDelay: 1000
+
+    // One line to the bridge. Dropped while the bridge is not listening: an answer is never
+    // kept for later.
     function send(message: var): void {
-        console.warn("[ClaudeSessions] bridge not wired yet, dropped:", JSON.stringify(message));
+        if (!root.available || !bridge.running) {
+            console.warn("[ClaudeSessions] the bridge is not running, dropped:", message?.type);
+            return;
+        }
+        bridge.write(JSON.stringify(message) + "\n");
     }
+
+    // One line from the bridge: its state first, then the events that led to it.
+    function receive(line: string): void {
+        let message = null;
+        try {
+            message = JSON.parse(line);
+        } catch (e) {
+            return;
+        }
+        if (message === null || typeof message !== "object") return;
+        switch (message.type) {
+        case "state":
+            root.bridgeSessions = Array.isArray(message.sessions) ? message.sessions : [];
+            root.requests = Array.isArray(message.requests) ? message.requests : [];
+            root.sessions = root.bridgeSessions.map(s => root.withWindow(s));
+            break;
+        case "event":
+            root.dispatch(message);
+            break;
+        case "hello":
+            root.socketPath = message.socket ?? "";
+            root.error = "";
+            root.available = true;
+            settled.restart();
+            root.send({ type: "config", notifications: root.notifications });
+            break;
+        case "error":
+            root.error = message.message ?? "the bridge failed";
+            console.warn("[ClaudeSessions] bridge:", root.error);
+            break;
+        case "log":
+            console.info("[ClaudeSessions] bridge:", message.message ?? "");
+            break;
+        }
+    }
+
+    function dispatch(event: var): void {
+        switch (event.name) {
+        case "permissionRequested":
+            if (event.request) root.permissionRequested(event.request);
+            break;
+        case "permissionResolved":
+            root.permissionResolved(event.id ?? "", event.outcome ?? "");
+            break;
+        case "sessionStarted":
+            if (event.session) root.sessionStarted(root.withWindow(event.session));
+            break;
+        case "sessionDone":
+            if (event.session) root.sessionDone(root.withWindow(event.session));
+            break;
+        case "sessionEnded":
+            root.sessionEnded(event.id ?? "");
+            break;
+        case "notified":
+            if (event.session) root.notified(root.withWindow(event.session), event.notificationType ?? "", event.message ?? "");
+            break;
+        case "look":
+            // the "look" action of a request's notification
+            root.focus(event.session ?? "");
+            break;
+        }
+    }
+
+    // The session with terminal.windowId filled in, when its terminal's process has one
+    // window. (A terminal that keeps several windows in one process cannot be told apart.)
+    function withWindow(session: var): var {
+        const pid = session?.terminal?.pid ?? 0;
+        if (!(pid > 0)) return session;
+        const own = (WM.windowList ?? []).filter(w => w.pid === pid);
+        if (own.length !== 1) return session;
+        return Object.assign({}, session, { terminal: Object.assign({}, session.terminal, { windowId: String(own[0].id) }) });
+    }
+
+    Connections {
+        target: WM
+        function onWindowListChanged() {
+            if (root.bridgeSessions.length === 0) return;
+            const next = root.bridgeSessions.map(s => root.withWindow(s));
+            if (next.some((s, i) => s.terminal?.windowId !== root.sessions[i]?.terminal?.windowId))
+                root.sessions = next;
+        }
+    }
+
+    // The bridge stopped. It handed every waiting hook back to its terminal on the way out,
+    // and a hook that runs while it is down finds no socket and does the same.
+    function stopped(): void {
+        const pending = root.requests;
+        root.available = false;
+        root.socketPath = "";
+        root.bridgeSessions = [];
+        root.sessions = [];
+        root.requests = [];
+        for (const request of pending)
+            root.permissionResolved(request.id, "handedBack");
+        settled.stop();
+        if (!root.wanted) return;
+        restart.interval = root.restartDelay;
+        restart.restart();
+        root.restartDelay = Math.min(root.restartDelay * 2, 30000);
+    }
+
+    readonly property bool wanted: root.enabled && Config.ready
+    onWantedChanged: {
+        restart.stop();
+        root.restartDelay = 1000;
+        bridge.running = root.wanted;
+    }
+    onNotificationsChanged: {
+        if (root.available) root.send({ type: "config", notifications: root.notifications });
+    }
+
+    Process {
+        id: bridge
+        command: ["python3", root.bridgeScript]
+        running: false
+        stdinEnabled: true
+        stdout: SplitParser {
+            onRead: line => root.receive(line)
+        }
+        onExited: (exitCode, exitStatus) => root.stopped()
+    }
+
+    Timer {
+        id: restart
+        onTriggered: {
+            if (root.wanted) bridge.running = true;
+        }
+    }
+
+    // a bridge that has stayed up starts again quickly the next time
+    Timer {
+        id: settled
+        interval: 30000
+        onTriggered: root.restartDelay = 1000
+    }
+
+    Component.onCompleted: bridge.running = root.wanted
 }

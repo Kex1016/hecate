@@ -68,11 +68,9 @@ class BuildOutput(unittest.TestCase):
     def test_always_echoes_claude_codes_own_suggestion(self):
         out = hook.build_output(permission_input(), RID, decision(suggestion=1))
         self.assertEqual(out["hookSpecificOutput"]["decision"], {"behavior": "allow", "updatedPermissions": [RULE]})
-        out = hook.build_output(permission_input(), RID, decision(suggestion=2))
-        self.assertEqual(out["hookSpecificOutput"]["decision"]["updatedPermissions"], [DIRS])
 
-    def test_always_never_changes_the_mode_or_adds_a_deny_rule(self):
-        for index in (0, 3, 4):
+    def test_always_never_changes_the_mode_grants_a_directory_or_adds_a_deny_rule(self):
+        for index in (0, 2, 3, 4):
             self.assertIsNone(hook.build_output(permission_input(), RID, decision(suggestion=index)), index)
 
     def test_bad_suggestion_is_no_decision(self):
@@ -141,6 +139,11 @@ class Message(unittest.TestCase):
         self.assertFalse(headless("--model", "x"))
         self.assertFalse(headless("--permission-mode", "default", "explain -p to me"))
         self.assertFalse(hook.is_headless(0x3FFFFFFF))  # nobody: then it is not assumed
+        # Claude Code's own word wins over the command line
+        printing, interactive = self.stand_in("-p", "x"), self.stand_in()
+        self.assertFalse(hook.is_headless(printing, {"CLAUDE_CODE_SESSION_ATTENDED": "1"}))
+        self.assertTrue(hook.is_headless(interactive, {"CLAUDE_CODE_SESSION_ATTENDED": "0"}))
+        self.assertTrue(hook.is_headless(printing, {"CLAUDE_CODE_SESSION_ATTENDED": "maybe"}))
 
     def test_only_permission_request_waits_for_a_reply(self):
         for event in ("PreToolUse", "Stop", "Notification", "SessionEnd"):

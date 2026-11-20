@@ -247,6 +247,14 @@ class Bridge:
             except OSError:
                 pass
 
+    @staticmethod
+    def is_farewell(chunk, request_id):
+        try:
+            message = json.loads(chunk.split(b"\n", 1)[0].decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            return False
+        return isinstance(message, dict) and message.get("v") == VERSION and message.get("type") == "expired" and message.get("id") == request_id
+
     def read_client(self, key, _mask):
         client = self.clients.get(key.fileobj)
         if client is None:
@@ -257,8 +265,16 @@ class Bridge:
             return
         except OSError:
             chunk = b""
-        if not chunk or client.request is not None:
-            # closed, or it speaks out of turn: either way this connection is over
+        if client.request is not None:
+            # A waiting hook has one thing to say, that its wait ran out. That or anything
+            # else, or closing, ends the connection and the request with it.
+            if chunk and self.is_farewell(chunk, client.request):
+                request_id, client.request = client.request, None
+                self.held.pop(request_id, None)
+                self.store.resolve(request_id, "expired")
+            self.drop(client)
+            return
+        if not chunk:
             self.drop(client)
             return
         client.buf += chunk
@@ -364,7 +380,7 @@ class Bridge:
             self.notify_send,
             "--app-name=claude",
             "--category=permission",
-            "--urgency=critical",
+            "--urgency=normal",
             "--expire-time=0",
             "--wait",
             "--print-id",
