@@ -18,7 +18,6 @@ import qs.modules.ii.screenTranslator
 import qs.modules.ii.sessionScreen
 import qs.modules.ii.sidebarRight
 import qs.modules.ii.wallpaperSelector
-import qs.modules.ii.desktopMenu
 import qs.modules.ii.idle
 import qs.modules.ii.sharePicker
 import qs.modules.ii.altTab
@@ -61,11 +60,11 @@ Scope {
     PanelLoader { extraCondition: Config.options.claude.enable; component: Sessions {} }
     PanelLoader { extraCondition: Config.options.claude.enable; component: AskPanel {} }
     PanelLoader { extraCondition: Config.options.claude.enable; component: AppleCardsPanel {} }
+    PanelLoader { extraCondition: Config.options.claude.enable; component: FailToast {} }
     PanelLoader { component: MediaControls {} }
     PanelLoader { component: EqualizerPopup {} }
     PanelLoader { component: RegionSelector {} }
     PanelLoader { component: ScreenTranslator {} }
-    PanelLoader { component: DesktopMenu {} }
     PanelLoader { component: WallpaperSelector {} }
     PanelLoader { component: Settings {} }
     PanelLoader { extraCondition: Updates.cakeos; component: CakeosUpdater {} }

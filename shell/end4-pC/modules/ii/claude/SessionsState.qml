@@ -10,8 +10,11 @@ import Quickshell
 //                             fullscreen window hides the toasts behind)
 //   SessionsState.toastsHeight  height of the claude toast stack, so the notification
 //                             stack can sit below it (both start at the same corner)
+//   SessionsState.failToastHeight  the same for the failed-command toast under them
 Singleton {
     property bool open: false
     property int waiting: 0
     property real toastsHeight: 0
+    // the failed-command toast's height (FailToast), stacked under the claude toasts
+    property real failToastHeight: 0
 }

@@ -114,8 +114,9 @@ Scope {
             right: true
         }
         margins {
-            // under the claude toasts, which start at the same corner (0 when none shows)
-            top: H.HTokens.barHeight + 32 + SessionsState.toastsHeight - notificationPopup.pad
+            // under the claude toasts and the failed-command toast, which start at the same
+            // corner (0 when none shows)
+            top: H.HTokens.barHeight + 32 + SessionsState.toastsHeight + SessionsState.failToastHeight - notificationPopup.pad
             right: 24 - notificationPopup.pad
         }
 
