@@ -42,6 +42,12 @@
         # The haiiro faces and their fontconfig fallback order, for the system, the login
         # screen and the installer.
         haiiro-fonts = pkgs.callPackage ./nix/fonts.nix { };
+        # Just the MCP server from the hecate package (grim and notify-send on its PATH), for
+        # Claude Code setups that don't want the whole compositor in their profile.
+        hecate-mcp = pkgs.runCommand "hecate-mcp-${hecate.version}" { meta.mainProgram = "hecate-mcp"; } ''
+          mkdir -p $out/bin
+          ln -s ${hecate}/bin/hecate-mcp $out/bin/hecate-mcp
+        '';
         default = hecate;
       });
 
