@@ -801,6 +801,38 @@ Singleton {
             // Claude is opt-in: nothing is installed or sent until this is on.
             property JsonObject claude: JsonObject {
                 property bool enable: false
+                // Claude Code's hooks report to the shell (the sessions panel, its toasts and
+                // the gold window border). notifications: also put each permission request in
+                // the notification list (the toast is the sessions panel's own).
+                property JsonObject bridge: JsonObject {
+                    property bool enable: true
+                    property bool notifications: true
+                }
+            }
+
+            // AirPods (librepods), iCloud Photos and Drive, and Cider. The Apple ID is the
+            // first iCloud account in calendars.toml unless appleId names one.
+            property JsonObject apple: JsonObject {
+                property string appleId: ""
+                property JsonObject airpods: JsonObject {
+                    property bool enable: true
+                    // Taking a bud out pauses what plays.
+                    property bool pauseOnRemove: true
+                }
+                property JsonObject photos: JsonObject {
+                    property int rotate: 60 // minutes
+                    property int syncHours: 6
+                }
+                property JsonObject drive: JsonObject {
+                    property bool enable: true
+                    property string remote: "icloud"
+                    property string path: "~/iCloud"
+                }
+                property JsonObject cider: JsonObject {
+                    property string url: "http://localhost:10767"
+                    // "" reads it from the keyring (application hecate service cider)
+                    property string token: ""
+                }
             }
 
             property JsonObject conflictKiller: JsonObject {
