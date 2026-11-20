@@ -105,7 +105,6 @@ H.HWindow {
         visible: root.ordered.length === 0
         Layout.fillWidth: true
         text: "No Claude Code sessions are running."
-        role: "nav"
     }
     H.HText {
         visible: root.ordered.length === 0

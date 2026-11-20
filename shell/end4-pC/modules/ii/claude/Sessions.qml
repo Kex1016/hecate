@@ -25,6 +25,7 @@ Scope {
     property var source: Quickshell.env("CLAUDE_SESSIONS_MOCK") === "1" ? mock : ClaudeSessions
 
     SessionsMock { id: mock }
+    readonly property bool mocked: source === mock
 
     readonly property var requests: source?.requests ?? []
     // each session with the request it waits on (the oldest), when it has one; ended
@@ -180,9 +181,9 @@ Scope {
                     width: transition.width
                     height: transition.height
                     sessions: root.sessions
-                    usagePercent: root.source?.usagePercent ?? 0
-                    usageResets: root.source?.usageResets ?? ""
-                    usageKnown: root.source?.usageKnown ?? false
+                    usagePercent: root.mocked ? mock.usagePercent : ClaudeUsage.percentage
+                    usageResets: root.mocked ? mock.usageResets : (ClaudeUsage.resetsAt > 0 ? Qt.formatDateTime(new Date(ClaudeUsage.resetsAt * 1000), "HH:mm") : "")
+                    usageKnown: root.mocked ? true : (ClaudeUsage.tokenLimit > 0 && ClaudeUsage.resetsAt > 0)
                     placeOf: s => root.placeOf(s)
                     onAnswer: (session, decision) => root.answerSession(session.id, session.request?.id ?? "", decision)
                     onGoToTerminal: session => root.goToTerminal(session)

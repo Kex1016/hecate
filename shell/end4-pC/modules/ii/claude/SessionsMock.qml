@@ -9,6 +9,8 @@ QtObject {
     id: root
 
     readonly property string home: Quickshell.env("HOME") ?? "/home/user"
+    property real usagePercent: 0.41
+    property string usageResets: "01:00"
     property var answered: []
     property var focused: []
 
