@@ -400,6 +400,7 @@ impl State {
                     Reply::ok(Payload::Frames(stats))
                 }
             }
+            Request::Blobs(request) => self.ipc_blobs(request),
             Request::LogLevel(level) => {
                 tracing::info!("log level change requested: {level} (restart with HECATE_LOG to persist)");
                 Reply::unit()

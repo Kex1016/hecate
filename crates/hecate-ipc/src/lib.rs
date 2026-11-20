@@ -64,6 +64,7 @@ pub enum Request {
         #[serde(default)]
         output: Option<String>,
     },
+    Blobs(Blobs),
     LogLevel(String),
     EventStream,
     KeyStream,
@@ -377,6 +378,75 @@ pub struct FrameStats {
     pub avg_queue_ms: f64,
 }
 
+/// A request about the blob background (`background.blobs`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Blobs {
+    /// Whether it is drawn, and whether it moves on each output: a `BlobsStatus`.
+    Status,
+    /// Draw it or not, whatever the config file says: the runtime override
+    /// `background.blobs.enable`. A shell that draws a wallpaper turns it off.
+    Enable(bool),
+    /// Every output's simulation as it is now: a `BlobsState`.
+    Export,
+    /// Continue from exported simulations: outputs that have one take it over at once, the
+    /// others when they appear.
+    Import(BlobsState),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BlobsStatus {
+    pub enabled: bool,
+    /// One frame that doesn't move (`background.blobs.still`).
+    pub still: bool,
+    /// The outputs it has been drawn on.
+    pub outputs: Vec<BlobsOutputStatus>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BlobsOutputStatus {
+    pub output: String,
+    /// The grid, in cells.
+    pub width: u32,
+    pub height: u32,
+    /// A cell's side in physical pixels.
+    pub cell: u32,
+    pub blobs: usize,
+    pub moving: bool,
+    /// Why it doesn't move: `off`, `still`, `animations_off`, `fullscreen` or `output_off`.
+    pub paused: Option<String>,
+}
+
+/// The blob simulations of a compositor, to carry over to another one (the login screen's
+/// to the session's), which then draws the next frame of the same picture.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct BlobsState {
+    pub outputs: Vec<BlobsOutput>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BlobsOutput {
+    pub output: String,
+    /// The grid the positions are on, in cells. On another grid they scale with it.
+    pub width: u32,
+    pub height: u32,
+    /// Seconds simulated so far.
+    pub time: f64,
+    /// The random number generator's state: what enters next is the same too.
+    pub seed: u64,
+    pub blobs: Vec<Blob>,
+}
+
+/// A blob: centre, radius and velocity, in cells and cells per second.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Blob {
+    pub x: f32,
+    pub y: f32,
+    pub r: f32,
+    pub vx: f32,
+    pub vy: f32,
+}
+
 /// Events on an `event_stream` connection.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Event {
@@ -461,6 +531,10 @@ mod tests {
         assert_eq!(r, Request::Pick(PickKind::Window));
         let r: Request = serde_json::from_str(r#"{"identify":{}}"#).unwrap();
         assert_eq!(r, Request::Identify { ms: 1500 });
+        let r: Request = serde_json::from_str(r#"{"blobs":{"enable":false}}"#).unwrap();
+        assert_eq!(r, Request::Blobs(Blobs::Enable(false)));
+        let r: Request = serde_json::from_str(r#"{"blobs":"export"}"#).unwrap();
+        assert_eq!(r, Request::Blobs(Blobs::Export));
     }
 
     #[test]

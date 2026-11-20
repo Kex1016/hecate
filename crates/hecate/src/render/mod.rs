@@ -1,5 +1,6 @@
 //! Building the list of render elements for an output.
 
+pub mod blobs;
 pub mod blur;
 pub mod border;
 pub mod capture;
@@ -40,6 +41,7 @@ render_elements! {
     Window = WindowElement,
     Scaled = RescaleRenderElement<WindowElement>,
     Blur = blur::BlurElement,
+    Blobs = blobs::BlobsElement,
 }
 
 /// A layer surface that wants blur behind it, found while building the element list.
@@ -296,7 +298,10 @@ impl Hecate {
                 }
             }
             drop(map);
-            if let Some(s) = state {
+            // The blobs keep moving behind a lock screen that leaves its background clear.
+            if let Some(blobs) = self.blobs_element(renderer, output) {
+                out.push(HecateElement::Blobs(blobs));
+            } else if let Some(s) = state {
                 out.push(HecateElement::Solid(SolidColorRenderElement::from_buffer(
                     &s.lock_background,
                     (0, 0),
@@ -501,7 +506,9 @@ impl Hecate {
         push_layer(&mut out, &mut markers, renderer, Layer::Background);
         drop(map);
 
-        if let Some(s) = state {
+        if let Some(blobs) = self.blobs_element(renderer, output) {
+            out.push(HecateElement::Blobs(blobs));
+        } else if let Some(s) = state {
             out.push(HecateElement::Solid(SolidColorRenderElement::from_buffer(
                 &s.background,
                 (0, 0),

@@ -150,6 +150,11 @@ pub enum MsgCommand {
         #[arg(long)]
         output: Option<String>,
     },
+    /// The blob background: where it is drawn and whether it moves, or switch it
+    Blobs {
+        #[command(subcommand)]
+        command: Option<BlobsCommand>,
+    },
     /// Connected clients
     Clients,
     /// Globals hecate advertises
@@ -192,6 +197,18 @@ pub enum MsgCommand {
     KeyboardLayout { layout: String },
     /// Quit the session
     Exit,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum BlobsCommand {
+    /// Draw it, whatever the config file says (the override `background.blobs.enable`)
+    On,
+    /// Don't draw it: for a shell that shows a wallpaper
+    Off,
+    /// Print the simulations as JSON, or write them to a file
+    Export { path: Option<String> },
+    /// Continue from exported simulations (`-` reads stdin)
+    Import { path: String },
 }
 
 fn connect() -> anyhow::Result<UnixStream> {
@@ -701,6 +718,60 @@ pub fn run(args: MsgArgs) -> anyhow::Result<()> {
                 );
             }
         }),
+        MsgCommand::Blobs { command: None } => out(request(Request::Blobs(ipc::Blobs::Status))?, &|v| {
+            println!(
+                "blobs {}{}",
+                if v["enabled"].as_bool() == Some(true) {
+                    "on"
+                } else {
+                    "off"
+                },
+                if v["still"].as_bool() == Some(true) {
+                    ", still"
+                } else {
+                    ""
+                },
+            );
+            for o in v["outputs"].as_array().into_iter().flatten() {
+                println!(
+                    "{}: {} blobs on {}x{} cells of {} px, {}",
+                    s(o, "output"),
+                    s(o, "blobs"),
+                    s(o, "width"),
+                    s(o, "height"),
+                    s(o, "cell"),
+                    match o["paused"].as_str() {
+                        Some(why) => format!("paused ({why})"),
+                        None => "moving".into(),
+                    }
+                );
+            }
+        }),
+        MsgCommand::Blobs {
+            command: Some(command),
+        } => match command {
+            BlobsCommand::On | BlobsCommand::Off => {
+                let on = matches!(command, BlobsCommand::On);
+                request(Request::Blobs(ipc::Blobs::Enable(on)))?;
+            }
+            BlobsCommand::Export { path } => {
+                let state = request(Request::Blobs(ipc::Blobs::Export))?;
+                match path {
+                    Some(path) => std::fs::write(&path, serde_json::to_vec(&state)?)
+                        .map_err(|e| anyhow::anyhow!("writing {path}: {e}"))?,
+                    None => print_json(&state),
+                }
+            }
+            BlobsCommand::Import { path } => {
+                let text = if path == "-" {
+                    std::io::read_to_string(std::io::stdin())?
+                } else {
+                    std::fs::read_to_string(&path).map_err(|e| anyhow::anyhow!("reading {path}: {e}"))?
+                };
+                let state = serde_json::from_str(&text).map_err(|e| anyhow::anyhow!("{path}: {e}"))?;
+                request(Request::Blobs(ipc::Blobs::Import(state)))?;
+            }
+        },
         MsgCommand::Clients => out(request(Request::Clients)?, &|v| {
             for c in v.as_array().into_iter().flatten() {
                 println!(
