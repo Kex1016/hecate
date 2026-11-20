@@ -233,11 +233,9 @@ Item {
         source: screenshotImage
         maskSource: blurMaskItem
 
-        // Blur
-        blurEnabled: true
-        blur: 1
-        blurMax: 50
-        blurMultiplier: root.scaleFactor
+        // haiiro never blurs: the original text is covered by flat surface boxes
+        colorization: 1
+        colorizationColor: Appearance.haiiro.color.surface
         autoPaddingEnabled: false
     }
 
