@@ -96,6 +96,8 @@ Item {
 
     Process {
         id: proc
+        // a card's question is not a session for the sessions panel
+        environment: ({ HECATE_CLAUDE_BRIDGE: "0" })
         onRunningChanged: if (running) {
             root.outDone = false;
             root.exited = false;

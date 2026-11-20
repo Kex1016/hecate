@@ -90,7 +90,7 @@ Singleton {
     Process {
         id: proc
         stdinEnabled: true
-        environment: ({ PATH: root.toolPath })
+        environment: ({ PATH: root.toolPath, HECATE_CLAUDE_BRIDGE: "0" })
         onStarted: {
             write(root.context + "\n");
             stdinEnabled = false;

@@ -46,7 +46,7 @@ Item {
     Process {
         id: proc
         stdinEnabled: true
-        environment: ({ PATH: ClaudeBrief.toolPath })
+        environment: ({ PATH: ClaudeBrief.toolPath, HECATE_CLAUDE_BRIDGE: "0" })
         onStarted: {
             write(root.input + "\n");
             stdinEnabled = false;
