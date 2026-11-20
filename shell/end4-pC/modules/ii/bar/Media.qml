@@ -4,11 +4,13 @@ import QtQuick.Layouts
 import Quickshell.Services.Mpris
 import qs
 import qs.services
+import qs.services.apple
 import qs.modules.common.widgets.haiiro
 
 // Now playing, in iris: "♪ title — artist", at most 260px, cut short when
-// the bar runs out. Hover: the track with its position and the transport;
-// click: the media panel; middle click: play or pause.
+// the bar runs out. Hover: the track with its position, the visualiser strip
+// and the transport, plus "♥ add to library" when Cider plays; click: the
+// media panel; middle click: play or pause.
 BarSegment {
     id: root
 
@@ -26,6 +28,9 @@ BarSegment {
         else
             GlobalStates.mediaControlsOpen = !GlobalStates.mediaControlsOpen;
     }
+    // the visualiser (cava) runs while the hover shows it
+    onPopupOpenChanged: GlobalStates.barMediaHover = root.popupOpen
+    Component.onDestruction: if (root.popupOpen) GlobalStates.barMediaHover = false
 
     HText {
         id: line
@@ -80,6 +85,14 @@ BarSegment {
                 count: BarState.clock(nowPlaying.player?.position ?? 0) + " / " + BarState.clock(nowPlaying.length)
                 value: nowPlaying.length > 0 ? (nowPlaying.player?.position ?? 0) / nowPlaying.length : 0
             }
+            Spark {
+                Layout.fillWidth: true
+                Layout.topMargin: HTokens.space3
+                visible: (nowPlaying.player?.isPlaying ?? false) && GlobalStates.visualizerPoints.length > 0
+                values: GlobalStates.visualizerPoints.slice(0, Math.floor(width / 8))
+                ink: "iris"
+                max: 1000
+            }
             Transport {
                 Layout.topMargin: HTokens.space3
                 small: true
@@ -89,6 +102,22 @@ BarSegment {
                 onPrevious: MprisController.previous()
                 onPlayPause: MprisController.togglePlaying()
                 onNext: MprisController.next()
+            }
+            RowLayout {
+                Layout.topMargin: HTokens.space3
+                visible: Cider.active && Cider.track !== null
+                spacing: HTokens.space2
+                InkButton {
+                    text: Cider.inLibrary ? "♥ in library" : "♥ add to library"
+                    ink: Cider.inLibrary ? "c1" : "c3"
+                    enabled: !Cider.inLibrary
+                    onClicked: Cider.addToLibrary()
+                }
+                HText {
+                    text: "via cider"
+                    ink: "muted"
+                    role: "caption"
+                }
             }
         }
     }
