@@ -1,18 +1,18 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
-import Qt5Compat.GraphicalEffects
+import Quickshell
 import Quickshell.Services.UPower
-import Quickshell.Services.Mpris
 import qs
 import qs.services
 import qs.modules.common
-import qs.modules.common.widgets
 import qs.modules.common.functions
 import qs.modules.common.panels.lock
-import qs.modules.ii.bar as Bar
-import Quickshell
-import Quickshell.Services.SystemTray
+import qs.modules.common.widgets.haiiro as H
 
+// The lock screen (and, in hecate-greetd, the login screen): the clock, one
+// login window, and a strip along the bottom. The surface itself is clear: the
+// compositor's blobs show through a checker veil, nothing is captured or blurred.
 MouseArea {
     id: root
     // A LockContext, or anything with the same interface (hecate-greetd's GreeterContext).
@@ -27,19 +27,15 @@ MouseArea {
     // What the prompt asks for. A login can ask for more than a password (a one-time code,
     // a new password); greetd says whether the answer is secret.
     readonly property bool secretPrompt: root.context.secretPrompt ?? true
-    readonly property MprisPlayer activePlayer: {
-        const preferred = Config.options.bar.media.preferredPlayer.trim().toLowerCase()
-        if (preferred.length === 0) return MprisController.activePlayer
-        const _ = MprisController.players.count
-        for (const p of MprisController.players) {
-            if ((p.identity ?? "").toLowerCase().includes(preferred) ||
-                (p.desktopEntry ?? "").toLowerCase().includes(preferred))
-                return p
-        }
-        return MprisController.activePlayer
-    }
 
-    property var    artUrl:      activePlayer?.trackArtUrl ?? ""
+    readonly property bool failed: GlobalStates.screenUnlockFailed
+    readonly property bool powerTarget: root.context.targetAction !== LockContext.ActionEnum.Unlock
+    readonly property string promptLabel: (root.context.promptText ?? "") || "password:"
+    readonly property string failureLabel: (root.context.failureText ?? "") || "That's not it."
+    readonly property string notifyMode: Config.options.lock.notifications
+    // When this surface appeared, for "locked 4 minutes ago".
+    readonly property date lockedAt: new Date()
+    readonly property int lockedMinutes: Math.max(0, Math.floor((DateTime.clock.date - root.lockedAt) / 60000))
 
     // Force focus on entry
     function forceFieldFocus() {
@@ -60,26 +56,7 @@ MouseArea {
         forceFieldFocus();
     }
 
-    // Toolbar appearing animation
-    property real toolbarScale: 0.9
-    property real toolbarOpacity: 0
-    Behavior on toolbarScale {
-        NumberAnimation {
-            duration: Appearance.animation.elementMove.duration
-            easing.type: Appearance.animation.elementMove.type
-            easing.bezierCurve: Appearance.animationCurves.expressiveFastSpatial
-        }
-    }
-    Behavior on toolbarOpacity {
-        animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-    }
-
-    // Init
-    Component.onCompleted: {
-        forceFieldFocus();
-        toolbarScale = 1;
-        toolbarOpacity = 1;
-    }
+    Component.onCompleted: forceFieldFocus()
 
     // Key presses
     property bool ctrlHeld: false
@@ -90,7 +67,7 @@ MouseArea {
         }
         if (event.key === Qt.Key_Escape) { // Esc to clear
             root.context.currentText = "";
-        } 
+        }
         forceFieldFocus();
     }
     Keys.onReleased: event => {
@@ -100,495 +77,356 @@ MouseArea {
         forceFieldFocus();
     }
 
-    // RippleButton {
-    //     anchors {
-    //         top: parent.top
-    //         left: parent.left
-    //         leftMargin: 10
-    //         topMargin: 10
-    //     }
-    //     implicitHeight: 40
-    //     colBackground: Appearance.colors.colLayer2
-    //     onClicked: {
-    //         context.unlocked(LockContext.ActionEnum.Unlock);
-    //         GlobalStates.screenLocked = false;
-    //     }
-    //     contentItem: StyledText {
-    //         text: "[[ DEBUG BYPASS ]]"
-    //     }
-    // }
-
-    Loader {
+    // The desktop behind, dimmed by the checker veil. It takes no clicks of its own.
+    H.Veil {
         anchors.fill: parent
         z: -1
-        // hecate shows the shell's own wallpaper layer (blur, clock) under the lock instead.
-        active: WM.niriLike && WM.compositor !== "hecate"
-
-        sourceComponent: Item {
-            anchors.fill: parent
-
-            Image {
-                id: lockBgSource
-                anchors.fill: parent
-                source: Config.options.background.wallpaperPath
-                fillMode: Image.PreserveAspectCrop
-                asynchronous: true
-                cache: true
-                visible: false
-            }
-            FastBlur {
-                anchors.fill: parent
-                source: lockBgSource
-                radius: 0 // fixme
-            }
-        }
+        blocking: false
     }
 
-    // Clicking the centered wallpaper (a square around the screen center
-    // matching its locked size) plays the heartbeat thump on the background.
-    // Keeps the password field focused like any other lock-screen press.
-    MouseArea {
-        id: centeredWallpaperThumpArea
-        z: 1
-        width: Math.max(1, Config.options.background.centeredWallpaperSize)
-        height: width
-        anchors.centerIn: parent
-        visible: Config.options.background.centeredWallpaper
-        onClicked: {
-            root.forceFieldFocus()
-            GlobalStates.centeredWallpaperThumpRequested()
-        }
-        // Scroll cycles the centered wallpaper shape (up = next, down = previous),
-        // same cooldown as the desktop so fast scrolling can't skip shapes.
-        onWheel: (wheel) => {
-            if (!Config.options.background.centeredWallpaperShapeCycle) return
-            if (shapeCycleCooldown.running) return
-            root.forceFieldFocus()
-            GlobalStates.cycleCenteredWallpaperShape(wheel.angleDelta.y > 0 ? 1 : -1)
-            shapeCycleCooldown.restart()
-            wheel.accepted = true
-        }
-        Timer {
-            id: shapeCycleCooldown
-            interval: 400
-        }
-    }
-
-    // Main toolbar: password box
-    Toolbar {
-        id: mainIsland
+    // Clock
+    Column {
         anchors {
+            top: parent.top
+            topMargin: Math.round(root.height * 120 / 900)
             horizontalCenter: parent.horizontalCenter
+        }
+        spacing: H.HTokens.space3
+
+        Item {
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: clockText.implicitWidth + clockShadow.x
+            height: clockText.implicitHeight + clockShadow.y
+
+            // the hard offset under a display title
+            H.HText {
+                id: clockShadow
+                x: Appearance.haiiro.shadow.title.x
+                y: Appearance.haiiro.shadow.title.y
+                role: "display"
+                text: clockText.text
+                color: Appearance.haiiro.shadow.title.color
+            }
+            H.HText {
+                id: clockText
+                role: "display"
+                text: DateTime.time
+            }
+        }
+        H.HText {
+            anchors.horizontalCenter: parent.horizontalCenter
+            role: "nav"
+            text: Qt.locale().toString(DateTime.clock.date, "dddd, d MMMM").toLowerCase()
+        }
+        H.HText {
+            anchors.horizontalCenter: parent.horizontalCenter
+            ink: "c4"
+            text: GlobalStates.lockStatusText.length > 0 ? GlobalStates.lockStatusText : "The screen is locked. It waits for you."
+            visible: !root.greeter || GlobalStates.lockStatusText.length > 0
+        }
+    }
+
+    // Login window
+    H.PixelTransition {
+        id: loginTransition
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: Math.round(root.height * 470 / 900)
+
+        H.HWindow {
+            id: loginWindow
+            width: 520
+            label: "login: " + (SystemInfo.hostname.length > 0 ? SystemInfo.hostname : "cakeos")
+            variant: root.powerTarget ? "gold" : "pine"
+
+            // who is locked out; the greeter's picker takes this place
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: H.HTokens.space3
+                visible: root.userComponent === null
+
+                H.Dither {
+                    tone: "pine"
+                    implicitWidth: 48
+                    implicitHeight: 48
+                    Layout.preferredWidth: 48
+                    Layout.preferredHeight: 48
+                }
+                ColumnLayout {
+                    spacing: 0
+                    H.HText {
+                        role: "valueLg"
+                        ink: "c5"
+                        text: SystemInfo.username
+                    }
+                    H.HText {
+                        role: "caption"
+                        ink: "c1"
+                        text: root.lockedMinutes < 1 ? "locked just now"
+                            : "locked " + root.lockedMinutes + (root.lockedMinutes === 1 ? " minute ago" : " minutes ago")
+                    }
+                }
+            }
+            Loader {
+                Layout.fillWidth: true
+                active: root.userComponent !== null
+                visible: active
+                sourceComponent: root.userComponent
+            }
+
+            // the prompt line: @ user » password: ********█
+            Item {
+                id: promptLine
+                Layout.fillWidth: true
+                implicitHeight: H.HTokens.lineBox(H.HTokens.fontBody)
+                readonly property string typed: root.context.currentText
+                readonly property string shown: root.secretPrompt ? "*".repeat(typed.length) : typed
+                readonly property int gap: H.HTokens.ch()
+
+                Row {
+                    id: promptHead
+                    spacing: promptLine.gap
+                    H.HText { text: "@"; ink: "c2" }
+                    H.HText { text: SystemInfo.username; ink: "c6" }
+                    H.HText { text: "»"; ink: "c4" }
+                    H.HText { text: root.promptLabel; ink: "c3" }
+                }
+                H.HText {
+                    id: typedText
+                    x: promptHead.width + promptLine.gap
+                    width: Math.max(0, parent.width - x - cursor.width)
+                    ink: "c7"
+                    text: promptLine.shown
+                    elide: Text.ElideLeft
+                    font.letterSpacing: root.secretPrompt ? 2 : 0
+                }
+                Rectangle {
+                    id: cursor
+                    x: Math.min(promptHead.width + promptLine.gap + typedText.contentWidth, promptLine.width - width)
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: H.HTokens.ch()
+                    height: H.HTokens.fontBody
+                    color: H.HTokens.text
+                    // a steady block, it never blinks
+                    visible: !root.context.unlockInProgress
+                }
+
+                // the real field: invisible, it only takes the keys
+                TextInput {
+                    id: passwordBox
+                    width: 1
+                    height: 1
+                    opacity: 0
+                    enabled: !root.context.unlockInProgress
+                    echoMode: root.secretPrompt ? TextInput.Password : TextInput.Normal
+                    inputMethodHints: root.secretPrompt ? Qt.ImhSensitiveData : Qt.ImhNone
+                    onTextChanged: root.context.currentText = text
+                    onAccepted: root.context.tryUnlock(root.ctrlHeld)
+                    Connections {
+                        target: root.context
+                        function onCurrentTextChanged() {
+                            passwordBox.text = root.context.currentText;
+                        }
+                    }
+                    Keys.onPressed: event => {
+                        root.context.resetClearTimer();
+                    }
+                }
+            }
+
+            H.HText {
+                Layout.fillWidth: true
+                role: "caption"
+                ink: root.powerTarget ? "c3" : "c1"
+                elide: Text.ElideRight
+                text: {
+                    if (root.context.unlockInProgress)
+                        return "checking…";
+                    if (root.context.targetAction === LockContext.ActionEnum.Poweroff)
+                        return "enter to shut down";
+                    if (root.context.targetAction === LockContext.ActionEnum.Reboot)
+                        return "enter to reboot";
+                    if (root.ctrlHeld)
+                        return "enter to unlock and keep the screen awake";
+                    if (root.context.fingerprintsConfigured && root.context.currentText.length === 0)
+                        return "touch the fingerprint reader · or type your password";
+                    return "enter to " + (root.greeter ? "log in" : "unlock") + " · esc to clear";
+                }
+            }
+        }
+    }
+
+    // Wrong password
+    H.PixelTransition {
+        id: failTransition
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: loginTransition.y + loginWindow.height + 20
+        shown: root.failed
+
+        H.HWindow {
+            width: 520
+            variant: "love"
+            label: "login: " + (SystemInfo.hostname.length > 0 ? SystemInfo.hostname : "cakeos")
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: H.HTokens.ch()
+                H.HText { text: "@"; ink: "c2" }
+                H.HText { text: SystemInfo.username; ink: "c6" }
+                H.HText { text: "»"; ink: "c4" }
+                H.HText {
+                    ink: "c2"
+                    text: root.failureLabel
+                }
+                H.HText {
+                    ink: "c1"
+                    text: "Try again."
+                    visible: (root.context.failureText ?? "") === ""
+                }
+                Item { Layout.fillWidth: true }
+            }
+        }
+    }
+
+    // Bottom strip
+    RowLayout {
+        id: strip
+        anchors {
+            left: parent.left
+            right: parent.right
             bottom: parent.bottom
+            leftMargin: 24
+            rightMargin: 24
             bottomMargin: 20
         }
-        Behavior on anchors.bottomMargin {
-            animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
-        }
+        spacing: H.HTokens.space4
 
-        scale: root.toolbarScale
-        opacity: root.toolbarOpacity
-
-        // Fingerprint
+        // the media strip
         Loader {
-            Layout.leftMargin: 10
-            Layout.rightMargin: 6
-            Layout.alignment: Qt.AlignVCenter
-            active: root.context.fingerprintsConfigured
+            id: mediaStrip
+            active: !root.greeter && Config.options.lock.showMedia && MprisController.activePlayer !== null
             visible: active
-
-            sourceComponent: MaterialSymbol {
-                id: fingerprintIcon
-                fill: 1
-                text: "fingerprint"
-                iconSize: Appearance.font.pixelSize.hugeass
-                color: Appearance.colors.colOnSurfaceVariant
-            }
-        }
-
-        ToolbarTextField {
-            id: passwordBox
-            Layout.rightMargin: -Layout.leftMargin
-            placeholderText: GlobalStates.screenUnlockFailed
-                ? ((root.context.failureText ?? "") || Translation.tr("Incorrect password"))
-                : ((root.context.promptText ?? "") || Translation.tr("Enter password"))
-
-            // Style
-            clip: true
-            font.pixelSize: Appearance.font.pixelSize.small
-            selectedTextColor: materialShapeChars ? "transparent" : Appearance.colors.colOnSecondaryContainer
-            selectionColor: materialShapeChars ? "transparent" : Appearance.colors.colSecondaryContainer
-
-            // Password
-            enabled: !root.context.unlockInProgress
-            echoMode: root.secretPrompt ? TextInput.Password : TextInput.Normal
-            inputMethodHints: root.secretPrompt ? Qt.ImhSensitiveData : Qt.ImhNone
-
-            // Synchronizing (across monitors) and unlocking
-            onTextChanged: root.context.currentText = this.text
-            onAccepted: {
-                root.context.tryUnlock(ctrlHeld);
-            }
-            Connections {
-                target: root.context
-                function onCurrentTextChanged() {
-                    passwordBox.text = root.context.currentText;
-                }
-            }
-
-            Keys.onPressed: event => {
-                root.context.resetClearTimer();
-            }
-            
-            layer.enabled: true
-            layer.effect: OpacityMask {
-                maskSource: Rectangle {
-                    width: passwordBox.width - 8
-                    height: passwordBox.height
-                    radius: height / 2
-                }
-            }
-
-            // Shake when wrong password
-            ErrorShakeAnimation {
-                id: wrongPasswordShakeAnim
-                target: passwordBox
-            }
-            Connections {
-                target: GlobalStates
-                function onScreenUnlockFailedChanged() {
-                    if (GlobalStates.screenUnlockFailed) wrongPasswordShakeAnim.restart();
-                }
-            }
-
-            // We're drawing dots manually
-            property bool materialShapeChars: Config.options.lock.materialShapeChars && root.secretPrompt
-            color: ColorUtils.transparentize(Appearance.colors.colOnLayer1, materialShapeChars ? 1 : 0)
-            Loader {
-                active: passwordBox.materialShapeChars
-                anchors {
-                    fill: parent
-                    leftMargin: passwordBox.padding
-                    rightMargin: passwordBox.padding
-                }
-                sourceComponent: PasswordChars {
-                    length: root.context.currentText.length
-                    selectionStart: passwordBox.selectionStart
-                    selectionEnd: passwordBox.selectionEnd
-                    cursorPosition: passwordBox.cursorPosition
-                }
-            }
-        }
-
-        ToolbarButton {
-            id: confirmButton
-            implicitWidth: height
-            toggled: true
-            enabled: !root.context.unlockInProgress
-            colBackgroundToggled: Appearance.colors.colPrimary
-
-            onClicked: root.context.tryUnlock()
-
-            contentItem: MaterialSymbol {
-                anchors.centerIn: parent
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                iconSize: 24
-                text: {
-                    if (root.context.targetAction === LockContext.ActionEnum.Unlock) {
-                        return root.ctrlHeld ? "coffee" : "arrow_right_alt";
-                    } else if (root.context.targetAction === LockContext.ActionEnum.Poweroff) {
-                        return "power_settings_new";
-                    } else if (root.context.targetAction === LockContext.ActionEnum.Reboot) {
-                        return "restart_alt";
-                    }
-                }
-                color: confirmButton.enabled ? Appearance.colors.colOnPrimary : Appearance.colors.colSubtext
-            }
-        }
-    }
-
-    // Left toolbar
-    Toolbar {
-        id: leftIsland
-        // The greeter's user picker stays reachable without the toolbars.
-        visible: Config.options.lock.showToolbars || root.userComponent !== null
-        anchors {
-            right: mainIsland.left
-            top: mainIsland.top
-            bottom: mainIsland.bottom
-            rightMargin: 10
-        }
-        scale: root.toolbarScale
-        opacity: root.toolbarOpacity
-
-        // Username
-        IconAndTextPair {
-            Layout.leftMargin: 8
-            icon: "account_circle"
-            visible: root.userComponent === null && (!Config.options.lock.showMedia || MprisController.activePlayer === null)
-            text: SystemInfo.username
-        }
-
-        // The greeter's user and session pickers
-        Loader {
-            Layout.leftMargin: 2
             Layout.alignment: Qt.AlignVCenter
-            active: root.userComponent !== null
-            visible: active
-            sourceComponent: root.userComponent
-        }
+            Layout.maximumWidth: Math.round(root.width * 0.5)
 
-        // Media player info 
-        Loader {
-            Layout.leftMargin: 2
-            Layout.rightMargin: 2
-            Layout.alignment: Qt.AlignVCenter
-            active: !root.greeter && MprisController.activePlayer !== null
-            visible: active && Config.options.lock.showMedia
-            
-            sourceComponent: Item {
-                implicitWidth: mediaRow.implicitWidth
-                implicitHeight: mediaRow.implicitHeight
-                
-                readonly property MprisPlayer activePlayer: MprisController.activePlayer
-                readonly property string cleanedTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle) || ""
-                
-                Timer {
-                    running: activePlayer?.playbackState == MprisPlaybackState.Playing
-                    interval: Config.options.resources.updateInterval
-                    repeat: true
-                    onTriggered: activePlayer.positionChanged()
+            sourceComponent: RowLayout {
+                id: media
+                readonly property var player: MprisController.activePlayer
+                readonly property string title: StringUtils.cleanMusicTitle(player?.trackTitle) || ""
+                readonly property string artist: player?.trackArtist || ""
+                spacing: H.HTokens.space4
+
+                H.HText {
+                    Layout.fillWidth: true
+                    Layout.maximumWidth: 420
+                    ink: "c7"
+                    elide: Text.ElideRight
+                    text: "♪ " + media.title + (media.artist.length > 0 ? " — " + media.artist : "")
                 }
-                
-                RowLayout {
-                    id: mediaRow
-                    spacing: 8
-                    anchors.centerIn: parent
-                    
-                    Rectangle {
-                        id: artRect
-                        implicitWidth: 40
-                        implicitHeight: 40
-                        radius: Appearance.rounding.full
-                        color: Appearance.colors.colPrimaryContainer
-                        Layout.alignment: Qt.AlignVCenter
-                        clip: true 
-
-                        layer.enabled: true
-                        layer.effect: OpacityMask {
-                            maskSource: Rectangle {
-                                width: artRect.width
-                                height: artRect.height
-                                radius: artRect.radius
-                            }
-                        }
-
-                        StyledImage {
-                            anchors.centerIn: parent
-                            width: artRect.width
-                            height: artRect.height
-                            source: root.artUrl
-                            fillMode: Image.PreserveAspectCrop
-                            cache: false
-                            antialiasing: true
-                            sourceSize.width: artRect.width * 2
-                            sourceSize.height: artRect.height * 2
-                            visible: root.artUrl !== ""
-                        }
-
-                        MaterialSymbol {
-                            anchors.centerIn: parent
-                            fill: 1
-                            text: "music_note"
-                            iconSize: Appearance.font.pixelSize.normal
-                            color: Appearance.colors.colOnSecondaryContainer
-                            visible: root.artUrl === ""
-                        }
-                    }
-                    
-                    Column {
-                        Layout.alignment: Qt.AlignVCenter
-                        spacing: -2
-                        
-                        StyledText {
-                            horizontalAlignment: Text.AlignLeft
-                            elide: Text.ElideRight
-                            maximumLineCount: 1
-                            width: Math.min(implicitWidth, 180) 
-                            color: Appearance.colors.colOnSurfaceVariant
-                            text: {
-                                var artist = activePlayer?.trackArtist || " ";
-                                return artist.length > 25 ? artist.substring(0, 25) + "..." : artist;
-                            }
-                            font.pixelSize: Appearance.font.pixelSize.smaller
-                        }
-                        
-                        StyledText {
-                            horizontalAlignment: Text.AlignLeft
-                            elide: Text.ElideRight
-                            maximumLineCount: 1
-                            width: Math.min(implicitWidth, 180) 
-                            color: Appearance.colors.colOnSurfaceVariant
-                            text: {
-                                var title = cleanedTitle;
-                                return title.length > 30 ? title.substring(0, 30) + "..." : title;
-                            }
-                            font.weight: Font.Medium
-                            font.pixelSize: Appearance.font.pixelSize.small
-                        }
-                    }
-                    
-                    ClippedFilledCircularProgress {
-                        id: mediaCircProg
-                        Layout.alignment: Qt.AlignVCenter
-                        lineWidth: Appearance.rounding.unsharpen
-                        value: activePlayer?.position / activePlayer?.length
-                        implicitSize: 24
-                        colPrimary: Appearance.colors.colOnSurfaceVariant
-                        enableAnimation: false
-                        
-                        Item {
-                            anchors.centerIn: parent
-                            width: mediaCircProg.implicitSize
-                            height: mediaCircProg.implicitSize
-                            
-                            MaterialSymbol {
-                                anchors.centerIn: parent
-                                fill: 1
-                                text: "music_note"
-                                iconSize: Appearance.font.pixelSize.normal
-                                color: Appearance.colors.colOnSurfaceVariant
-                            }
-                        }
-                    }
+                H.Transport {
+                    small: true
+                    playing: MprisController.isPlaying
+                    canPrevious: MprisController.canGoPrevious
+                    canNext: MprisController.canGoNext
+                    onPrevious: MprisController.previous()
+                    onPlayPause: MprisController.togglePlaying()
+                    onNext: MprisController.next()
                 }
             }
         }
 
-        // Keyboard layout (Xkb)
-        Loader {
-            Layout.rightMargin: 8
-            Layout.fillHeight: true
-            visible: root.greeter || !Config.options.lock.showMedia || MprisController.activePlayer === null
+        Item { Layout.fillWidth: true }
 
-            sourceComponent: Row {
-                spacing: 8
-
-                MaterialSymbol {
-                    id: keyboardIcon
-                    anchors.verticalCenter: parent.verticalCenter
-                    fill: 1
-                    text: "keyboard_alt"
-                    iconSize: Appearance.font.pixelSize.huge
-                    color: Appearance.colors.colOnSurfaceVariant
-                }
-                Loader {
-                    anchors.verticalCenter: parent.verticalCenter
-                    sourceComponent: StyledText {
-                        text: HyprlandXkb.currentLayoutCode
-                        color: Appearance.colors.colOnSurfaceVariant
-                        animateChange: true
-                    }
-                }
-            }
-        }
-
-        // Keyboard layout (Fcitx)
-        Bar.SysTray {
-            Layout.rightMargin: 10
+        // keyboard layout
+        H.HText {
+            text: HyprlandXkb.currentLayoutCode
+            visible: text.length > 0
             Layout.alignment: Qt.AlignVCenter
-            showSeparator: false
-            showOverflowMenu: false
-            pinnedItems: SystemTray.items.values.filter(i => i.id == "Fcitx")
-            visible: pinnedItems.length > 0
         }
-    }
-
-    // Right toolbar
-    Toolbar {
-        id: rightIsland
-        visible: Config.options.lock.showToolbars
-        anchors {
-            left: mainIsland.right
-            top: mainIsland.top
-            bottom: mainIsland.bottom
-            leftMargin: 10
-        }
-
-        scale: root.toolbarScale
-        opacity: root.toolbarOpacity
-
-        IconAndTextPair {
+        // battery
+        RowLayout {
             visible: Battery.available
-            icon: Battery.isCharging ? "bolt" : "battery_android_full"
-            text: Math.round(Battery.percentage * 100)
-            color: (Battery.isLow && !Battery.isCharging) ? Appearance.colors.colError : Appearance.colors.colOnSurfaceVariant
+            spacing: H.HTokens.ch()
+            Layout.alignment: Qt.AlignVCenter
+            H.HText { text: Battery.isCharging ? "chg" : "bat" }
+            H.HText {
+                text: Math.round(Battery.percentage * 100) + "%"
+                ink: Battery.isLow && !Battery.isCharging ? "c2" : "c6"
+            }
+        }
+        // unread notifications
+        Rectangle {
+            visible: !root.greeter && root.notifyMode !== "none" && Notifications.unread > 0
+            Layout.alignment: Qt.AlignVCenter
+            implicitWidth: unreadText.implicitWidth + 2 * H.HTokens.ch()
+            implicitHeight: unreadText.implicitHeight
+            color: H.HTokens.love
+            H.HText {
+                id: unreadText
+                anchors.centerIn: parent
+                text: Notifications.unread
+                ink: "c8"
+            }
         }
 
-        IconToolbarButton {
-            id: sleepButton
+        H.InkButton {
+            ink: "c1"
+            text: "sleep"
             onClicked: Session.suspend()
-            text: "dark_mode"
         }
-
-        PasswordGuardedIconToolbarButton {
-            id: powerButton
-            text: "power_settings_new"
-            targetAction: LockContext.ActionEnum.Poweroff
-        }
-
-        PasswordGuardedIconToolbarButton {
-            id: rebootButton
-            text: "restart_alt"
+        PowerButton {
+            idleInk: "c3"
+            text: "reboot"
             targetAction: LockContext.ActionEnum.Reboot
         }
+        PowerButton {
+            idleInk: "c2"
+            text: "shutdown"
+            targetAction: LockContext.ActionEnum.Poweroff
+        }
     }
 
-    component PasswordGuardedIconToolbarButton: IconToolbarButton {
-        id: guardedBtn
-        required property var targetAction
+    // What the notifications are, when the setting asks for more than a count.
+    Column {
+        visible: !root.greeter && root.notifyMode === "all" && Notifications.list.length > 0
+        anchors {
+            left: parent.left
+            leftMargin: 24
+            bottom: strip.top
+            bottomMargin: H.HTokens.space3
+        }
+        spacing: 0
+        Repeater {
+            model: Notifications.list.slice(-3)
+            H.HText {
+                required property var modelData
+                width: Math.min(implicitWidth, root.width * 0.5)
+                elide: Text.ElideRight
+                role: "caption"
+                ink: "c4"
+                text: modelData.appName + ": " + modelData.summary
+            }
+        }
+    }
 
-        toggled: root.context.targetAction === guardedBtn.targetAction
+    // A power button that waits for the password first, when the setting says so.
+    component PowerButton: H.InkButton {
+        id: guarded
+        required property var targetAction
+        // armed: the next enter does it
+        property string idleInk: ""
+        ink: root.context.targetAction === guarded.targetAction ? "" : idleInk
 
         onClicked: {
             if (!root.requirePasswordToPower) {
-                root.context.unlocked(guardedBtn.targetAction);
+                root.context.unlocked(guarded.targetAction);
                 return;
             }
-            if (root.context.targetAction === guardedBtn.targetAction) {
+            if (root.context.targetAction === guarded.targetAction) {
                 root.context.resetTargetAction();
             } else {
-                root.context.targetAction = guardedBtn.targetAction;
+                root.context.targetAction = guarded.targetAction;
                 root.context.shouldReFocus();
             }
-        }
-    }
-
-    component IconAndTextPair: Row {
-        id: pair
-        required property string icon
-        required property string text
-        property color color: Appearance.colors.colOnSurfaceVariant
-
-        spacing: 4
-        Layout.fillHeight: true
-        Layout.leftMargin: 10
-        Layout.rightMargin: 10
-        
-
-        MaterialSymbol {
-            anchors.verticalCenter: parent.verticalCenter
-            fill: 1
-            text: pair.icon
-            iconSize: Appearance.font.pixelSize.huge
-            animateChange: true
-            color: pair.color
-        }
-        StyledText {
-            anchors.verticalCenter: parent.verticalCenter
-            text: pair.text
-            color: pair.color
         }
     }
 }
