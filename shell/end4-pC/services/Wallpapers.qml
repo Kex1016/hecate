@@ -107,8 +107,9 @@ Singleton {
     // ── dithering ────────────────────────────────────────────────────────────────
     // With `background.dither` on, the background shows a copy of the picture pressed into
     // two tones of the night sky (base and muted): fitted to the screen like the original,
-    // turned grey, ordered-dithered with the 4x4 Bayer matrix at one cell per ditherCell
-    // pixels and scaled back up with nearest-neighbour. The copies are PNGs in ditherDir,
+    // turned grey and stretched to the full range (like the album art), ordered-dithered with
+    // the 4x4 Bayer matrix at one cell per ditherCell pixels and scaled back up with
+    // nearest-neighbour. The copies are PNGs in ditherDir,
     // named after the picture, its mtime, the size and the tones, so a copy is made once and
     // a changed picture gets a new one. ImageMagick does the work in a child process, one
     // picture at a time, never on the UI thread. The picker's previews come from the same
@@ -205,7 +206,7 @@ Singleton {
         'sw=$(( (w + cell - 1) / cell )); sh=$(( (h + cell - 1) / cell ))',
         'tmp="$dir/.$key.$$.png"',
         'if magick "$src[0]" -auto-orient -resize "${sw}x${sh}^" -gravity center -extent "${sw}x${sh}" \\',
-        '    -colorspace Gray -contrast-stretch 1%x1% -clamp -ordered-dither o4x4 -clamp \\',
+        '    -colorspace Gray -auto-level -ordered-dither o4x4 -clamp \\',
         '    +level-colors "$dark,$light" -scale "$((cell * 100))%" -extent "${w}x${h}" \\',
         '    "PNG8:$tmp" 2>/dev/null; then mv -f "$tmp" "$out"; else rm -f "$tmp"; echo "error magick"; exit 1; fi',
         'ls -1t "$dir"/*.png 2>/dev/null | tail -n +49 | while read -r f; do rm -f "$f"; done',
