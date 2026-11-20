@@ -419,6 +419,17 @@ class Store:
         self.dirty = True
         return True
 
+    def rejected(self, request_id):
+        """The person refused the request in the terminal. Claude Code stops the turn there and
+        fires no hook for it, so the session is marked as no longer working here."""
+        r = self.requests.get(request_id)
+        if r is None or not self.resolve(request_id, "terminal"):
+            return False
+        s = self.sessions.get(r["session"])
+        if s is not None and not r["agent_type"] and s["state"] == "working" and not self.session_requests(s["id"]):
+            s.update(state="idle", waiting_for="", activity="", tool="", turn_started=0.0)
+        return True
+
     def end_session(self, s, now):
         for r in self.session_requests(s["id"]):
             self.resolve(r["id"], "terminal")
@@ -513,6 +524,9 @@ class Store:
             if waits_for and not stale and s["state"] != "done":
                 s.update(state="waiting", waiting_for=waits_for)
                 s["turn_started"] = s["turn_started"] or now
+            elif kind == "idle_prompt" and s["state"] == "working" and not self.session_requests(s["id"]):
+                # sitting at its prompt: a turn the person interrupted ends without a Stop
+                s.update(state="idle", waiting_for="", activity="", tool="", turn_started=0.0)
             self.emit("notified", session=self.public_session(s), notificationType=kind, message=s["message"])
         elif event in ("Stop", "StopFailure"):
             for r in self.session_requests(s["id"], main_only=True):

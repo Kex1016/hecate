@@ -1,7 +1,7 @@
 {
   "hooks": {
     "PermissionRequest": [
-      { "hooks": [ { "type": "command", "command": "python3", "args": ["/path/to/scripts/claude/hook.py"], "timeout": 3600 } ] }
+      { "hooks": [ { "type": "command", "command": "python3", "args": ["/path/to/scripts/claude/hook.py"], "timeout": 86400 } ] }
     ],
     "SessionStart": [
       { "hooks": [ { "type": "command", "command": "python3", "args": ["/path/to/scripts/claude/hook.py"], "async": true } ] }

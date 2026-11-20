@@ -283,6 +283,23 @@ class Requests(Harness):
         self.assertEqual(sessions.brief("/" + "x" * 80), "\u2026/" + "x" * 26)
         self.assertEqual(sessions.brief(""), "")
 
+    def test_idle_notice_ends_a_turn_that_never_stopped(self):
+        self.send("UserPromptSubmit")
+        self.send("PreToolUse", tool_name="Bash", tool_input={"command": "ls"}, tool_use_id="t1")
+        self.assertEqual(self.session()["state"], "working")
+        self.send("Notification", notification_type="idle_prompt", message="Claude is waiting for your input")
+        self.assertEqual((self.session()["state"], self.session()["activity"]), ("idle", ""))
+        self.send("Stop", last_assistant_message="Done.")
+        self.send("Notification", notification_type="idle_prompt", message="Claude is waiting for your input")
+        self.assertEqual(self.session()["state"], "done")  # a finished turn stays done
+
+    def test_refused_in_the_terminal_leaves_the_session_idle(self):
+        rid, _ = self.ask()
+        self.assertTrue(self.store.rejected(rid))
+        self.assertEqual((self.session()["state"], self.session()["activity"]), ("idle", ""))
+        self.assertIn(("permissionResolved", "terminal"), self.events())
+        self.assertFalse(self.store.rejected(rid))
+
     def test_allow_once(self):
         rid, _ = self.ask(permission_suggestions=[RULE])
         self.assertEqual(self.store.decide(rid, "allow"), {"v": 1, "type": "decision", "id": rid, "behavior": "allow"})

@@ -60,7 +60,8 @@ Singleton {
     //                     waiting: needs you (a permission request, or Claude asked something)
     //                     working: a turn is running
     //                     done:    the last turn finished; `summary` says how
-    //                     idle:    started or resumed, nothing asked yet
+    //                     idle:    at its prompt with nothing to show: just started, or the
+    //                              last turn was refused or interrupted
     //   waitingFor:     "permission" | "input" | ""
     //   activity:       "editing shell/end4-pC/modules/ii/bar/Bar.qml" | "running nix build" | ""
     //   tool:           the tool behind `activity` ("Edit", "Bash", ...) or ""
@@ -105,8 +106,10 @@ Singleton {
     //   input:       the tool's input as Claude Code sent it (long strings cut)
     //   agentType:   the subagent that asks, "" for the main agent
     //   createdAt:   ms since the epoch
-    //   canAlways:   Claude Code offered a rule to stop asking; allowAlways() applies it
-    //   alwaysLabel: what that rule covers: "Bash(nix build:*) in this repo" or ""
+    //   canAlways:   Claude Code offered an allow rule to stop asking; allowAlways() applies it.
+    //                False when it offered none, or only a mode change or a directory grant
+    //   alwaysLabel: what that rule covers: "Bash(nix build:*) in this repo",
+    //                "Read(~/notes/**) for this session", or ""
     // }
     property var requests: []
     readonly property int requestCount: requests.length
@@ -115,7 +118,8 @@ Singleton {
 
     signal permissionRequested(var request)
     // outcome: "allow" | "allowAlways" | "deny" (answered from the shell), "terminal" (answered
-    // or cancelled in the terminal, or its hook went away), "handedBack", "expired"
+    // or cancelled in the terminal, or its hook went away), "handedBack" (by handBack(), or
+    // the bridge stopped), "expired" (the hook's wait ran out: `claude -p` waits two minutes)
     signal permissionResolved(string requestId, string outcome)
     signal sessionStarted(var session)
     // a turn finished: session.summary and session.error are set

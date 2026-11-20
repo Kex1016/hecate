@@ -307,6 +307,23 @@ class NoAnswer(Case):
         self.assertIsNone(self.finish(proc))
         self.assertEqual(self.resolved(request), "terminal")
 
+    def test_refused_in_the_terminal(self):
+        # Claude Code fires no hook when the person says no: the transcript is the only word of it
+        tool = {"tool_name": "Bash", "tool_input": {"command": "nix build .#cakeos"}}
+        transcript = os.path.join(self.runtime, "s1.jsonl")
+        open(transcript, "w").close()
+        self.run_hook("UserPromptSubmit", prompt="build")
+        self.run_hook("PreToolUse", tool_use_id="toolu_3", **tool)
+        proc, request = self.ask()
+        time.sleep(1.2)
+        refusal = "The user doesn't want to proceed with this tool use. The tool use was rejected."
+        with open(transcript, "a") as f:
+            f.write(json.dumps({"type": "user", "message": {"content": [{"type": "tool_result", "content": refusal, "is_error": True, "tool_use_id": "toolu_3"}]}}) + "\n")
+        self.assertIsNone(self.finish(proc))
+        self.assertEqual(self.resolved(request), "terminal")
+        state = self.bridge.settle(lambda s: not s["requests"])
+        self.assertEqual((state["sessions"][0]["state"], state["sessions"][0]["activity"]), ("idle", ""))
+
     def test_turn_over(self):
         proc, request = self.ask()
         self.run_hook("Stop", last_assistant_message="Stopped.")

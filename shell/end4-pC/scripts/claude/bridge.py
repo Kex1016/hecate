@@ -40,6 +40,9 @@ FIRST_LINE_TIMEOUT = 5.0  # seconds a client has to send its message
 MAX_CLIENTS = 256
 MAX_TRANSCRIPT_READ = 4 << 20
 NOTE_BODY = 300
+# How Claude Code words the result of a tool call the person refused in the terminal. Only
+# used to show such a session as idle; a request is taken down for any result.
+REFUSED = b"doesn't want to proceed"
 NOTE_SETTLE = 0.05  # seconds between notify-send showing its notification and taking SIGINT
 NOTE_PATIENCE = 2.0  # seconds a notify-send gets to show, and then to go away
 
@@ -515,7 +518,10 @@ class Bridge:
             lines = (entry[2] + data).split(b"\n")
             entry[2] = lines.pop()[-MAX_LINE:]
             needle = tool_use_id.encode("utf-8")
-            if any(needle in line and b'"tool_result"' in line for line in lines):
+            results = [line for line in lines if needle in line and b'"tool_result"' in line]
+            if any(REFUSED in line for line in results):
+                self.store.rejected(request_id)
+            elif results:
                 self.store.resolve(request_id, "terminal")
 
     def periodic(self):
