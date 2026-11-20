@@ -216,6 +216,51 @@ match = { app_id = "kitty" }
 border = { radius = { top_left = 15, top_right = 15, bottom_right = 4, bottom_left = 4 } }
 ```
 
+## Haiiro look
+
+With the bundled shell, `theming.compositor` (on by default) sets the
+haiiro look over the defaults. Every value is yours to override under
+`settings`.
+
+- **Frame**: `border.width = 5`, `style = "double"`, `radius = 0`, a
+  `#1f1d2e` background, active `#31748f`, inactive `#403d52`, urgent
+  `#eb6f92`, label `#e0def4`, on a `#191724` ground. Blur is off.
+- **Tints**: `border.tint` names the colours `border_tint` uses (see
+  [ipc.md](ipc.md#border-tints)). `gold` `#f6c177` needs you, `love`
+  `#eb6f92` is critical or failed, `foam` `#9ccfd8` is done.
+- **Motion**: windows and layers pixelate in and out in four steps
+  (`animations.window_open`, `layer_open` and their closes); window moves,
+  border colour changes and workspace switches are cuts (`style = "none"`).
+- **Splash**: `splash.handover = "cut"`, so the login screen hands over
+  without a fade.
+
+### Blob background
+
+`background.blobs` is the moving background that stands in for
+`general.background_color` (and the black behind a lock screen). A shell
+that shows a wallpaper turns it off at runtime with `hecate msg blobs off`,
+and `hecate msg blobs on` turns it back. Keys:
+
+| key | meaning |
+| --- | ------- |
+| `enable` | draw it |
+| `still` | one frame that doesn't move (reduced motion) |
+| `cell` | a cell's side in logical pixels |
+| `density` | cells per blob |
+| `count_min`, `count_max` | blobs per output (64 at most) |
+| `radius_max` | biggest a blob may get before two pass through each other |
+| `speed_min`, `speed_max` | cells per second |
+| `fps` | how often it moves, at most |
+| `ground`, `halo`, `core` | the three tones: ground, dithered halo, core |
+| `save` | file to write the simulations to at exit |
+| `resume` | file to carry on from at startup |
+
+The Home Manager module sets `resume` to
+`/run/hecate-greetd/blobs.json` (`wayland.windowManager.hecate.shell.blobs.resume`),
+the file hecate-greetd writes when you log in, so the first blob frame of
+the session follows the login screen's last one. A missing file just starts
+the blobs afresh.
+
 ## Same thing from Nix (Home Manager)
 
 ```nix

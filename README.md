@@ -75,6 +75,7 @@ and put `resources/hecate.desktop` in `/usr/share/wayland-sessions`.
 - [nix.md](docs/nix.md): the flake, NixOS and Home Manager modules
 - [shell.md](docs/shell.md): the bundled shell and what's patched in it
 - [cli.md](docs/cli.md) and [ipc.md](docs/ipc.md): `hecate msg` and the IPC protocol
+- [hecate-mcp.md](docs/hecate-mcp.md): the MCP server that lets Claude Code see and, with permission, act on the desktop
 - [animations.md](docs/animations.md), [protocols.md](docs/protocols.md)
 - [PLAN.md](docs/PLAN.md) and [decisions.md](docs/decisions.md): how it came to be
 

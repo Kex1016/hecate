@@ -35,6 +35,47 @@ fontconfig, kitty/foot/fuzzel/fish), the Python requirements and the
 dist-nix wrapper as a starting point. The Hyprland config is dropped:
 hecate's config replaces it.
 
+## Haiiro look
+
+The shell's own look is haiiro: a Rosé Pine palette (ground `#191724`,
+text `#e0def4`, pine `#31748f` as the active accent, love `#eb6f92`,
+gold `#f6c177`, foam `#9ccfd8`), one frame for every window, and the
+haiiro faces. The colours are fixed, so nothing is taken from the wallpaper
+any more: the wallpaper only changes what the shell shows, and the desktop
+behind it is the blob background unless you pick a wallpaper (the shell
+turns the blobs off over IPC, see [config.md](config.md#haiiro-look)).
+
+- **Faces**: IBM VGA 8x16, Jacquard 24 and GNU Unifont as the glyph
+  fallback. `nix/fonts.nix` builds them as `haiiro-fonts`, and the NixOS
+  module installs them system-wide (`programs.hecate.fonts.enable`).
+- **Widgets**: the desktop widgets include a system group (weather, now
+  playing, meters, network, disks, repos and updates) under
+  `shell/end4-pC/modules/ii/background/widgets/system/`.
+- **Border tints** show what needs you: gold while a Claude session waits
+  for an answer, love for failures, foam when it's done. Any window can be
+  tinted by hand with `hecate msg tint`.
+
+## Optional services
+
+Nothing here runs until you turn it on. Each one is an entry in the shell's
+config (`Config.qml`), so the settings page is where you change it.
+
+- **Claude** (`claude.enable`, off by default). When it's on, the sessions
+  panel, the ask panel and the briefing widgets run the `claude` CLI, and
+  the hook bridge takes Claude Code's permission requests into the shell
+  (`claude.bridge`, on with it). Each widget runs only after you press it,
+  shows what it would send, and an hourly brief is off unless you switch
+  it on. Claude's own processes are kept away from the bridge with
+  `HECATE_CLAUDE_BRIDGE=0`. `hecate-mcp` is a separate, opt-in server for
+  Claude Code: [hecate-mcp.md](hecate-mcp.md).
+- **Apple** (`apple`). AirPods (through librepods, which pauses playback
+  when a bud comes out), iCloud Photos (synced to `~/Pictures/iCloud`),
+  iCloud Drive mounted at `~/iCloud` (also added to Dolphin's places once
+  Dolphin has written its places file), and Cider's local API. The Apple ID
+  is `apple.appleId`, or else the first iCloud account in `calendars.toml`.
+  The AirPods and Drive switches are on in the defaults, so check them
+  before you rely on the defaults being quiet.
+
 ## How Hyprland-bound end4-pC is
 
 Measured with grep over end4-pC:
