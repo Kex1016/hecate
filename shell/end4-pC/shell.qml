@@ -47,9 +47,11 @@ ShellRoot {
         Updates.load()
         LyricsService.restartLyrics()
         GreeterSync.load()
-        // iCloud: calendars and contacts sync, the photo album rotates the wallpaper, Drive
-        // mounts at login. Each does nothing until its account is set up.
+        // iCloud: calendars and contacts sync (contacts show in the launcher), the photo
+        // album rotates the wallpaper, Drive mounts at login. Each does nothing until its account is set up.
         Calendars.load()
+        Contacts.load()
+        LauncherSearch.contactsSearch = (query, count) => Contacts.search(query, count)
         Photos.load()
         Drive.load()
         // The hourly brief's schedule and the lock time the digest counts from.

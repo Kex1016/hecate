@@ -29,6 +29,10 @@ Singleton {
     property var claudeHook: null
     readonly property bool claudeReady: typeof root.claudeHook === "function"
 
+    // Contacts (iCloud and other CardDAV address books): shell.qml sets this to
+    // function(query, count) → [contact], best match first (services/apple/Contacts).
+    property var contactsSearch: null
+
     // Puts the launcher in a mode, keeping what was typed after any prefix.
     function setMode(mode) {
         root.query = Match.prefixFor(mode) + root.text;
@@ -383,6 +387,23 @@ Singleton {
             out.push({ name: "apps", rows: commands.concat(apps) });
 
         out.push(...root.fileGroup(t, 3));
+
+        // enter copies the number, or the e-mail when there is no number
+        const people = typeof root.contactsSearch === "function" ? root.contactsSearch(t, 3) : [];
+        const contacts = people.map(c => {
+            const phone = c.phones?.[0]?.value ?? "";
+            const email = c.emails?.[0]?.value ?? "";
+            return root.row("contacts", {
+                key: "contact:" + (c.uid ?? c.name),
+                text: c.name ?? "",
+                match: t,
+                meta: String(c.account ?? "") !== "" ? `${String(c.account).toLowerCase()} contacts` : "contacts",
+                hint: phone ? "copy number" : email ? "copy email" : "",
+                execute: () => { if (phone || email) Quickshell.clipboardText = phone || email; }
+            });
+        });
+        if (contacts.length > 0)
+            out.push({ name: "contacts", rows: contacts });
 
         let settings = [];
         try {
