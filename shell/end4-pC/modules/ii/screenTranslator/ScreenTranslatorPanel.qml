@@ -8,6 +8,7 @@ import Quickshell.Wayland
 import qs.modules.common
 import qs.modules.common.utils
 import qs.modules.common.widgets
+import qs.modules.common.widgets.haiiro as H
 import qs.services
 
 PanelWindow {
@@ -130,95 +131,94 @@ PanelWindow {
         }
     }
 
-    Row {
+    // The bar: `hecate: ~/translate`, a key button that opens the field for the service account
+    // key, and the keys.
+    H.PixelTransition {
+        id: barTransition
+        shown: root.visible
         anchors {
             horizontalCenter: parent.horizontalCenter
             bottom: parent.bottom
-            bottomMargin: -height
+            bottomMargin: 40
         }
-        Behavior on anchors.bottomMargin {
-            animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
-        }
-        Component.onCompleted: {
-            anchors.bottomMargin = 8;
-        }
+        width: bar.implicitWidth
+        height: bar.implicitHeight
 
-        spacing: 6
+        H.HWindow {
+            id: bar
+            width: implicitWidth
+            height: implicitHeight
+            label: "hecate: ~/translate"
+            variant: keyField.invalid ? "love" : "pine"
+            hints: [
+                { key: "scroll", text: "zoom" },
+                { key: "drag", text: "move" },
+                { key: "esc", text: "close" }
+            ]
 
-        Toolbar {
-            id: toolbar
             focus: root.visible
-            Keys.onPressed: event => { // Esc to close
+            Keys.onPressed: event => {
                 if (event.key === Qt.Key_Escape) {
                     root.dismiss();
-                }
-            }
-            spacing: 0
-
-            IconToolbarButton {
-                id: sleepButton
-                onClicked: {
-                    toggled = !toggled
-                    if (toggled) keyInput.forceActiveFocus()
-                }
-                text: "key"
-
-                StyledToolTip {
-                    z: 9999
-                    text: Translation.tr("Key input")
+                    event.accepted = true;
                 }
             }
 
-            Revealer {
-                reveal: sleepButton.toggled
-                Layout.fillHeight: true
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                H.InkButton {
+                    text: "key"
+                    ink: keyRow.shown ? "c5" : ""
+                    flat: !keyRow.shown
+                    on: keyRow.shown
+                    activeFocusOnTab: false
+                    onClicked: {
+                        keyRow.shown = !keyRow.shown;
+                        if (keyRow.shown) keyField.forceInputFocus();
+                    }
+                }
+                H.HText {
+                    visible: !keyRow.shown
+                    role: "caption"
+                    ink: "c1"
+                    text: "Google Cloud service account key"
+                }
 
                 RowLayout {
-                    anchors.left: parent.left
-                    spacing: 6
-                    Item {} // extra padding
-                    ToolbarTextField {
-                        id: keyInput
-                        implicitWidth: 400
-                        placeholderText: Translation.tr("Paste service account key JSON here")
-                        inputMethodHints: Qt.ImhSensitiveData
-                        onAccepted: submit()
+                    id: keyRow
+                    property bool shown: false
+                    visible: shown
+                    Layout.fillWidth: true
+                    spacing: 8
 
-                        function submit() {
-                            const success = GoogleCloud.setKeyJson(text);
-                            if (!success) {
-                                invalidJsonAnimation.restart();
-                            } else {
+                    H.PromptLine {
+                        id: keyField
+                        property bool invalid: false
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 400
+                        path: "~/key"
+                        input: true
+                        // the key is a long JSON; paste it, then enter
+                        field.inputMethodHints: Qt.ImhSensitiveData
+                        onTextChanged: invalid = false
+                        onAccepted: {
+                            if (GoogleCloud.setKeyJson(text)) {
                                 text = "";
-                                sleepButton.toggled = false;
+                                keyRow.shown = false;
+                            } else {
+                                invalid = true;
                             }
                         }
-
-                        ErrorShakeAnimation {
-                            id: invalidJsonAnimation
-                            target: keyInput
-                        }
                     }
-                    IconToolbarButton {
-                        id: submitButton
-                        onClicked: keyInput.submit()
-                        text: "check"
-                        toggled: keyInput.text.length > 0
-
-                        StyledToolTip {
-                            z: 9999
-                            text: Translation.tr("Confirm")
-                        }
+                    H.HText {
+                        visible: keyField.invalid
+                        role: "caption"
+                        ink: "c2"
+                        text: "not a key"
                     }
                 }
-            }
-        }
-
-        ToolbarPairedFab {
-            iconText: "close"
-            onClicked: root.dismiss()
-            StyledToolTip {
-                text: Translation.tr("Close")
             }
         }
     }
