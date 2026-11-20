@@ -29,13 +29,7 @@ let
   sh = cmd: { spawn_sh = cmd; };
 in
 {
-  # Tap Super for search; hold it to show workspace numbers.
-  "Super".tap.spawn = [
-    ipc
-    "shortcut"
-    "trigger"
-    "searchToggleRelease"
-  ];
+  # Super alone opens nothing; hold it to show workspace numbers. The launcher is on Mod+A.
   "Super_L" = hold "workspaceNumber";
   "Super_R" = hold "workspaceNumber";
 
@@ -55,13 +49,12 @@ in
 
   "Mod+V" = trigger "overviewClipboardToggle";
   "Mod+Period" = trigger "overviewEmojiToggle";
-  "Mod+A" = trigger "sidebarLeftToggle";
-  "Mod+O" = trigger "sidebarLeftToggle";
-  "Mod+Alt+A" = trigger "sidebarLeftToggleDetach";
+  "Mod+A" = trigger "searchToggle";
+  # Claude: ask panel and sessions panel. Bind only; the panels register these shortcuts later.
+  "Mod+Slash" = trigger "claudeAskToggle";
+  "Mod+Shift+Slash" = trigger "claudeSessionsToggle";
   "Mod+N" = trigger "sidebarRightToggle";
-  "Mod+K" = trigger "oskToggle";
   "Mod+M" = trigger "mediaControlsToggle";
-  "Mod+G" = trigger "overlayToggle";
   "Mod+J" = trigger "barToggle";
   "Ctrl+Alt+Delete" = trigger "sessionToggle";
   "Mod+Ctrl+T" = trigger "wallpaperSelectorToggle";
