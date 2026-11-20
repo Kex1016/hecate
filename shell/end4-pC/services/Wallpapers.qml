@@ -10,8 +10,8 @@ pragma Singleton
 pragma ComponentBehavior: Bound
 
 /**
- * Provides a list of wallpapers and an "apply" action that calls the existing
- * switchwall.sh script. Pretty much a limited file browsing service.
+ * The wallpaper picker's folder browser, thumbnails, preview and apply (wallpaper mode only;
+ * the default desktop is the compositor's blobs).
  */
 Singleton {
     id: root
@@ -72,18 +72,6 @@ Singleton {
         root.previewPath = "";
     }
 
-    // Executions
-    Process {
-        id: applyProc
-    }
-    
-    function openFallbackPicker(darkMode = Appearance.m3colors.darkmode, startDir = "") {
-        const args = [Directories.wallpaperSwitchScriptPath, "--mode", darkMode ? "dark" : "light"];
-        if (startDir !== "") {
-            args.push("--start-dir", startDir);
-        }
-        Quickshell.execDetached(args);
-    }
 
     // Wallpapers are opt-in: the default desktop is the compositor's animated blobs.
     readonly property bool enabled: Config.options.background.mode === "wallpaper"

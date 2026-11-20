@@ -18,16 +18,9 @@ let
   rev = "26fe30f";
 
   pythonEnv = python3.withPackages (
+    # What the bundled scripts import: thumbnails/thumbgen.py (click, loguru, gi, tqdm),
+    # images/*.py (numpy, opencv), gCloud/token_from_key.py (google-auth).
     ps: with ps; [
-      pillow
-      pywayland
-      psutil
-      materialyoucolor
-      # Moved out of python3Packages to pkgs/by-name (still a Python package).
-      (pkgs.kde-material-you-colors or ps.kde-material-you-colors)
-      libsass
-      material-color-utilities
-      setproctitle
       click
       loguru
       pycairo
@@ -78,7 +71,7 @@ let
       glib
       xdg-user-dirs
       dbus
-      # The QML calls `python3` directly for some scripts (colour schemes, ...).
+      # The QML calls `python3` directly for some scripts (claude usage, calendars, ...).
       pythonEnv
       # audio
       cava
@@ -89,7 +82,6 @@ let
       brightnessctl
       ddcutil
       # theming
-      matugen
       imagemagick
       kdePackages.kconfig
       # capture

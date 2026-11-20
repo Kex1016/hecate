@@ -268,8 +268,6 @@ PanelWindow {
                 return ScreenshotAction.Action.Edit;
             case RegionSelection.SnipAction.Search:
                 return ScreenshotAction.Action.Search;
-            case RegionSelection.SnipAction.CharRecognition:
-                return ScreenshotAction.Action.CharRecognition;
             case RegionSelection.SnipAction.Record:
                 return ScreenshotAction.Action.Record;
             case RegionSelection.SnipAction.RecordWithSound:
