@@ -15,36 +15,6 @@ use crate::state::State;
 /// Max bytes buffered for a slow client before it's dropped.
 const MAX_OUTGOING: usize = 4 * 1024 * 1024;
 
-/// The `border_tint` action: `{"border_tint": "gold"}`, or
-/// `{"border_tint": {"color": "gold", "ms": 3000}}` to have it clear itself. The colour is
-/// `gold`, `love`, `foam` (`border.tint`), any `#rrggbb`, or `none` to clear it.
-#[derive(Debug, PartialEq, serde::Deserialize)]
-#[serde(untagged)]
-enum BorderTint {
-    Color(String),
-    Timed(TimedTint),
-}
-
-#[derive(Debug, PartialEq, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-struct TimedTint {
-    color: String,
-    #[serde(default)]
-    ms: Option<u64>,
-}
-
-impl BorderTint {
-    /// None when `action` is some other action.
-    fn from_action(action: &serde_json::Value) -> Option<Result<BorderTint, String>> {
-        let map = action.as_object().filter(|m| m.len() == 1)?;
-        let arg = map.get("border_tint")?;
-        Some(
-            serde_json::from_value(arg.clone())
-                .map_err(|_| "border_tint takes a colour name or { color, ms }".to_string()),
-        )
-    }
-}
-
 pub struct IpcServer {
     pub path: PathBuf,
     next_id: u64,
@@ -285,18 +255,9 @@ impl State {
                 ipc: ipc::VERSION,
             })),
             Request::Action { action, target } => {
-                // `border_tint` is IPC's own: not something to bind a key to.
-                let tint = match BorderTint::from_action(&action) {
-                    Some(Ok(tint)) => Some(tint),
-                    Some(Err(err)) => return Some(Reply::error(format!("invalid action: {err}"))),
-                    None => None,
-                };
-                let action = match tint {
-                    Some(_) => None,
-                    None => match serde_json::from_value::<crate::config::action::Action>(action) {
-                        Ok(a) => Some(a),
-                        Err(err) => return Some(Reply::error(format!("invalid action: {err}"))),
-                    },
+                let action = match serde_json::from_value::<crate::config::action::Action>(action) {
+                    Ok(a) => a,
+                    Err(err) => return Some(Reply::error(format!("invalid action: {err}"))),
                 };
                 let window = match &target {
                     None => None,
@@ -305,14 +266,14 @@ impl State {
                         Err(e) => return Some(Reply::error(e)),
                     },
                 };
-                match (tint, action) {
-                    (Some(tint), _) => {
-                        if let Err(e) = self.border_tint(tint, window) {
+                match action {
+                    // The one action that can fail: say why to the caller.
+                    crate::config::action::Action::BorderTint(tint) => {
+                        if let Err(e) = self.border_tint(&tint, window) {
                             return Some(Reply::error(e));
                         }
                     }
-                    (None, Some(action)) => self.do_action(action, window),
-                    (None, None) => {}
+                    action => self.do_action(action, window),
                 }
                 Reply::unit()
             }
@@ -426,13 +387,10 @@ impl State {
     /// or for `ms`: gold while its Claude session waits for an answer, love when it needs
     /// attention now. Like every border colour change it snaps or fades by
     /// `animations.border`.
-    fn border_tint(&mut self, tint: BorderTint, window: Option<Window>) -> Result<(), String> {
+    pub fn border_tint(&mut self, tint: &ipc::BorderTint, window: Option<Window>) -> Result<(), String> {
         use crate::render::border;
-        let (name, ms) = match tint {
-            BorderTint::Color(name) => (name, None),
-            BorderTint::Timed(TimedTint { color, ms }) => (color, ms),
-        };
-        let color = match name.as_str() {
+        let (name, ms) = tint.parts();
+        let color = match name {
             "none" => None,
             name => Some(self.hecate.config.border.tint.resolve(name).ok_or_else(|| {
                 format!("unknown tint {name:?}: gold, love, foam, none or a #rrggbb colour")
@@ -654,15 +612,16 @@ impl State {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::config::action::Action;
+    use hecate_ipc::{BorderTint, TimedTint};
     use serde_json::json;
 
     #[test]
     fn border_tint_forms() {
-        let parse = |v| BorderTint::from_action(&v);
+        let parse = |v| serde_json::from_value::<Action>(v).map_err(|e| e.to_string());
         assert_eq!(
             parse(json!({"border_tint": "gold"})),
-            Some(Ok(BorderTint::Color("gold".into())))
+            Ok(Action::BorderTint(BorderTint::Color("gold".into())))
         );
         let timed = TimedTint {
             color: "#ff0000".into(),
@@ -670,15 +629,16 @@ mod tests {
         };
         assert_eq!(
             parse(json!({"border_tint": {"color": "#ff0000", "ms": 3000}})),
-            Some(Ok(BorderTint::Timed(timed)))
+            Ok(Action::BorderTint(BorderTint::Timed(timed)))
         );
-        assert!(matches!(
-            parse(json!({"border_tint": {"colour": "gold"}})),
-            Some(Err(_))
-        ));
-        assert!(matches!(parse(json!({"border_tint": 3})), Some(Err(_))));
-        // Other actions are not its business.
-        assert_eq!(parse(json!("close")), None);
-        assert_eq!(parse(json!({"workspace": 3})), None);
+        let err = parse(json!({"border_tint": {"colour": "gold"}})).unwrap_err();
+        assert!(
+            err.contains("border_tint takes a colour name or { color, ms }"),
+            "{err}"
+        );
+        assert!(parse(json!({"border_tint": 3})).is_err());
+        // Other actions are still themselves.
+        assert_eq!(parse(json!("close")), Ok(Action::Close));
+        assert!(matches!(parse(json!({"workspace": 3})), Ok(Action::Workspace(_))));
     }
 }

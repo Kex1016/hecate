@@ -712,6 +712,7 @@ dependencies = [
 name = "hecate-ipc"
 version = "1.0.0"
 dependencies = [
+ "schemars",
  "serde",
  "serde_json",
 ]

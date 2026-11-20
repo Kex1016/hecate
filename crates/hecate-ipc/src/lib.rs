@@ -239,6 +239,67 @@ pub struct Window {
     /// Grows each time the window gets focus: sort descending for most recently used first.
     #[serde(default)]
     pub focus_serial: u64,
+    /// The `border_tint` set on it: `gold`, `love` or `foam` while it is the colour that name
+    /// has in `border.tint`, else `#rrggbb`. None when its border has its usual colours.
+    #[serde(default)]
+    pub border_tint: Option<String>,
+}
+
+/// The `border_tint` action's argument: `{"border_tint": "gold"}`, or
+/// `{"border_tint": {"color": "gold", "ms": 3000}}` to have it clear itself. The colour is
+/// `gold`, `love`, `foam` (`border.tint`), any `#rrggbb`, or `none` to clear it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(untagged)]
+pub enum BorderTint {
+    Color(String),
+    Timed(TimedTint),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct TimedTint {
+    pub color: String,
+    /// Clear the tint again after this many milliseconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ms: Option<u64>,
+}
+
+impl BorderTint {
+    pub fn new(color: impl Into<String>, ms: Option<u64>) -> BorderTint {
+        let color = color.into();
+        match ms {
+            None => BorderTint::Color(color),
+            Some(ms) => BorderTint::Timed(TimedTint { color, ms: Some(ms) }),
+        }
+    }
+
+    /// The colour, and how long it lasts.
+    pub fn parts(&self) -> (&str, Option<u64>) {
+        match self {
+            BorderTint::Color(color) => (color, None),
+            BorderTint::Timed(t) => (&t.color, t.ms),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for BorderTint {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Raw {
+            Color(String),
+            Timed(TimedTint),
+        }
+        match Raw::deserialize(d) {
+            Ok(Raw::Color(c)) => Ok(BorderTint::Color(c)),
+            Ok(Raw::Timed(t)) => Ok(BorderTint::Timed(t)),
+            Err(_) => Err(serde::de::Error::custom(
+                "border_tint takes a colour name or { color, ms }",
+            )),
+        }
+    }
 }
 
 /// Everything about one window (`hecate msg pick` / `window`).
@@ -535,6 +596,66 @@ mod tests {
         assert_eq!(r, Request::Blobs(Blobs::Enable(false)));
         let r: Request = serde_json::from_str(r#"{"blobs":"export"}"#).unwrap();
         assert_eq!(r, Request::Blobs(Blobs::Export));
+    }
+
+    #[test]
+    fn border_tint_shapes() {
+        let t: BorderTint = serde_json::from_str(r#""gold""#).unwrap();
+        assert_eq!(t, BorderTint::new("gold", None));
+        let t: BorderTint = serde_json::from_str(r#"{"color":"love","ms":3000}"#).unwrap();
+        assert_eq!(t.parts(), ("love", Some(3000)));
+        let t: BorderTint = serde_json::from_str(r#"{"color":"foam"}"#).unwrap();
+        assert_eq!(t.parts(), ("foam", None));
+        let err = serde_json::from_str::<BorderTint>(r#"{"colour":"gold"}"#).unwrap_err();
+        assert!(err.to_string().contains("colour name or { color, ms }"), "{err}");
+        assert_eq!(
+            serde_json::to_string(&BorderTint::new("love", Some(5))).unwrap(),
+            r#"{"color":"love","ms":5}"#
+        );
+    }
+
+    #[test]
+    fn window_without_border_tint_still_parses() {
+        // A compositor from before `border_tint` leaves the field out.
+        let mut v = serde_json::to_value(Window {
+            id: 1,
+            title: None,
+            app_id: None,
+            pid: None,
+            workspace_id: None,
+            is_focused: false,
+            is_floating: true,
+            is_urgent: false,
+            layout: WindowLayout {
+                window_size: (1, 1),
+                tile_size: (1., 1.),
+                pos_in_scrolling_layout: None,
+                tile_pos_in_workspace_view: None,
+                window_offset_in_tile: (0., 0.),
+            },
+            output: None,
+            geometry: Rect {
+                x: 0,
+                y: 0,
+                width: 1,
+                height: 1,
+            },
+            stacking: 0,
+            is_maximized: false,
+            is_fullscreen: false,
+            is_minimized: false,
+            always_on_top: false,
+            always_on_bottom: false,
+            omnipresent: false,
+            is_x11: false,
+            focus_serial: 0,
+            border_tint: Some("gold".into()),
+        })
+        .unwrap();
+        assert_eq!(v["border_tint"], "gold");
+        v.as_object_mut().unwrap().remove("border_tint");
+        let w: Window = serde_json::from_value(v).unwrap();
+        assert_eq!(w.border_tint, None);
     }
 
     #[test]
