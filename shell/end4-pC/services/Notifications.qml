@@ -168,12 +168,13 @@ Singleton {
             });
 			root.list = [...root.list, newNotifObject];
 
-            // Popup. Claude permission requests already have their own toast,
-            // so they only go to the history. Critical ones and permission requests
-            // get through do-not-disturb and stay until they are answered.
+            // Popup. Claude permission requests already have their own toast (the only
+            // toast that breaks through do-not-disturb), so they only go to the history.
+            // Every other notification respects do-not-disturb, whatever it claims to be;
+            // critical ones and other requests stay until they are dismissed.
             const claudeRequest = notification.hints?.["x-hecate-claude-request"] !== undefined;
             const urgent = root.isUrgent(notification);
-            if (!claudeRequest && (urgent || !root.popupInhibited)) {
+            if (!claudeRequest && !root.popupInhibited) {
                 newNotifObject.popup = true;
                 if (!urgent && notification.expireTimeout != 0) {
                     newNotifObject.timer = notifTimerComponent.createObject(root, {
@@ -190,7 +191,8 @@ Singleton {
     }
 
     // Critical, or a request that needs an answer (the `permission` category, or Claude
-    // asking whether it may do something). Kept in step with Toasts.isCritical/isPermission.
+    // asking whether it may do something): no timeout. Any app can claim these, so they
+    // never get through do-not-disturb. Kept in step with Toasts.isCritical/isPermission.
     function isUrgent(notification) {
         const urgency = String(notification?.urgency ?? "");
         if (urgency === "2" || /critical/i.test(urgency)) return true;

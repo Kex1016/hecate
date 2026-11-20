@@ -32,9 +32,11 @@ Scope {
         return Toasts.isCritical(n.urgency) || Toasts.isPermission(n.appName, n.summary, n.notification?.hints?.category ?? "");
     }
 
-    // what should be on screen now: urgent first, then newest first
+    // what should be on screen now: urgent first, then newest first. Do-not-disturb and
+    // fullscreen hold every toast back, urgent ones too: only the sessions panel's own
+    // permission toast gets through, and it is not one of these.
     readonly property var wanted: Notifications.popupList
-        .filter(n => notificationPopup.urgent(n) || !notificationPopup.muted)
+        .filter(n => !notificationPopup.muted)
         .sort((a, b) => (notificationPopup.urgent(b) - notificationPopup.urgent(a)) || (b.time - a.time))
     readonly property var shownIds: wanted.slice(0, maxShown).map(n => n.notificationId)
     readonly property int more: Math.max(0, wanted.length - maxShown)
