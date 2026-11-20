@@ -38,14 +38,12 @@ Singleton {
         root.query = prefix + root.text;
     }
 
-    // ---- aliases: `search.aliases` in the shell config ----
-    //   "search": { "aliases": { "files": "yazi", "music": ["spotify", "cider"] } }
+    // ---- aliases: `launcher.aliases` in the shell config ----
+    //   "launcher": { "aliases": { "files": "yazi", "music": ["spotify", "cider"] } }
     // A target is a desktop id (with or without .desktop), its last
     // reverse-DNS part, or an app name; anything else runs as a command.
-    // Config.qml has to declare the key (`property var aliases: ({})` in
-    // `search`): the config is written back from its declared keys, so an
-    // undeclared one is dropped from the file on the next save.
-    readonly property var aliases: Match.normalizeAliases(Config.options?.search?.aliases ?? {})
+    // The panels settings page edits the same key.
+    readonly property var aliases: Match.normalizeAliases(Config.options?.launcher?.aliases ?? {})
 
     // ---- helpers ----
     function row(group, fields) {
