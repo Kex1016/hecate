@@ -312,8 +312,13 @@ Singleton {
     function curlConfig(lines) {
         return lines.map(([k, v]) => v === undefined ? k : `${k} = "${String(v).replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t")}"`).join("\n") + "\n";
     }
+    // The password goes out with Basic auth, so only over https (or to this machine).
+    function local(url) {
+        return /^\w+:\/\/(localhost|127\.0\.0\.1|\[::1\])([:/]|$)/i.test(String(url));
+    }
     function propfind(url, depth, body, user, password, done) {
-        const config = root.curlConfig([
+        const proto = root.local(url) ? [] : [["proto", "=https"], ["proto-redir", "=https"]];
+        const config = root.curlConfig(proto.concat([
             ["url", url],
             ["request", "PROPFIND"],
             ["header", `Depth: ${depth}`],
@@ -324,7 +329,7 @@ Singleton {
             ["silent"],
             ["max-time", "20"],
             ["write-out", "\n%{http_code} %{url_effective}"],
-        ]);
+        ]));
         root.run(["curl", "-K", "-"], config, (exit, out) => root.splitCurl(out, url, done));
     }
     function fetch(url, done) {

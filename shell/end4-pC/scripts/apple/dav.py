@@ -125,6 +125,12 @@ def same_site(a: str, b: str) -> bool:
     return ha == hb or ".".join(ha.split(".")[-2:]) == ".".join(hb.split(".")[-2:])
 
 
+def secure(url: str) -> bool:
+    """Whether Basic auth may go to this URL: https, or a server on this machine."""
+    parts = urllib.parse.urlsplit(url)
+    return parts.scheme == "https" or (parts.hostname or "") in ("localhost", "127.0.0.1", "::1")
+
+
 class Response:
     def __init__(self, status: int, body: bytes, headers, url: str):
         self.status, self.body, self.headers, self.url = status, body, headers, url
@@ -139,6 +145,8 @@ def request(method: str, url: str, auth: tuple[str, str] | None = None, body: st
     data = body.encode("utf-8") if body is not None else None
     for _ in range(6):
         h = dict(hdrs)
+        if auth and not secure(url):
+            raise Failure("The password is only sent over https. Use the server's https address.")
         if auth:
             token = base64.b64encode(f"{auth[0]}:{auth[1]}".encode("utf-8")).decode("ascii")
             h["Authorization"] = f"Basic {token}"
