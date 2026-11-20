@@ -816,6 +816,12 @@ Singleton {
                 property int arbitraryRaceConditionDelay: 20 // milliseconds
             }
 
+            // The repos desktop widget: git checkouts under path, fetched in the background.
+            property JsonObject repos: JsonObject {
+                property string path: "~/src"
+                property bool fetch: true
+            }
+
             // ── login screen ─────────────────────────────────────────────────────────────
             // hecate-greetd always shows the blobs. Your keyboard and monitor layout still come
             // along (`hecate-greetd sync`).
