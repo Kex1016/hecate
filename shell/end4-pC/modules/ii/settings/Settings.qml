@@ -1,162 +1,78 @@
-//@ pragma Env QS_NO_RELOAD_POPUP=1
-//@ pragma Env QT_QUICK_CONTROLS_STYLE=Basic
-//@ pragma Env QT_QUICK_FLICKABLE_WHEEL_DECELERATION=10000
-import Quickshell.Io
+pragma ComponentBehavior: Bound
 import QtQuick
-import QtQuick.Controls
-import QtQuick.Layouts
 import Quickshell
-import Quickshell.Wayland
 import Quickshell.Hyprland
+import Quickshell.Io
+import Quickshell.Wayland
 import qs
 import qs.services
 import qs.modules.common
-import qs.modules.common.widgets
-import qs.modules.common.functions as CF
+import qs.modules.common.widgets.haiiro as H
 
+// The dashboard (Mod+Esc): one full-screen panel on the focused monitor, a
+// heavy veil over the blobs, and the home, settings and (in wallpaper mode)
+// wallpapers pages with the nav at the bottom. It pixelates in and out like
+// every other panel.
 Scope {
     id: root
 
-    readonly property real sizeScale: Config.options.settings.style === "minimal" ? 0.75 : 1.0
-    property bool isMinimal: Config.options.settings.style === "minimal"
+    readonly property string focusedScreenName: WM.niriLike
+        ? (WM.focusedMonitor?.name ?? "")
+        : (Hyprland.focusedMonitor?.name ?? "")
+    readonly property var focusedScreen: Quickshell.screens.find(s => s.name === root.focusedScreenName)
+        ?? Quickshell.screens[0]
 
     Component.onCompleted: {
         GlobalStates.settingsOpen = false;
+        // Reads shell.toml once, dropping frame and motion keys an older shell wrote there.
+        if (WM.compositor === "hecate") HecateSettings.refresh();
     }
 
-    Dashboard {}
-
-    PanelWindow {
-        id: panelWindow
-        visible: GlobalStates.settingsOpen && Config.options.settings.style !== "dashboard"
-
-        function hide() {
-            GlobalStates.settingsOpen = false;
+    // The launcher (and anything else) can open a page at a setting.
+    Connections {
+        target: GlobalStates
+        function onSettingsTargetChanged() {
+            const t = GlobalStates.settingsTarget;
+            if (!t) return;
+            GlobalStates.dashboardPage = 1;
+            if (t.page) GlobalStates.dashboardGroup = t.page;
         }
+    }
 
-        exclusiveZone: 0
-        WlrLayershell.namespace: "quickshell:settings"
-        WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.keyboardFocus: GlobalStates.settingsOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
-        color: "transparent"
+    LazyLoader {
+        id: loader
+        // Stays loaded through the close frames.
+        active: GlobalStates.settingsOpen || (item?.present ?? false)
 
-        anchors {
-            top: true
-            bottom: true
-            left: true
-            right: true
-        }
+        PanelWindow {
+            id: window
+            readonly property bool present: transition.present
 
-        onVisibleChanged: {
-            if (visible) {
-                GlobalFocusGrab.addDismissable(panelWindow);
-                settingsWindow.userMoved = false;
-            } else {
-                GlobalFocusGrab.removeDismissable(panelWindow);
-            }
-        }
-
-        Connections {
-            target: GlobalFocusGrab
-            function onDismissed() {
-                panelWindow.hide();
-            }
-        }
-
-        Rectangle {
-            anchors.fill: parent
+            screen: root.focusedScreen
             color: "transparent"
-            opacity: GlobalStates.settingsOpen ? 1 : 0
-            z: 0
-            Behavior on opacity {
-                NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+            exclusionMode: ExclusionMode.Ignore
+            WlrLayershell.namespace: "quickshell:settings"
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.keyboardFocus: GlobalStates.settingsOpen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+
+            anchors {
+                top: true
+                bottom: true
+                left: true
+                right: true
             }
-            MouseArea {
+
+            H.PixelTransition {
+                id: transition
                 anchors.fill: parent
-                propagateComposedEvents: false
-                onClicked: panelWindow.hide()
-            }
-        }
+                margin: 0
+                shown: GlobalStates.settingsOpen
 
-        Rectangle {
-            id: settingsWindow
-            width: Config.options.settings.style === "minimal" ? Math.min(parent.width - 70, 980 * sizeScale) : Math.min(parent.width - 80, 980 * sizeScale)
-            height: Math.min(parent.height - 80, 665 * sizeScale)
-            color: Appearance.colors.colUiBackground
-            border.width: Config.options.settings.borderSize
-            border.color: CF.ColorUtils.transparentize(Appearance.getColorFromName(Config.options.settings.borderColor), 0.8)
-            radius: !isMinimal ? Appearance.rounding.screenRounding - Appearance.sizes.hyprlandGapsOut + 5 : Appearance.rounding.screenRounding + 5
-            z: 1
-
-            property bool userMoved: false
-            anchors.centerIn: userMoved ? undefined : parent
-
-            opacity: GlobalStates.settingsOpen ? 1 : 0
-            scale: GlobalStates.settingsOpen ? 1 : 0.95
-
-            Behavior on opacity {
-                NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
-            }
-            Behavior on scale {
-                NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
-            }
-
-            Keys.onTabPressed: (event) => {
-            const count = settingsContent.pages.length;
-            settingsContent.currentPage = (settingsContent.currentPage + 1) % count;
-            settingsContent.showingProfile = false;
-            event.accepted = true;
-        }
-
-        Keys.onBacktabPressed: (event) => {
-            const count = settingsContent.pages.length;
-            settingsContent.currentPage = (settingsContent.currentPage - 1 + count) % count;
-            settingsContent.showingProfile = false;
-            event.accepted = true;
-        }
-
-        Keys.onPressed: (event) => {
-            if (event.key === Qt.Key_Escape) {
-                panelWindow.hide();
-                event.accepted = true;
-                return;
-            }
-
-            if (event.key === Qt.Key_Down || event.key === Qt.Key_Up) {
-                const instance = GlobalStates.currentPageInstance;
-                if (instance && instance.contentY !== undefined) {
-                    const step = 60;
-                    const delta = event.key === Qt.Key_Down ? step : -step;
-                    const maxY = Math.max(0, (instance.contentHeight ?? 0) - instance.height);
-                    instance.contentY = Math.max(0, Math.min(maxY, instance.contentY + delta));
-                }
-                event.accepted = true;
-                return;
-            }
-        }
-
-            Rectangle {
-                id: dragHandle
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.right: parent.right
-                height: 32
-                color: "transparent"
-                z: 2
-
-                MouseArea {
+                DashboardContent {
                     anchors.fill: parent
-                    cursorShape: Qt.SizeAllCursor
-                    drag.target: settingsWindow
-                    drag.axis: Drag.XAndYAxis
-                    onPressed: settingsWindow.userMoved = true
-                    onDoubleClicked: settingsWindow.userMoved = false
+                    open: GlobalStates.settingsOpen
+                    onCloseRequested: GlobalStates.settingsOpen = false
                 }
-            }
-
-            SettingsContent {
-                id: settingsContent
-                anchors.fill: parent
             }
         }
     }
@@ -164,13 +80,19 @@ Scope {
     IpcHandler {
         target: "settings"
         function toggle(): void { GlobalStates.settingsOpen = !GlobalStates.settingsOpen; }
-        function open(): void   { GlobalStates.settingsOpen = true; }
-        function close(): void  { GlobalStates.settingsOpen = false; }
+        function open(): void { GlobalStates.settingsOpen = true; }
+        function close(): void { GlobalStates.settingsOpen = false; }
+        // `qs ipc call settings page calendars`: open the dashboard on one settings page.
+        function page(id: string): void {
+            GlobalStates.dashboardPage = 1;
+            GlobalStates.dashboardGroup = id;
+            GlobalStates.settingsOpen = true;
+        }
     }
 
     CompositorGlobalShortcut {
         name: "settingsToggle"
-        description: "Toggles settings panel"
-        onPressed: GlobalStates.settingsOpen = !GlobalStates.settingsOpen;
+        description: "Toggles the dashboard"
+        onPressed: GlobalStates.settingsOpen = !GlobalStates.settingsOpen
     }
 }
