@@ -9,7 +9,7 @@ import qs.modules.common.functions
 
 /**
  * Hands your look to hecate-greetd, the login screen. It can't read your home directory, so
- * `hecate-greetd sync` copies what it needs (shell config, generated colours, wallpapers,
+ * `hecate-greetd sync` copies what it needs (shell config, wallpapers,
  * avatar, monitor layout, keyboard and mouse settings) to /var/lib/hecate-greetd/users/$USER.
  * Runs at startup and shortly after any of those change. Settings → hecate-greetd.
  */
@@ -102,8 +102,6 @@ Singleton {
         onFileChanged: root.request()
     }
     Watched { path: Directories.shellConfigPath }
-    Watched { path: Directories.generatedMaterialThemePath }
-    Watched { path: Directories.generatedLockMaterialThemePath }
     Watched { path: `${Quickshell.env("HOME")}/.face` }
     Watched { path: FileUtils.trimFileProtocol(`${Directories.config}/hecate/shell.toml`) }
     Watched { path: FileUtils.trimFileProtocol(`${Directories.config}/hecate/config.toml`) }

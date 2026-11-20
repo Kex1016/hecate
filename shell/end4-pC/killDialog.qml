@@ -36,7 +36,6 @@ ApplicationWindow {
     Component.onCompleted: {
         Config.readWriteDelay = 0;
         Config.blockWrites = true;
-        MaterialThemeLoader.reapplyTheme();
     }
 
     minimumWidth: 400

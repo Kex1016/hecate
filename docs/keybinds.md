@@ -89,19 +89,16 @@ so `hecate msg binds` shows each bind's layer.
 
 | bind                         | action                                  |
 | ---------------------------- | --------------------------------------- |
-| `Super` (tap)                | `shell:searchToggleRelease` (launcher / search) |
 | `Super_L`, `Super_R` (hold)  | press/release `shell:workspaceNumber` (shows workspace numbers) |
 | `Mod+V`                      | `shell:overviewClipboardToggle`         |
 | `Alt+Tab` / `Alt+Shift+Tab`  | shell Alt+Tab switcher: `signal` `alt-tab-next` / `alt-tab-prev` |
 | `Alt_L`, `Alt_R` (release)   | `signal` `alt-tab-commit`: switch to the selected window (transparent) |
 | `Alt+Escape`                 | `signal` `alt-tab-cancel`: close the switcher |
 | `Mod+Period`                 | `shell:overviewEmojiToggle`             |
-| `Mod+A`, `Mod+O`             | `shell:sidebarLeftToggle`               |
-| `Mod+Alt+A`                  | `shell:sidebarLeftToggleDetach`         |
+| `Mod+A`                      | `shell:searchToggle` (launcher)         |
+| `Mod+Slash` / `Mod+Shift+Slash` | `shell:claudeAskToggle` / `claudeSessionsToggle` (Claude ask panel / sessions panel) |
 | `Mod+N`                      | `shell:sidebarRightToggle` (notifications, quick settings) |
-| `Mod+K`                      | `shell:oskToggle`                       |
 | `Mod+M`                      | `shell:mediaControlsToggle`             |
-| `Mod+G`                      | `shell:overlayToggle`                   |
 | `Mod+J`                      | `shell:barToggle`                       |
 | `Ctrl+Alt+Delete`            | `shell:sessionToggle`                   |
 | `Mod+Ctrl+T` / `Mod+Ctrl+Alt+T` | `shell:wallpaperSelectorToggle` / `wallpaperSelectorRandom` |
@@ -136,16 +133,16 @@ Resolution in the last column, **agreed in round 3**.
 | `Mod+J/K/L/M` | focus left/down/up/right | bar / OSK / lock / media | | **shell**; directional focus stays on the arrow keys |
 | `Mod+Shift+J/K/L/M` | niri: focus output (base: arrows only, plus `Shift+L` suspend) | `Shift+L` suspend, `Shift+M` mute | | base keeps `Shift+L` suspend (same as end-4); **shell** adds `Shift+M` mute |
 | `Mod+F` | maximize | fullscreen (`Mod+D` = maximize) | | **shell**: `F` fullscreen, `D` maximize. `Mod+Shift+F` stays fullscreen too |
-| `Mod+D` | | maximize | launcher | **shell** (launcher is `Super` tap now) |
+| `Mod+D` | | maximize | launcher | **shell** (launcher is `Mod+A` now) |
 | `Mod+G` / `Mod+Shift+G` | always-on-top / omnipresent | widget overlay | | **shell**; those moved to `Mod+Alt+Space` / `Mod+P` |
 | `Mod+Shift+R` | height preset | region record | | **shell**; height preset moved to `Mod+Semicolon` |
 | `Mod+Ctrl+R` | reset size | restart shell | | **shell**; reset moved to `Mod+Apostrophe` |
 | `Mod+Shift+C` | (was reload) | colour picker | | **shell**; reload moved to `Mod+Ctrl+Alt+R` |
-| `Mod+A` | (niri overview, dropped) | left sidebar | | **shell** |
+| `Mod+A` | (niri overview, dropped) | launcher | | **shell** |
 | `Mod+N` | | right sidebar | notification history | **shell** (same intent) |
 | `Mod+V` | | clipboard | clipboard | **shell** (same intent) |
 | `Mod+S` | | Hyprland scratchpad | `hyprcap` screenshot | **personal**: map to `shell:regionScreenshot` (no scratchpad in hecate) |
-| `Mod+B` | | left sidebar (alias) | browser | **personal** (drop the alias, `Mod+A`/`Mod+O` remain) |
+| `Mod+B` | | left sidebar (alias) | browser | **personal** (drop the alias, `Mod+A` remains) |
 | `Mod+X` | | text editor | session menu | **personal**: `shell:sessionToggle` |
 | `Mod+T` | | terminal | file manager | **personal** |
 | `Mod+E` | | file manager | editor (codium) | **personal** |
