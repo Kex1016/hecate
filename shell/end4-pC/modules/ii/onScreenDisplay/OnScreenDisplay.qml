@@ -173,7 +173,7 @@ Scope {
 
             implicitWidth: osdFrame.width + 2 * pad
             implicitHeight: osdFrame.height + 2 * pad
-            visible: osdLoader.active && !GlobalStates.dynamicIslandEnabled
+            visible: osdLoader.active
 
             // One window at a time, bottom centre: it pixelates in, sits for
             // the timeout and pixelates out. Nothing slides.

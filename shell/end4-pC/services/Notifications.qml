@@ -169,11 +169,13 @@ Singleton {
 			root.list = [...root.list, newNotifObject];
 
             // Popup. Claude permission requests already have their own toast,
-            // so they only go to the history.
+            // so they only go to the history. Critical ones and permission requests
+            // get through do-not-disturb and stay until they are answered.
             const claudeRequest = notification.hints?.["x-hecate-claude-request"] !== undefined;
-            if (!root.popupInhibited && !claudeRequest) {
+            const urgent = root.isUrgent(notification);
+            if (!claudeRequest && (urgent || !root.popupInhibited)) {
                 newNotifObject.popup = true;
-                if (notification.expireTimeout != 0) {
+                if (!urgent && notification.expireTimeout != 0) {
                     newNotifObject.timer = notifTimerComponent.createObject(root, {
                         "notificationId": newNotifObject.notificationId,
                         "interval": notification.expireTimeout < 0 ? (Config?.options.notifications.timeout ?? 7000) : notification.expireTimeout,
@@ -185,6 +187,16 @@ Singleton {
             // console.log(notifToString(newNotifObject));
             notifFileView.setText(stringifyList(root.list));
         }
+    }
+
+    // Critical, or a request that needs an answer (the `permission` category, or Claude
+    // asking whether it may do something). Kept in step with Toasts.isCritical/isPermission.
+    function isUrgent(notification) {
+        const urgency = String(notification?.urgency ?? "");
+        if (urgency === "2" || /critical/i.test(urgency)) return true;
+        const category = notification?.hints?.category ?? "";
+        if (category === "permission" || category === "permission.request") return true;
+        return /claude/i.test(notification?.appName ?? "") && /permission|allow|approve/i.test(notification?.summary ?? "");
     }
 
     function markAllRead() {
