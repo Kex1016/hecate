@@ -22,21 +22,22 @@ QtQuick.Controls, whose `Slider` has the same name.
 
 | file | part |
 | --- | --- |
-| HWindow | Window: pine, love, gold and foam frames, footer hints and note |
+| HWindow | Window: pine, love, gold and foam frames, a coloured label (`labelInk`), footer hints and note |
 | InkButton | InkButton (c1-c7, flat) |
-| Chip | Chip and badge |
+| Chip | Chip and badge; `hoverable` chips that aren't toggles, `pressAndHold()` (also right click) |
 | Keycap | Keycap, with an optional hint after it |
 | ListRow | ListRow, with match highlight and leading/trailing slots |
-| Slider | Slider (and the OSD's bare track) |
+| Slider | Slider (and the OSD's bare track); emits `moved` and never writes `value` |
 | Segmented, Spin | Segmented and its number spinner |
 | SettingRow | SettingRow |
-| Progress | Progress |
+| Progress | Progress, with an `ink` (love for a disk that is nearly full) |
 | Transport | Transport (normal and small) |
 | CalendarGrid | Calendar |
 | Spark | Sparkline and the hourly bars |
 | Dither, Veil | Dither placeholders and the dimming veil |
 | CodeBlock | CodeBlock |
 | PromptLine | PromptLine, and the search field form |
+| PasswordLine | the sudo/polkit password prompt: words, optional stars, block cursor |
 | PixelTransition | the open and close effect for every panel |
 | HText, HLabel, HRule | text in a type role, the `.lab` heading, the `.hr` rule |
 | HTokens | where the kit reads tokens from `Appearance.haiiro` |

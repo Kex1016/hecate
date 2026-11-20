@@ -167,14 +167,7 @@ HWindow {
                 to: Math.max(1, root.length)
                 stepSize: 1
                 onMoved: value => { if (root.canSeek) root.player.position = value; }
-                // setValue() replaces the value, so a plain binding would stop
-                // following the player after the first drag
-                Binding {
-                    target: seek
-                    property: "value"
-                    value: root.position
-                    when: !seek.pressed
-                }
+                value: root.position
             }
         }
     }

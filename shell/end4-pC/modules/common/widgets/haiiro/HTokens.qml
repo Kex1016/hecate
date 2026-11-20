@@ -123,6 +123,7 @@ Singleton {
     readonly property int toastWidth: sz?.toastWidth ?? 420
     readonly property int osdWidth: sz?.osdWidth ?? 360
     readonly property int panelWidth: sz?.panelWidth ?? 640
+    readonly property int quickPanelWidth: sz?.quickPanelWidth ?? 480
     readonly property int transportCell: sz?.transportCell ?? 48
     readonly property int ditherTile: sz?.ditherTile ?? 4
     readonly property int ditherTileBig: sz?.ditherTileBig ?? 8

@@ -31,6 +31,7 @@ H.HWindow {
     widget: true
     variant: "gold"
     label: "next"
+    labelInk: "gold"
     implicitWidth: 360
 
     H.HText {

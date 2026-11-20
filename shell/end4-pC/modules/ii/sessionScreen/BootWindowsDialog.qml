@@ -92,7 +92,7 @@ Item {
                     H.HText { text: "Windows Boot Manager"; ink: "iris" }
                     H.HText { text: ", once." }
                 }
-                PasswordLine {
+                H.PasswordLine {
                     id: line
                     busy: root.busy
                     onAccepted: root.submit()

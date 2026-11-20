@@ -125,6 +125,8 @@ Singleton {
             readonly property int toastGap: 22
             readonly property int osdWidth: 360
             readonly property int panelWidth: 640
+            // The quick panel (Mod+N).
+            readonly property int quickPanelWidth: 480
             readonly property int transportCell: 48
             readonly property int transportCellSmall: 36
             // Play/pause.

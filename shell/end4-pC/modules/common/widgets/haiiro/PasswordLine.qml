@@ -1,5 +1,5 @@
 import QtQuick
-import qs.modules.common.widgets.haiiro as H
+import qs.modules.common.widgets.haiiro
 
 // A password prompt the way a terminal draws it: the prompt words, then
 // nothing (sudo) or one `*` per key (polkit), then a full block cursor. The
@@ -7,7 +7,7 @@ import qs.modules.common.widgets.haiiro as H
 //
 //   PasswordLine {
 //       stars: true
-//       H.HText { text: "@"; ink: "love" }
+//       HText { text: "@"; ink: "love" }
 //   }
 Item {
     id: root
@@ -21,19 +21,19 @@ Item {
     signal cancelled()
 
     implicitWidth: line.implicitWidth
-    implicitHeight: H.HTokens.lineBox(H.HTokens.fontBody)
+    implicitHeight: HTokens.lineBox(HTokens.fontBody)
 
     function forceInputFocus() { field.forceActiveFocus(); }
     function clear() { field.text = ""; }
 
     Row {
         id: line
-        spacing: H.HTokens.ch()
+        spacing: HTokens.ch()
         Row {
             id: words
-            spacing: H.HTokens.ch()
+            spacing: HTokens.ch()
         }
-        H.HText {
+        HText {
             visible: root.stars && field.text.length > 0
             text: "*".repeat(field.text.length)
             ink: "iris"
@@ -41,9 +41,9 @@ Item {
         }
         Rectangle {
             visible: field.activeFocus
-            width: H.HTokens.ch()
-            height: H.HTokens.lineBox(H.HTokens.fontBody)
-            color: H.HTokens.text
+            width: HTokens.ch()
+            height: HTokens.lineBox(HTokens.fontBody)
+            color: HTokens.text
         }
     }
 

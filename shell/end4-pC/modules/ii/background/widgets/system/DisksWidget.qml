@@ -42,13 +42,14 @@ H.HWindow {
         Repeater {
             model: ResourceUsage.disks.slice(0, root.maxRows)
 
-            DiskBar {
+            H.Progress {
                 required property var modelData
                 width: parent.width
                 label: modelData.mount
                 count: root.usage(modelData)
                 value: modelData.usedPercentage
-                full: modelData.usedPercentage > root.fullAt
+                // nearly full: label, count, track and fill in love
+                ink: modelData.usedPercentage > root.fullAt ? "love" : "text"
             }
         }
     }

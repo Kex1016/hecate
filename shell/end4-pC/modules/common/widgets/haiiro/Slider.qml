@@ -6,6 +6,9 @@ import qs.modules.common.widgets.haiiro
 // square thumb ringed in surface. The label sits on the left in 8ch and the
 // number on the right in 3ch. `thumb: false` is the OSD's read-only track.
 // Arrow keys step by `stepSize`; Page Up/Down by ten steps.
+// The slider never writes `value`: it emits moved() and the owner sets the
+// level, so `value` can stay a plain binding. While dragging, the thumb follows
+// the pointer and ignores `value`.
 Item {
     id: root
 
@@ -18,8 +21,10 @@ Item {
     property bool showValue: true
     // what the number says; defaults to the position as a percentage
     property string valueText: Math.round(position * 100)
-    readonly property real position: to === from ? 0 : Math.max(0, Math.min(1, (value - from) / (to - from)))
     readonly property bool pressed: drag.pressed
+    property real dragValue: 0
+    readonly property real shown: pressed ? dragValue : value
+    readonly property real position: to === from ? 0 : Math.max(0, Math.min(1, (shown - from) / (to - from)))
     signal moved(real value)
 
     activeFocusOnTab: thumb && enabled
@@ -30,10 +35,15 @@ Item {
     function setValue(v) {
         const s = root.stepSize > 0 ? Math.round((v - root.from) / root.stepSize) * root.stepSize + root.from : v;
         const c = Math.max(Math.min(root.from, root.to), Math.min(Math.max(root.from, root.to), s));
-        if (c !== root.value) {
-            root.value = c;
-            root.moved(c);
+        // The owner sets `value` from moved() (or binds it to the real level): assigning it
+        // here would break that binding.
+        if (root.pressed) {
+            if (c === root.dragValue) return;
+            root.dragValue = c;
+        } else if (c === root.value) {
+            return;
         }
+        root.moved(c);
     }
 
     Keys.onPressed: event => {
@@ -114,7 +124,7 @@ Item {
                     const p = Math.max(0, Math.min(1, (mx - 6 - HTokens.borderHairline) / track.inner));
                     root.setValue(root.from + p * (root.to - root.from));
                 }
-                onPressed: mouse => { root.forceActiveFocus(); apply(mouse.x); }
+                onPressed: mouse => { root.forceActiveFocus(); root.dragValue = root.value; apply(mouse.x); }
                 onPositionChanged: mouse => { if (pressed) apply(mouse.x); }
                 onWheel: wheel => root.setValue(root.value + (wheel.angleDelta.y > 0 ? 1 : -1) * root.stepSize)
             }

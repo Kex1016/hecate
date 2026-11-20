@@ -14,7 +14,7 @@ Scope {
     id: root
 
     // QuickPanel board: 480px wide, 24px from the right, the bar and the bottom.
-    readonly property int panelWidth: 480
+    readonly property int panelWidth: H.HTokens.quickPanelWidth
     readonly property int gap: H.HTokens.space6
 
     Component.onCompleted: QuickState.gameMode // start the Game Mode state with the shell
