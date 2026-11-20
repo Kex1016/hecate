@@ -9,6 +9,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
+import qs.modules.common.widgets.haiiro as H
 
 Scope {
     id: root
@@ -29,20 +30,18 @@ Scope {
 
     Timer {
         id: closeAnimTimer
-        interval: Appearance.animation.sidebarSlideExit.duration
+        interval: H.HTokens.pixelateDuration + 50
         onTriggered: root.reallyOpen = false
     }
 
     Loader {
         id: wallpaperSelectorLoader
-        active: root.reallyOpen
+        active: root.reallyOpen && Wallpapers.enabled
 
         sourceComponent: PanelWindow {
             id: panelWindow
             readonly property var monitor: WM.monitorFor(panelWindow.screen)
-            property bool monitorIsFocused: WM.compositor === "hyprland"
-                ? (WM.focusedMonitor?.name == monitor?.name)
-                : (WM.focusedMonitor?.name == monitor?.name)
+            property bool monitorIsFocused: WM.focusedMonitor?.name == monitor?.name
 
             exclusionMode: ExclusionMode.Ignore
             WlrLayershell.namespace: "quickshell:wallpaperSelector"
@@ -50,75 +49,37 @@ Scope {
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
             color: "transparent"
 
-            anchors.top: true
-            margins {
-                top: Config?.options.bar.vertical ? Appearance.sizes.hyprlandGapsOut : Appearance.sizes.barHeight + Appearance.sizes.hyprlandGapsOut
-            }
+            // only on the monitor with focus
+            visible: monitorIsFocused
 
-            mask: Region {
-                item: content
-            }
+            mask: Region { item: pixel }
 
-            implicitHeight: Appearance.sizes.wallpaperSelectorHeight
-            implicitWidth: Appearance.sizes.wallpaperSelectorWidth
+            implicitWidth: content.implicitWidth + 2 * pixel.margin
+            implicitHeight: content.implicitHeight + 2 * pixel.margin
 
-            Component.onCompleted: {
-                GlobalFocusGrab.addDismissable(panelWindow);
-                content.slideIn();
-            }
-            Component.onDestruction: {
-                GlobalFocusGrab.removeDismissable(panelWindow);
-            }
+            Component.onCompleted: GlobalFocusGrab.addDismissable(panelWindow)
+            Component.onDestruction: GlobalFocusGrab.removeDismissable(panelWindow)
             Connections {
                 target: GlobalFocusGrab
-                function onDismissed() {
-                    GlobalStates.wallpaperSelectorOpen = false;
-                }
+                function onDismissed() { GlobalStates.wallpaperSelectorOpen = false; }
             }
 
-            WallpaperSelectorContent {
-                id: content
-                width: parent.width
-                height: parent.height
-                x: 0
-                y: 0
+            H.PixelTransition {
+                id: pixel
+                anchors.centerIn: parent
+                shown: GlobalStates.wallpaperSelectorOpen
 
-                function slideIn() {
-                    content.y = -content.height;
-                    if (WM.niriLike) {
-                        Qt.callLater(() => { Qt.callLater(() => { content.y = 0; }); });
-                    } else {
-                        Qt.callLater(() => { content.y = 0; });
-                    }
-                }
-
-                Connections {
-                    target: GlobalStates
-                    function onWallpaperSelectorOpenChanged() {
-                        if (!GlobalStates.wallpaperSelectorOpen) {
-                            content.y = -content.height;
-                        }
-                    }
-                }
-
-                Behavior on y {
-                    NumberAnimation {
-                        duration: WM.niriLike
-                            ? Appearance.animation.sidebarSlideEnter.duration
-                            : Appearance.animation.sidebarSlideExit.duration
-                        easing.type: GlobalStates.wallpaperSelectorOpen
-                            ? Appearance.animation.sidebarSlideEnter.type
-                            : Appearance.animation.sidebarSlideExit.type
-                        easing.bezierCurve: GlobalStates.wallpaperSelectorOpen
-                            ? Appearance.animation.sidebarSlideEnter.bezierCurve
-                            : Appearance.animation.sidebarSlideExit.bezierCurve
-                    }
+                WallpaperSelectorContent {
+                    id: content
+                    monitorIsFocused: panelWindow.monitorIsFocused
                 }
             }
         }
     }
 
     function toggleWallpaperSelector() {
+        // wallpapers are opt-in: no picker until Settings > desktop > background says so
+        if (!Wallpapers.enabled) return;
         if (Config.options.wallpaperSelector.useSystemFileDialog) {
             Wallpapers.openFallbackPicker(Appearance.m3colors.darkmode);
             return;
