@@ -1,3 +1,4 @@
+import qs
 import qs.modules.common
 import qs.modules.common.models
 import qs.modules.common.functions
@@ -84,11 +85,47 @@ Singleton {
         Quickshell.execDetached(args);
     }
 
+    // Wallpapers are opt-in: the default desktop is the compositor's animated blobs.
+    readonly property bool enabled: Config.options.background.mode === "wallpaper"
+    readonly property bool dither: Config.options.background.dither
+    readonly property bool perMonitor: Config.options.background.perMonitor
+
+    function setMode(mode) {
+        Config.options.background.mode = mode === "wallpaper" ? "wallpaper" : "blobs";
+        if (mode !== "wallpaper") GlobalStates.wallpaperSelectorOpen = false;
+    }
+
+    function setDither(on) {
+        Config.options.background.dither = on;
+    }
+
+    function setPerMonitor(on) {
+        Config.options.background.perMonitor = on;
+        if (!on) Config.options.background.monitorWallpapers = [];
+    }
+
+    // The compositor draws the blobs; in wallpaper mode it is told to stop.
+    function syncBlobs() {
+        if (!Config.ready) return;
+        Quickshell.execDetached(["hecate", "msg", "set", "blobs.enable", root.enabled ? "false" : "true"]);
+    }
+    onEnabledChanged: root.syncBlobs()
+    Connections {
+        target: Config
+        function onReadyChanged() { root.syncBlobs(); }
+    }
+
+    // No recolouring: the palette never follows the picture. The background layer
+    // reads wallpaperPath and, with dither on, presses it into haiiro tones.
     function apply(path, darkMode = Appearance.m3colors.darkmode) {
         if (!path || path.length === 0) return;
         root.confirmedPath = path;
-        Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--mode", darkMode ? "dark" : "light", "--image", path]);
+        Config.options.background.wallpaperPath = path;
         root.changed()
+    }
+
+    function openFolder() {
+        Quickshell.execDetached(["xdg-open", root.effectiveDirectory]);
     }
 
     Process {
@@ -120,6 +157,7 @@ Singleton {
     }
 
     function randomFromCurrentFolder(darkMode = Appearance.m3colors.darkmode) {
+        if (!root.enabled) return;
         const count = wallpaperModel.count > 0 ? wallpaperModel.count : folderModel.count;
         if (count === 0) return;
         const randomIndex = Math.floor(Math.random() * count);
@@ -544,6 +582,7 @@ Singleton {
         target: "wallpapers"
 
         function apply(path: string): void {
+            if (!root.enabled) return;
             root.apply(path);
         }
 

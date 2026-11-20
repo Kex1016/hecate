@@ -1,566 +1,144 @@
+pragma ComponentBehavior: Bound
 import qs
 import qs.services
 import qs.modules.common
-import qs.modules.common.widgets
-import qs.modules.common.functions
 import QtQuick
-import QtQuick.Controls
-import QtQuick.Layouts
-import Qt5Compat.GraphicalEffects
-import Quickshell
-import Quickshell.Io
+import qs.modules.common.widgets.haiiro as H
 
-
+// The picture grid: five to a row, the current one in a pine double frame,
+// the cursor in a foam outline. Folders are left out; there is one folder.
 Item {
     id: root
 
-    signal wallpaperSelected(string path)
-    property real cellWidth: grid.cellWidth
-    property real cellHeight: grid.cellHeight
+    property int columns: 5
+    property bool dither: Wallpapers.dither
+    // path of the picture that is set for the monitor being edited
+    property string currentPath: ""
+    property var files: []
+    signal picked(string path)
 
-    function moveSelection(delta) { grid.moveSelection(delta) }
-    function activateCurrent() { grid.activateCurrent() }
-
-    property int columns: Config.options.wallpaperSelector.columns || 4
-    property real previewCellAspectRatio: 4 / 3
-
-    // Drag-and-drop state
-    property bool isDragging: false
-    property int dragFromIndex: -1
-    property int dropTargetIndex: -1
-    property real dragX: 0
-    property real dragY: 0
-    property var draggedItemData: null
-
-    function startDrag(fromIdx, data, pos) {
-        grid.currentIndex = fromIdx;
-        dragFromIndex = fromIdx;
-        dropTargetIndex = fromIdx;
-        draggedItemData = data;
-        dragX = pos.x;
-        dragY = pos.y;
-        isDragging = true;
-    }
-
-    function updateDrag(pos) {
-        dragX = pos.x;
-        dragY = pos.y;
-
-        const gridPos = root.mapToItem(grid, pos.x, pos.y);
-        const col = Math.max(0, Math.min(root.columns - 1, Math.floor(gridPos.x / grid.cellWidth)));
-        const row = Math.floor((gridPos.y + grid.contentY) / grid.cellHeight);
-        const target = Math.max(0, Math.min(grid.model.count - 1, row * root.columns + col));
-        dropTargetIndex = target;
-
-        if (gridPos.y < 50) {
-            autoScrollUpTimer.running = true;
-            autoScrollDownTimer.running = false;
-        } else if (gridPos.y > grid.height - 50) {
-            autoScrollDownTimer.running = true;
-            autoScrollUpTimer.running = false;
-        } else {
-            autoScrollUpTimer.running = false;
-            autoScrollDownTimer.running = false;
+    function rebuild() {
+        const out = [];
+        for (let i = 0; i < Wallpapers.wallpaperModel.count; i++) {
+            const it = Wallpapers.wallpaperModel.get(i);
+            if (!it.fileIsDir && it.filePath) out.push({ name: it.fileName, path: it.filePath });
         }
+        root.files = out;
+        if (grid.currentIndex >= out.length) grid.currentIndex = Math.max(0, out.length - 1);
+    }
+    Component.onCompleted: rebuild()
+    Connections {
+        target: Wallpapers
+        function onResultsUpdated() { root.rebuild(); }
     }
 
-    function endDrag() {
-        autoScrollUpTimer.running = false;
-        autoScrollDownTimer.running = false;
-        if (isDragging && dragFromIndex >= 0 && dropTargetIndex >= 0 && dragFromIndex !== dropTargetIndex) {
-            Wallpapers.moveWallpaper(dragFromIndex, dropTargetIndex);
-            grid.currentIndex = dropTargetIndex;
-        }
-        isDragging = false;
-        dragFromIndex = -1;
-        dropTargetIndex = -1;
-        draggedItemData = null;
+    function moveSelection(delta) {
+        grid.currentIndex = Math.max(0, Math.min(root.files.length - 1, grid.currentIndex + delta));
+    }
+    function activateCurrent() {
+        const f = root.files[grid.currentIndex];
+        if (f) root.picked(f.path);
+    }
+    function randomPick() {
+        if (root.files.length === 0) return;
+        root.picked(root.files[Math.floor(Math.random() * root.files.length)].path);
     }
 
-    function cancelDrag() {
-        autoScrollUpTimer.running = false;
-        autoScrollDownTimer.running = false;
-        isDragging = false;
-        dragFromIndex = -1;
-        dropTargetIndex = -1;
-        draggedItemData = null;
-    }
-
-    Timer {
-        id: autoScrollUpTimer
-        interval: 16
-        repeat: true
-        running: false
-        onTriggered: {
-            grid.contentY = Math.max(0, grid.contentY - 14);
-            root.updateDrag(Qt.point(root.dragX, root.dragY));
-        }
-    }
-
-    Timer {
-        id: autoScrollDownTimer
-        interval: 16
-        repeat: true
-        running: false
-        onTriggered: {
-            const maxContentY = Math.max(0, grid.contentHeight - grid.height);
-            grid.contentY = Math.min(maxContentY, grid.contentY + 14);
-            root.updateDrag(Qt.point(root.dragX, root.dragY));
-        }
-    }
-
-    Process {
-        id: deleteProc
-        property string filePath: ""
-        function deleteFile(path) {
-            filePath = path;
-            command = ["gio", "trash", path];
-            running = true;
-        }
-        onExited: (exitCode) => {
-            if (exitCode !== 0) console.log("Error deleting file:", filePath);
-        }
-    }
-
-    // ─── Dismiss overlay for context menu ───
-    MouseArea {
-        anchors.fill: parent
-        visible: contextMenu.open
-        z: 105
-        hoverEnabled: true
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
-        onClicked: contextMenu.open = false
-    }
-
-    // ─── Context menu ───
-    BouncyPopup {
-        id: contextMenu
-        transformOrigin: Item.TopLeft
-        z: 110
-
-        property string targetPath: ""
-        property int targetIndex: -1
-        property real targetX: 0
-        property real targetY: 0
-        property real targetWidth: grid.cellWidth
-        property real targetHeight: grid.cellHeight
-
-        x: Math.max(8, Math.min(root.width - width - 8, targetX))
-        y: Math.max(8, Math.min(root.height - height - 8, targetY))
-        width: Math.max(grid.cellWidth, 230)
-        height: Math.max(grid.cellHeight, 90)
-
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: 4
-            color: Appearance.colors.colLayer1
-            radius: Appearance.rounding.normal
-            border.width: 1
-            border.color: Appearance.colors.colLayer0Border
-
-            StyledRectangularShadow {
-                target: parent
-            }
-
-            ColumnLayout {
-                anchors.centerIn: parent
-                spacing: 6
-
-                RowLayout {
-                    spacing: 6
-                    Layout.alignment: Qt.AlignHCenter
-
-                    RippleButton {
-                        implicitWidth: 32; implicitHeight: 32
-                        buttonRadius: height / 2
-                        colBackground: Appearance.colors.colSecondaryContainer
-                        onClicked: {
-                            Wallpapers.moveToTop(contextMenu.targetIndex);
-                            contextMenu.open = false;
-                        }
-                        contentItem: MaterialSymbol {
-                            anchors.centerIn: parent
-                            text: "first_page"
-                            iconSize: Appearance.font.pixelSize.normal
-                            color: Appearance.colors.colOnSecondaryContainer
-                        }
-                        StyledToolTip { text: Translation.tr("Move to beginning") }
-                    }
-
-                    RippleButton {
-                        implicitWidth: 32; implicitHeight: 32
-                        buttonRadius: height / 2
-                        colBackground: Appearance.colors.colSecondaryContainer
-                        onClicked: {
-                            Wallpapers.moveWallpaper(contextMenu.targetIndex, Math.max(0, contextMenu.targetIndex - 1));
-                            contextMenu.open = false;
-                        }
-                        contentItem: MaterialSymbol {
-                            anchors.centerIn: parent
-                            text: "arrow_back"
-                            iconSize: Appearance.font.pixelSize.normal
-                            color: Appearance.colors.colOnSecondaryContainer
-                        }
-                        StyledToolTip { text: Translation.tr("Move earlier") }
-                    }
-
-                    RippleButton {
-                        implicitWidth: 32; implicitHeight: 32
-                        buttonRadius: height / 2
-                        colBackground: Appearance.colors.colSecondaryContainer
-                        onClicked: {
-                            Wallpapers.moveWallpaper(contextMenu.targetIndex, Math.min(Wallpapers.wallpaperModel.count - 1, contextMenu.targetIndex + 1));
-                            contextMenu.open = false;
-                        }
-                        contentItem: MaterialSymbol {
-                            anchors.centerIn: parent
-                            text: "arrow_forward"
-                            iconSize: Appearance.font.pixelSize.normal
-                            color: Appearance.colors.colOnSecondaryContainer
-                        }
-                        StyledToolTip { text: Translation.tr("Move later") }
-                    }
-
-                    RippleButton {
-                        implicitWidth: 32; implicitHeight: 32
-                        buttonRadius: height / 2
-                        colBackground: Appearance.colors.colSecondaryContainer
-                        onClicked: {
-                            Wallpapers.moveToBottom(contextMenu.targetIndex);
-                            contextMenu.open = false;
-                        }
-                        contentItem: MaterialSymbol {
-                            anchors.centerIn: parent
-                            text: "last_page"
-                            iconSize: Appearance.font.pixelSize.normal
-                            color: Appearance.colors.colOnSecondaryContainer
-                        }
-                        StyledToolTip { text: Translation.tr("Move to end") }
-                    }
-                }
-
-                RowLayout {
-                    spacing: 8
-                    Layout.alignment: Qt.AlignHCenter
-
-                    RippleButton {
-                        implicitWidth: 32; implicitHeight: 32
-                        buttonRadius: height / 2
-                        colBackground: Appearance.colors.colErrorContainer
-                        onClicked: {
-                            contextMenu.open = false;
-                            deleteProc.deleteFile(contextMenu.targetPath);
-                        }
-                        contentItem: MaterialSymbol {
-                            anchors.centerIn: parent
-                            text: "delete"
-                            iconSize: Appearance.font.pixelSize.normal
-                            color: Appearance.colors.colOnErrorContainer
-                        }
-                        StyledToolTip { text: Translation.tr("Delete wallpaper") }
-                    }
-
-                    RippleButton {
-                        implicitWidth: 32; implicitHeight: 32
-                        buttonRadius: height / 2
-                        colBackground: Appearance.colors.colLayer2
-                        onClicked: contextMenu.open = false
-                        contentItem: MaterialSymbol {
-                            anchors.centerIn: parent
-                            text: "close"
-                            iconSize: Appearance.font.pixelSize.normal
-                            color: Appearance.colors.colOnLayer2
-                        }
-                        StyledToolTip { text: Translation.tr("Cancel") }
-                    }
-                }
-            }
-        }
-    }
-
-    // ─── Floating drag ghost ───
-    Item {
-        id: dragGhost
-        visible: root.isDragging && root.draggedItemData !== null
-        z: 120
-        width: grid.cellWidth
-        height: grid.cellHeight
-        x: root.dragX - width / 2
-        y: root.dragY - height / 2
-        scale: 1.05
-        opacity: 0.92
-
-        StyledRectangularShadow {
-            target: dragGhostBg
-        }
-
-        Rectangle {
-            id: dragGhostBg
-            anchors.fill: parent
-            radius: Appearance.rounding.normal
-            color: Appearance.colors.colLayer2
-            border.width: 2
-            border.color: Appearance.colors.colPrimary
-
-            WallpaperDirectoryItem {
-                anchors.fill: parent
-                fileModelData: root.draggedItemData ? root.draggedItemData : ({})
-                colBackground: Appearance.colors.colSecondaryContainer
-                colText: Appearance.colors.colOnSecondaryContainer
-            }
-        }
-    }
-
-    // ─── Progress bars ───
-    StyledIndeterminateProgressBar {
-        id: indeterminateProgressBar
-        visible: Wallpapers.thumbnailGenerationRunning && value == 0
-        anchors {
-            bottom: grid.top
-            left: parent.left
-            right: parent.right
-            leftMargin: 4
-            rightMargin: 4
-        }
-    }
-
-    StyledProgressBar {
-        visible: Wallpapers.thumbnailGenerationRunning && value > 0
-        value: Wallpapers.thumbnailGenerationProgress
-        anchors.fill: indeterminateProgressBar
-    }
-
-    // ─── Grid ───
-    Timer {
-        id: introTimer
-        interval: 1200
-        onTriggered: grid.introDone = true
-    }
+    readonly property int gap: 20
 
     GridView {
         id: grid
-        property bool introDone: false
-        property int introCounter: 0
-        onCountChanged: if (count > 0 && !introDone && !introTimer.running) introTimer.start()
-        Component.onCompleted: if (count > 0) introTimer.start()
         anchors.fill: parent
-        visible: Wallpapers.wallpaperModel.count > 0
-
-        readonly property int columns: root.columns
-        readonly property int rows: Math.max(1, Math.ceil(count / columns))
-        property int currentIndex: 0
-
-        cellWidth: width / root.columns
-        cellHeight: cellWidth / root.previewCellAspectRatio
-        interactive: true
-        acceptedButtons: Qt.NoButton // Disables mouse-hold flicking/dragging; scrolls ONLY via wheel or trackpad
         clip: true
-        keyNavigationWraps: true
+        cellWidth: Math.floor(width / root.columns)
+        cellHeight: 150 + 6 + 16 + root.gap
+        model: root.files
+        currentIndex: 0
+        highlightFollowsCurrentItem: false
         boundsBehavior: Flickable.StopAtBounds
-        ScrollBar.vertical: StyledScrollBar {}
-
-        function getModelProp(idx, prop) {
-            if (!grid.model || idx < 0 || idx >= grid.model.count) return prop === "fileIsDir" ? false : "";
-            const item = grid.model.get(idx);
-            if (!item) return prop === "fileIsDir" ? false : "";
-            return (typeof item[prop] !== "undefined") ? item[prop] : (typeof grid.model.get(idx, prop) !== "undefined" ? grid.model.get(idx, prop) : "");
-        }
-
-        function moveSelection(delta) {
-            currentIndex = Math.max(0, Math.min(grid.model.count - 1, currentIndex + delta));
-            positionViewAtIndex(currentIndex, GridView.Contain);
-            const filePath = getModelProp(currentIndex, "filePath");
-            const isDir = getModelProp(currentIndex, "fileIsDir");
-            if (!isDir && filePath && Config.options.background.enableWallpaperPreview) Wallpapers.startPreview(filePath);
-        }
-
-        function activateCurrent() {
-            const filePath = getModelProp(currentIndex, "filePath");
-            root.wallpaperSelected(filePath);
-        }
-
-        model: Wallpapers.wallpaperModel
-        onModelChanged: { currentIndex = 0; Wallpapers.stopPreview(); }
-
-        Connections {
-            target: Wallpapers
-            function onResultsUpdated() {
-                if (Wallpapers.searchQuery.trim().length > 0) {
-                    grid.currentIndex = 0;
-                    Wallpapers.stopPreview();
-                }
-            }
-        }
 
         delegate: Item {
-            id: delegateCell
+            id: cell
             required property var modelData
             required property int index
+            readonly property bool current: modelData.path === root.currentPath
+            readonly property bool cursor: GridView.isCurrentItem
             width: grid.cellWidth
             height: grid.cellHeight
 
-            readonly property bool isGhost: root.isDragging && root.dragFromIndex === index
+            Column {
+                x: 0
+                width: parent.width - root.gap
+                spacing: 6
 
-            Component.onDestruction: {
-                if (root.isDragging && root.dragFromIndex === index) root.cancelDrag();
-            }
-            readonly property bool isDropTarget: root.isDragging && root.dropTargetIndex === index && root.dragFromIndex !== index
+                Item {
+                    width: parent.width
+                    height: 150
 
-            opacity: isGhost ? 0.3 : 1.0
-            scale: isDropTarget ? 1.05 : 1.0
-            Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
-            Behavior on opacity { NumberAnimation { duration: 150 } }
-
-            WallpaperDirectoryItem {
-                id: wallpaperItem
-                property int introOrder: -1
-                anchors.fill: parent
-                opacity: grid.introDone ? 1 : 0
-                scale: grid.introDone ? 1 : 0.85
-                transform: Translate {
-                    id: introShift
-                    y: grid.introDone ? 0 : 28
-                }
-                Component.onCompleted: {
-                    if (grid.introDone) return;
-                    introOrder = grid.introCounter++;
-                    introAnim.start();
-                }
-                fileModelData: delegateCell.modelData
-                colBackground: (delegateCell.index === grid.currentIndex || cellMouseArea.containsMouse)
-                    ? Appearance.colors.colPrimary
-                    : (delegateCell.modelData.filePath === Config.options.background.wallpaperPath)
-                        ? Appearance.colors.colSecondaryContainer
-                        : ColorUtils.transparentize(Appearance.colors.colPrimaryContainer)
-                colText: (delegateCell.index === grid.currentIndex || cellMouseArea.containsMouse)
-                    ? Appearance.colors.colOnPrimary
-                    : (delegateCell.modelData.filePath === Config.options.background.wallpaperPath)
-                        ? Appearance.colors.colOnSecondaryContainer
-                        : Appearance.colors.colOnLayer0
-            }
-
-            SequentialAnimation {
-                id: introAnim
-                PauseAnimation {
-                    duration: Math.max(0, Math.min(wallpaperItem.introOrder, 20)) * 16
-                }
-                ParallelAnimation {
-                    NumberAnimation {
-                        target: wallpaperItem
-                        property: "opacity"
-                        to: 1
-                        duration: 200
-                        easing.type: Easing.OutQuad
+                    Rectangle {
+                        anchors.fill: parent
+                        color: H.HTokens.base
                     }
-                    SpringAnimation {
-                        target: wallpaperItem
-                        property: "scale"
-                        to: 1
-                        spring: 3.5
-                        damping: 0.35
-                        epsilon: 0.002
+                    Image {
+                        anchors.fill: parent
+                        anchors.margins: cell.current ? 5 : 2
+                        source: "file://" + cell.modelData.path
+                        sourceSize: Qt.size(480, 300)
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        smooth: false
+                        cache: true
                     }
-                    SpringAnimation {
-                        target: introShift
-                        property: "y"
-                        to: 0
-                        spring: 3.5
-                        damping: 0.35
-                        epsilon: 0.1
+                    // dither preview: the checker over the picture. The background
+                    // layer does the real two-tone pressing.
+                    H.Dither {
+                        visible: root.dither
+                        anchors.fill: parent
+                        anchors.margins: cell.current ? 5 : 2
+                        ground: "transparent"
+                        ink: Qt.rgba(H.HTokens.base.r, H.HTokens.base.g, H.HTokens.base.b, 0.45)
+                    }
+                    // 2px highlight-high frame; the current one gets pine 5px double
+                    Rectangle {
+                        visible: !cell.current
+                        anchors.fill: parent
+                        color: "transparent"
+                        border.width: 2
+                        border.color: H.HTokens.highlightHigh
+                    }
+                    Repeater {
+                        model: cell.current ? [0, 3] : []
+                        Rectangle {
+                            required property int modelData
+                            x: modelData; y: modelData
+                            width: parent.width - 2 * modelData
+                            height: parent.height - 2 * modelData
+                            color: "transparent"
+                            border.width: 2
+                            border.color: H.HTokens.pine
+                        }
+                    }
+                    Rectangle {
+                        visible: cell.cursor
+                        anchors.fill: parent
+                        anchors.margins: -4
+                        color: "transparent"
+                        border.width: 2
+                        border.color: H.HTokens.foam
                     }
                 }
-            }
-
-            // Drop target indicator
-            Rectangle {
-                anchors.fill: parent
-                anchors.margins: Appearance.sizes.wallpaperSelectorItemMargins
-                radius: Appearance.rounding.normal
-                color: "transparent"
-                border.width: 2
-                border.color: Appearance.colors.colPrimary
-                visible: delegateCell.isDropTarget
-                z: 2
+                H.HText {
+                    width: parent.width
+                    elide: Text.ElideRight
+                    text: cell.modelData.name + (cell.current ? " · current" : "")
+                    role: "caption"
+                    ink: "subtle"
+                }
             }
 
             MouseArea {
-                id: cellMouseArea
                 anchors.fill: parent
-                hoverEnabled: true
-                acceptedButtons: Qt.LeftButton | Qt.RightButton
-
-                property real startPressX: 0
-                property real startPressY: 0
-                property bool dragInitiated: false
-
-                onEntered: {
-                    if (!root.isDragging) {
-                        grid.currentIndex = delegateCell.index;
-                    }
-                }
-
-                onPressed: (mouse) => {
-                    if (mouse.button === Qt.LeftButton) {
-                        startPressX = mouse.x;
-                        startPressY = mouse.y;
-                        dragInitiated = false;
-                    }
-                }
-
-                onPositionChanged: (mouse) => {
-                    if (mouse.buttons & Qt.LeftButton) {
-                        if (!root.isDragging) {
-                            const dist = Math.hypot(mouse.x - startPressX, mouse.y - startPressY);
-                            if (dist > 8) {
-                                dragInitiated = true;
-                                root.startDrag(delegateCell.index, delegateCell.modelData, cellMouseArea.mapToItem(root, mouse.x, mouse.y));
-                            }
-                        } else {
-                            root.updateDrag(cellMouseArea.mapToItem(root, mouse.x, mouse.y));
-                        }
-                    }
-                }
-
-                onReleased: (mouse) => {
-                    if (mouse.button === Qt.RightButton) {
-                        const pos = cellMouseArea.mapToItem(contextMenu.parent, 0, 0);
-                        contextMenu.targetX = pos.x;
-                        contextMenu.targetY = pos.y;
-                        contextMenu.targetPath = delegateCell.modelData.filePath;
-                        contextMenu.targetIndex = delegateCell.index;
-                        contextMenu.open = true;
-                        return;
-                    }
-                    if (root.isDragging) {
-                        root.endDrag();
-                    } else if (!dragInitiated) {
-                        grid.currentIndex = delegateCell.index;
-                        if (GlobalStates.wallpaperSelectorTarget !== "wallpaper" || !Config.options.background.enableWallpaperPreview) {
-                            root.wallpaperSelected(delegateCell.modelData.filePath);
-                        } else {
-                            if (!delegateCell.modelData.fileIsDir && Config.options.background.enableWallpaperPreview) {
-                                Wallpapers.startPreview(delegateCell.modelData.filePath);
-                            }
-                        }
-                    }
-                }
-
-                onCanceled: root.cancelDrag()
-
-                onDoubleClicked: (mouse) => {
-                    if (mouse.button === Qt.LeftButton) {
-                        root.wallpaperSelected(delegateCell.modelData.filePath);
-                    }
-                }
-            }
-        }
-
-        layer.enabled: true
-        layer.effect: OpacityMask {
-            maskSource: Rectangle {
-                width: grid.width
-                height: grid.height
-                radius: Appearance.rounding.screenRounding + 5
+                onClicked: { grid.currentIndex = cell.index; root.picked(cell.modelData.path); }
             }
         }
     }
