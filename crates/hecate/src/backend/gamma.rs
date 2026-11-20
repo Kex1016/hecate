@@ -13,6 +13,8 @@ use smithay::reexports::drm::control::{Device as _, crtc, property};
 pub struct GammaProps {
     crtc: crtc::Handle,
     mode: GammaMode,
+    /// Whether the CRTC had gamma set when we found it. Unknown counts as set.
+    found_set: bool,
 }
 
 enum GammaMode {
@@ -39,6 +41,9 @@ impl GammaProps {
         let mut gamma_lut = None;
         let mut gamma_lut_size = None;
         let mut ctm = None;
+        // A blob property with no blob reads as 0.
+        let mut gamma_lut_blob = 0;
+        let mut ctm_blob = 0;
 
         let props = device.get_properties(crtc).context("error getting properties")?;
         for (prop, value) in props {
@@ -50,17 +55,23 @@ impl GammaProps {
             };
             match name {
                 "GAMMA_LUT" if matches!(info.value_type(), property::ValueType::Blob) => {
-                    gamma_lut = Some(prop)
+                    gamma_lut = Some(prop);
+                    gamma_lut_blob = value;
                 }
                 "GAMMA_LUT_SIZE" if matches!(info.value_type(), property::ValueType::UnsignedRange(_, _)) => {
                     gamma_lut_size = Some(value as u32)
                 }
-                "CTM" if matches!(info.value_type(), property::ValueType::Blob) => ctm = Some(prop),
+                "CTM" if matches!(info.value_type(), property::ValueType::Blob) => {
+                    ctm = Some(prop);
+                    ctm_blob = value;
+                }
                 _ => (),
             }
         }
 
+        let mut found_set = true;
         let mode = if let (Some(gamma_lut), Some(gamma_lut_size)) = (gamma_lut, gamma_lut_size) {
+            found_set = gamma_lut_blob != 0;
             GammaMode::Lut {
                 gamma_lut,
                 gamma_lut_size,
@@ -76,6 +87,7 @@ impl GammaProps {
                 }
             } else {
                 let ctm = ctm.context("setting gamma is not supported")?;
+                found_set = ctm_blob != 0;
                 tracing::debug!("no GAMMA_LUT or legacy gamma; approximating gamma with CTM");
                 GammaMode::Ctm {
                     ctm,
@@ -84,7 +96,17 @@ impl GammaProps {
             }
         };
 
-        Ok(Self { crtc, mode })
+        Ok(Self {
+            crtc,
+            mode,
+            found_set,
+        })
+    }
+
+    /// Whether the CRTC had gamma set when we found it (by a previous session, say), so that
+    /// starting clean means resetting it.
+    pub fn found_set(&self) -> bool {
+        self.found_set
     }
 
     pub fn gamma_size(&self) -> u32 {

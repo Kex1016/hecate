@@ -2,8 +2,12 @@
 //! saved as a picture: the wallpaper and the shell's layers, no windows, overlays or cursor.
 //! The next session shows it from its first frame, so there's no bare screen while the shell
 //! starts, and takes it away once the shell says it's ready (action `splash_done`), or after
-//! `TIMEOUT`: with a fade, a cut or a pixelate (`splash.handover`). hecate-greetd shows the
-//! same pictures, so a login goes straight into them.
+//! `TIMEOUT`: with a fade, a cut or a pixelate (`splash.handover`).
+//!
+//! With the blob background (`background.blobs.enable`) there is no splash, whatever
+//! `splash.enable` says. The blobs are on screen from the first frame and carry on from where the
+//! login screen left them (`background.blobs.resume`), so no picture is loaded, saved or waited
+//! behind, and the first frame never holds for the shell.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -108,6 +112,13 @@ fn encode(path: &std::path::Path, pixels: &[u8], size: Size<i32, Physical>) -> a
 }
 
 impl Hecate {
+    /// Whether the splash is in use: `splash.enable`, and no blob background. What the config
+    /// file says about the blobs counts, not `hecate msg blobs off`: a shell showing a wallpaper
+    /// turns them off once it is up, and the next start has them again.
+    fn splash_in_use(&self) -> bool {
+        self.config.splash.enable && !self.file_config.background.blobs.enable
+    }
+
     /// `splash.dir`, else the default (`dir()`).
     fn splash_dir(&self) -> Option<PathBuf> {
         self.config
@@ -126,7 +137,10 @@ impl Hecate {
     /// Start decoding every picture in the splash directory, one thread each, so they are
     /// ready (or nearly) by the time the outputs are. `load_splash` picks them up.
     pub fn start_splash_decoding(&mut self) {
-        if !self.config.splash.enable {
+        if self.config.splash.enable && !self.splash_in_use() {
+            tracing::info!("no splash: the blob background is on screen from the first frame");
+        }
+        if !self.splash_in_use() {
             return;
         }
         let Some(dir) = self.splash_dir() else {
@@ -157,7 +171,7 @@ impl Hecate {
 
     /// Show the output's snapshot until the shell is ready, if there's one that fits it.
     pub fn load_splash(&mut self, output: &Output) {
-        if !self.config.splash.enable || self.splash_done {
+        if !self.splash_in_use() || self.splash_done {
             return;
         }
         let Some(path) = self.splash_path(output) else {
@@ -211,7 +225,7 @@ impl Hecate {
     /// Fade out at the latest after `TIMEOUT`, in case the shell never says it's ready, and
     /// stop holding the first frame (`splash.hold`) after `HOLD`.
     pub fn start_splash_timeout(&mut self) {
-        if !self.config.splash.enable {
+        if !self.splash_in_use() {
             return;
         }
         let _ = self
@@ -240,7 +254,7 @@ impl Hecate {
     /// would only be the splash, which is what the previous compositor left there. Until the
     /// shell is ready or `HOLD` runs out; a splash that's fading is drawn.
     pub fn splash_holds(&self, output: &Output) -> bool {
-        self.config.splash.enable
+        self.splash_in_use()
             && self.config.splash.hold
             && !self.splash_done
             && !self.splash_hold_over
@@ -330,7 +344,7 @@ impl Hecate {
     /// Save every output's desktop for the next login's splash. Encoding runs on threads; join
     /// the handles when the process is about to exit.
     pub fn save_snapshots(&self, renderer: &mut GlesRenderer) -> Vec<JoinHandle<()>> {
-        if !self.config.splash.enable || !self.config.splash.save {
+        if !self.splash_in_use() || !self.config.splash.save {
             return Vec::new();
         }
         let mut handles = Vec::new();

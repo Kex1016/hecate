@@ -240,3 +240,38 @@ fn hold_keeps_the_first_frame_back_until_the_shell_is_ready() {
     assert!(!off.hecate().hecate.splash_holds(&output), "but never held");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn the_blob_background_needs_no_splash() {
+    let dir = temp_dir("blobs");
+    let Some(mut f) = fixture("#00ff00", &dir) else {
+        return;
+    };
+    save(&mut f);
+    let picture = dir.join("headless-1.png");
+    let before = std::fs::metadata(&picture).unwrap().modified().unwrap();
+
+    // A session with the blobs: the same picture is there, and is neither decoded, shown,
+    // waited behind nor replaced. `hecate msg blobs off` (a shell with a wallpaper) changes
+    // nothing about that.
+    let mut next = Fixture::with_toml(&format!(
+        "[splash]\nenable = true\ndir = \"{}\"\n[background.blobs]\nenable = true\n[border]\nwidth = 0\n",
+        dir.display()
+    ));
+    if !next.enable_rendering() {
+        return;
+    }
+    assert!(next.hecate().hecate.splash_decoding.0.is_empty());
+    let output = next.add_output("headless-1", (400, 300));
+    assert!(!next.hecate().hecate.splash.contains_key(&output));
+    assert!(!next.hecate().hecate.splash_holds(&output));
+    next.hecate().hecate.config.background.blobs.enable = false;
+    assert!(!next.hecate().hecate.splash_holds(&output));
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let crate::state::State { backend, hecate } = next.hecate();
+    let handles = backend.with_renderer(|r| hecate.save_snapshots(r)).unwrap();
+    assert!(handles.is_empty(), "no picture is taken");
+    let after = std::fs::metadata(&picture).unwrap().modified().unwrap();
+    assert_eq!(before, after);
+    let _ = std::fs::remove_dir_all(dir);
+}
