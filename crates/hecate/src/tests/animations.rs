@@ -18,7 +18,7 @@ fn fixture(extra: &str) -> Option<(Fixture, ClientId)> {
 }
 
 /// Animations the test config doesn't set are switched off, so only one plays at a time.
-fn with_toml(toml: &str) -> Option<(Fixture, ClientId)> {
+pub(super) fn with_toml(toml: &str) -> Option<(Fixture, ClientId)> {
     let mut config = crate::config::load::from_toml_str(toml).expect("test config must parse");
     let raw: toml::Table = toml.parse().unwrap();
     let set = raw
@@ -56,7 +56,7 @@ fn anim(name: &str, style: &str) -> String {
     )
 }
 
-fn running(f: &mut Fixture) -> bool {
+pub(super) fn running(f: &mut Fixture) -> bool {
     let o = f.hecate().hecate.wm.outputs().next().unwrap().clone();
     f.hecate().hecate.output_state[&o].animations_running
 }
@@ -249,7 +249,11 @@ fn no_animations_rule_and_global_switch() {
 const BLUE: [u8; 4] = [0, 0, 255, 255];
 
 /// A 30 px bar along the top edge.
-fn bar(f: &mut Fixture, id: ClientId, ns: &str) -> wayland_client::protocol::wl_surface::WlSurface {
+pub(super) fn bar(
+    f: &mut Fixture,
+    id: ClientId,
+    ns: &str,
+) -> wayland_client::protocol::wl_surface::WlSurface {
     use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_shell_v1::Layer;
     use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_surface_v1::Anchor;
     let layer = f.client(id).create_layer(None, Layer::Top, ns);

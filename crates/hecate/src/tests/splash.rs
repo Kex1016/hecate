@@ -12,7 +12,7 @@ use super::fixture::Fixture;
 
 const CONFIG: &str = "[splash]\nenable = true\n[border]\nwidth = 0\n[animations]\nenable = false\n";
 
-fn fixture(background: &str, dir: &std::path::Path) -> Option<Fixture> {
+pub(super) fn fixture(background: &str, dir: &std::path::Path) -> Option<Fixture> {
     let mut f = Fixture::with_toml(&format!(
         "{CONFIG}[general]\nbackground_color = \"{background}\"\n"
     ));
@@ -24,7 +24,7 @@ fn fixture(background: &str, dir: &std::path::Path) -> Option<Fixture> {
     Some(f)
 }
 
-fn layer(f: &mut Fixture, id: ClientId, layer: Layer, anchor: Anchor, rgba: [u8; 4]) {
+pub(super) fn layer(f: &mut Fixture, id: ClientId, layer: Layer, anchor: Anchor, rgba: [u8; 4]) {
     let l = f.client(id).create_layer(None, layer, "shell");
     let surface = l.surface.clone();
     l.set_configure_props(LayerConfigureProps {
@@ -42,14 +42,14 @@ fn layer(f: &mut Fixture, id: ClientId, layer: Layer, anchor: Anchor, rgba: [u8;
     f.double_roundtrip(id);
 }
 
-fn save(f: &mut Fixture) {
+pub(super) fn save(f: &mut Fixture) {
     let crate::state::State { backend, hecate } = f.hecate();
     for handle in backend.with_renderer(|r| hecate.save_snapshots(r)).unwrap() {
         handle.join().unwrap();
     }
 }
 
-fn temp_dir(name: &str) -> std::path::PathBuf {
+pub(super) fn temp_dir(name: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("hecate-splash-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     dir

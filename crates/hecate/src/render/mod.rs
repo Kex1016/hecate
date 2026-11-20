@@ -3,7 +3,9 @@
 pub mod blur;
 pub mod border;
 pub mod capture;
+pub mod fonts;
 pub mod label;
+pub mod pixelate;
 pub mod screencopy;
 
 use smithay::backend::renderer::element::memory::MemoryRenderBufferRenderElement;
@@ -24,7 +26,7 @@ use smithay::wayland::compositor::with_states;
 use smithay::wayland::shell::wlr_layer::Layer;
 
 use crate::anim::Animation;
-use crate::config::{Color, Config, LayerRule};
+use crate::config::{AnimStyle, Color, Config, LayerRule};
 use crate::cursor::XCursor;
 use crate::state::Hecate;
 use crate::wm::{WindowExt, Wm};
@@ -34,6 +36,7 @@ render_elements! {
     Surface = WaylandSurfaceRenderElement<GlesRenderer>,
     Solid = SolidColorRenderElement,
     Memory = MemoryRenderBufferRenderElement<GlesRenderer>,
+    PixelatedMemory = pixelate::PixelateElement<MemoryRenderBufferRenderElement<GlesRenderer>>,
     Window = WindowElement,
     Scaled = RescaleRenderElement<WindowElement>,
     Blur = blur::BlurElement,
@@ -120,7 +123,32 @@ render_elements! {
     Border = border::BorderElement,
     Clipped = border::ClippedSurfaceElement,
     Texture = TextureRenderElement<GlesTexture>,
+    Pixelated = pixelate::PixelatedTexture,
     Label = MemoryRenderBufferRenderElement<GlesRenderer>,
+}
+
+/// A layer surface's popups, as `LayerSurface::render_elements` places them.
+fn layer_popups(
+    renderer: &mut GlesRenderer,
+    surface: &smithay::desktop::LayerSurface,
+    loc: Point<i32, Physical>,
+    scale: Scale<f64>,
+    alpha: f32,
+) -> Vec<WaylandSurfaceRenderElement<GlesRenderer>> {
+    smithay::desktop::PopupManager::popups_for_surface(surface.wl_surface())
+        .flat_map(|(popup, popup_offset)| {
+            let offset: Point<i32, Physical> =
+                (popup_offset - popup.geometry().loc).to_physical_precise_round(scale);
+            render_elements_from_surface_tree(
+                renderer,
+                popup.wl_surface(),
+                loc + offset,
+                scale,
+                alpha,
+                Kind::Unspecified,
+            )
+        })
+        .collect()
 }
 
 /// Push window elements, scaled around `origin` unless the scale is 1.
@@ -228,7 +256,7 @@ impl Hecate {
             self.push_cursor(renderer, output, &mut out);
         }
         if !desktop_only && let Some(splash) = self.splash_element(renderer, output) {
-            out.push(HecateElement::Memory(splash));
+            out.push(splash);
         }
 
         if self.wm.is_locked() && !desktop_only {
@@ -287,13 +315,13 @@ impl Hecate {
                           markers: &mut Vec<BlurMarker>,
                           renderer: &mut GlesRenderer,
                           layer: Layer| {
-            self.push_closing(out, output, Some(layer), now);
+            self.push_closing(renderer, out, output, Some(layer), now);
             for surface in map.layers_on(layer).rev() {
                 let Some(geo) = map.layer_geometry(surface) else {
                     continue;
                 };
                 let rules = layer_rules_for(&self.config, surface.namespace());
-                let (anim_scale, anim_alpha, slide) = surface
+                let (anim_scale, anim_alpha, slide, cell) = surface
                     .user_data()
                     .get::<std::cell::RefCell<crate::anim::LayerAnimState>>()
                     .and_then(|s| {
@@ -301,21 +329,66 @@ impl Hecate {
                         let (a, from) = s.open.as_ref()?;
                         let (sc, al) = a.scale_alpha(now, false);
                         let k = 1. - a.value(now);
-                        Some((sc, al, Point::<f64, Logical>::from((from.x * k, from.y * k))))
+                        let cell = pixelate::cell_px(a.pixelate_cell(now, false), scale);
+                        Some((
+                            sc,
+                            al,
+                            Point::<f64, Logical>::from((from.x * k, from.y * k)),
+                            cell,
+                        ))
                     })
-                    .unwrap_or((1., 1., Point::default()));
-                let alpha = rules.opacity.unwrap_or(1.0).clamp(0., 1.) * anim_alpha;
+                    .unwrap_or((1., 1., Point::default(), 1));
+                let opacity = rules.opacity.unwrap_or(1.0).clamp(0., 1.);
+                let alpha = opacity * anim_alpha;
                 let geo_loc = (geo.loc.to_f64() + slide).to_i32_round::<i32>();
                 let loc = geo_loc.to_physical_precise_round(scale);
-                let elems: Vec<WaylandSurfaceRenderElement<GlesRenderer>> =
-                    surface.render_elements(renderer, loc, scale, alpha);
-                let center = geo_loc.to_f64() + geo.size.to_f64().downscale(2.);
-                push_scaled(
-                    out,
-                    elems.into_iter().map(WindowElement::Surface).collect(),
-                    center.to_physical_precise_round(scale),
-                    anim_scale,
-                );
+                // Pixelating in: the surface goes through a texture, its popups stay sharp.
+                let pixelated = if cell > 1 {
+                    let cache = surface.user_data().get_or_insert(pixelate::PixelCache::default);
+                    cache.element(
+                        renderer,
+                        cell,
+                        loc,
+                        geo.size,
+                        scale,
+                        anim_alpha,
+                        |renderer, size| {
+                            let elems: Vec<WaylandSurfaceRenderElement<GlesRenderer>> =
+                                render_elements_from_surface_tree(
+                                    renderer,
+                                    surface.wl_surface(),
+                                    Point::from((0, 0)),
+                                    scale,
+                                    opacity,
+                                    Kind::Unspecified,
+                                );
+                            snapshot::render_to_texture(renderer, size, scale, &elems)
+                        },
+                    )
+                } else {
+                    if let Some(cache) = surface.user_data().get::<pixelate::PixelCache>() {
+                        cache.clear();
+                    }
+                    None
+                };
+                match pixelated {
+                    Some(e) => {
+                        let popups = layer_popups(renderer, surface, loc, scale, alpha);
+                        out.extend(popups.into_iter().map(HecateElement::Surface));
+                        out.push(HecateElement::Window(WindowElement::Pixelated(e)));
+                    }
+                    None => {
+                        let elems: Vec<WaylandSurfaceRenderElement<GlesRenderer>> =
+                            surface.render_elements(renderer, loc, scale, alpha);
+                        let center = geo_loc.to_f64() + geo.size.to_f64().downscale(2.);
+                        push_scaled(
+                            out,
+                            elems.into_iter().map(WindowElement::Surface).collect(),
+                            center.to_physical_precise_round(scale),
+                            anim_scale,
+                        );
+                    }
+                }
                 if !self.config.blur.enable {
                     continue;
                 }
@@ -365,18 +438,24 @@ impl Hecate {
             .and_then(|k| k.current_focus())
             .map(|s| crate::utils::root_surface(&s));
         if !desktop_only {
-            self.push_closing(&mut out, output, None, now);
+            self.push_closing(renderer, &mut out, output, None, now);
         }
-        // A workspace switch slides the new workspace in over the old one's way out.
+        // A workspace switch slides the new workspace in over the old one's way out. With
+        // `pixelate` nothing moves: the old workspace is cut and the new one's windows
+        // sharpen in place. (Style `none` starts no switch at all: a plain cut.)
         let width = output_geo.size.w as f64;
         let switch = self.wm.switch_for(output).cloned().filter(|_| !desktop_only);
+        let appear = switch
+            .as_ref()
+            .filter(|s| s.anim.style == AnimStyle::Pixelate)
+            .map(|s| s.anim.clone());
         let (in_offset, out_offset) = match &switch {
-            Some(s) => {
+            Some(s) if appear.is_none() => {
                 let v = s.anim.value(now);
                 let d = s.direction as f64;
                 (d * width * (1. - v), -d * width * v)
             }
-            None => (0., 0.),
+            _ => (0., 0.),
         };
         for window in windows.iter().rev() {
             let is_focused = focused.as_ref() == Some(window.toplevel_surface().wl_surface());
@@ -389,9 +468,11 @@ impl Hecate {
                 output,
                 now,
                 &mut markers,
+                appear.as_ref(),
             );
         }
         if let Some(s) = &switch
+            && appear.is_none()
             && let Some(ws) = self.wm.workspace(s.from)
         {
             for window in ws.windows.iter().rev() {
@@ -407,6 +488,7 @@ impl Hecate {
                     output,
                     now,
                     &mut markers,
+                    None,
                 );
             }
         }
@@ -505,6 +587,7 @@ impl Hecate {
     }
 
     /// One window with its animations applied, shifted by `offset` (workspace switch).
+    /// `appear` is a pixelating workspace switch the window comes in with.
     #[allow(clippy::too_many_arguments)]
     fn push_window(
         &self,
@@ -516,6 +599,7 @@ impl Hecate {
         output: &Output,
         now: std::time::Duration,
         markers: &mut Vec<BlurMarker>,
+        appear: Option<&Animation>,
     ) {
         let output_geo = Wm::output_geometry(output);
         let scale = Scale::from(output.current_scale().fractional_scale());
@@ -525,7 +609,7 @@ impl Hecate {
             border::style_for(&self.config, window, is_focused)
         };
         let geo_rect = self.wm.window_rect(window);
-        let (anim_scale, anim_alpha, move_offset) = {
+        let (anim_scale, anim_alpha, move_offset, cell) = {
             let mut d = window.data();
             let animate = !d.rules.no_animations;
             let target = d.loc;
@@ -555,7 +639,8 @@ impl Hecate {
                 };
             }
             a.last_target = Some((target, ws));
-            // Border colour changes (focus, urgency) fade.
+            // Border colour changes (focus, urgency, tint) fade, or snap when
+            // `animations.border` has style `none`.
             if let Some(last) = a.last_border_color
                 && last != style.color
             {
@@ -573,14 +658,14 @@ impl Hecate {
             if let Some((b, from)) = &a.border {
                 style.color = lerp_color(*from, style.color, b.value(now) as f32);
             }
-            let (s, al) = a
-                .open
-                .as_ref()
-                .map(|o| o.scale_alpha(now, false))
-                .unwrap_or((1., 1.));
-            (s, al, current_move(a))
+            // The window's own opening, else the workspace switch it appears with.
+            let opening = a.open.as_ref().or(appear.filter(|_| animate));
+            let (s, al) = opening.map(|o| o.scale_alpha(now, false)).unwrap_or((1., 1.));
+            let cell = opening.map_or(1, |o| pixelate::cell_px(o.pixelate_cell(now, false), scale));
+            (s, al, current_move(a), cell)
         };
-        let alpha = window.data().rules.opacity.unwrap_or(1.0).clamp(0., 1.) * anim_alpha;
+        let opacity = window.data().rules.opacity.unwrap_or(1.0).clamp(0., 1.);
+        let alpha = opacity * anim_alpha;
         let shift = offset + move_offset;
         let rect = Rectangle::new((geo_rect.loc.to_f64() + shift).to_i32_round(), geo_rect.size);
         let mut elems = Vec::new();
@@ -603,16 +688,48 @@ impl Hecate {
                 Err(err) => tracing::warn!("error importing identify label: {err:?}"),
             }
         }
-        border::push_window(
-            renderer,
-            &mut elems,
-            window,
-            rect,
-            output_geo.loc,
-            scale,
-            alpha,
-            &style,
-        );
+        // Pixelating in: the window and its frame go through a texture that is drawn in
+        // blocks; popups stay sharp on top.
+        let pixelated = if cell > 1 {
+            let frame = style.extents().around(rect);
+            let cache = window.user_data().get_or_insert(pixelate::PixelCache::default);
+            cache.element(
+                renderer,
+                cell,
+                (frame.loc - output_geo.loc).to_physical_precise_round(scale),
+                frame.size,
+                scale,
+                anim_alpha,
+                |renderer, size| {
+                    let mut body = Vec::new();
+                    border::push_body(
+                        renderer, &mut body, window, rect, frame.loc, scale, opacity, &style,
+                    );
+                    snapshot::render_to_texture(renderer, size, scale, &body)
+                },
+            )
+        } else {
+            if let Some(cache) = window.user_data().get::<pixelate::PixelCache>() {
+                cache.clear();
+            }
+            None
+        };
+        match pixelated {
+            Some(e) => {
+                border::push_popups(renderer, &mut elems, window, rect, output_geo.loc, scale, alpha);
+                elems.push(WindowElement::Pixelated(e));
+            }
+            None => border::push_window(
+                renderer,
+                &mut elems,
+                window,
+                rect,
+                output_geo.loc,
+                scale,
+                alpha,
+                &style,
+            ),
+        }
         if self.config.blur.enable {
             let local = Rectangle::new(rect.loc - output_geo.loc, rect.size);
             markers.extend(region_markers(
@@ -633,6 +750,7 @@ impl Hecate {
     /// Closed windows' snapshots playing their close animation.
     fn push_closing(
         &self,
+        renderer: &GlesRenderer,
         out: &mut Vec<HecateElement>,
         output: &Output,
         layer: Option<Layer>,
@@ -641,7 +759,10 @@ impl Hecate {
         let output_geo = Wm::output_geometry(output);
         let scale = Scale::from(output.current_scale().fractional_scale());
         for c in self.wm.closing.iter().rev() {
+            // One that is over is gone, even before it is dropped: a close that doesn't fade
+            // would show for another frame.
             if c.layer != layer
+                || c.anim.is_done(now)
                 || !c.rect.overlaps(output_geo)
                 || c.workspace.is_some_and(|ws| !self.wm.is_workspace_active(ws))
             {
@@ -652,6 +773,23 @@ impl Hecate {
             let slide = Point::<f64, Logical>::from((c.slide.x * v, c.slide.y * v));
             let rect_loc = (c.rect.loc.to_f64() + slide).to_i32_round();
             let loc: Point<i32, Physical> = (rect_loc - output_geo.loc).to_physical_precise_round(scale);
+            if c.anim.style == AnimStyle::Pixelate {
+                // Its blocks grow until the animation ends and the snapshot is dropped.
+                let cell = pixelate::cell_px(c.anim.pixelate_cell(now, true), scale);
+                let elem = pixelate::texture_element(
+                    renderer,
+                    c.id.clone(),
+                    smithay::backend::renderer::utils::CommitCounter::from(cell as usize),
+                    c.context.clone(),
+                    c.texture.clone(),
+                    loc,
+                    c.rect.size,
+                    alpha,
+                    cell,
+                );
+                out.push(HecateElement::Window(WindowElement::Pixelated(elem)));
+                continue;
+            }
             // The texture is in physical pixels; show all of it over the logical rect.
             let tex_size = smithay::backend::renderer::Texture::size(&c.texture);
             let src = Rectangle::from_size((tex_size.w as f64, tex_size.h as f64).into());
@@ -851,13 +989,15 @@ impl crate::state::State {
             return;
         };
         let scale = Scale::from(output.current_scale().fractional_scale());
-        let style = border::style_for(&hecate.config, window, false);
+        // The frame keeps the colour it had: a focused window shouldn't dim as it goes.
+        let focused = hecate
+            .seat
+            .get_keyboard()
+            .and_then(|k| k.current_focus())
+            .is_some_and(|s| crate::utils::root_surface(&s) == *window.toplevel_surface().wl_surface());
+        let style = border::style_for(&hecate.config, window, focused);
         let geo = hecate.wm.window_rect(window);
-        let bw = style.width.ceil() as i32;
-        let rect = Rectangle::new(
-            (geo.loc.x - bw, geo.loc.y - bw).into(),
-            (geo.size.w + 2 * bw, geo.size.h + 2 * bw).into(),
-        );
+        let rect = style.extents().around(geo);
         if rect.size.w <= 0 || rect.size.h <= 0 {
             return;
         }
@@ -938,7 +1078,7 @@ impl Hecate {
         output: &Output,
         closing: bool,
     ) -> Option<(Animation, Point<f64, Logical>)> {
-        use crate::config::{AnimStyle, LayerAnimation};
+        use crate::config::LayerAnimation;
         let rules = layer_rules_for(&self.config, layer.namespace());
         let mut anim = if closing {
             self.wm.anim.layer_close.clone()
@@ -957,6 +1097,7 @@ impl Hecate {
                     "none" => return None,
                     "fade" => (AnimStyle::Fade, None),
                     "popin" => (AnimStyle::Popin, None),
+                    "pixelate" => (AnimStyle::Pixelate, None),
                     "slide" => (AnimStyle::Slide, None),
                     "slide_top" => (AnimStyle::Slide, Some(SlideEdge::Top)),
                     "slide_bottom" => (AnimStyle::Slide, Some(SlideEdge::Bottom)),

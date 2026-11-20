@@ -245,7 +245,12 @@ impl State {
         ws_id: u64,
     ) -> smithay::utils::Point<i32, Logical> {
         let area = Wm::usable_area(output, &self.hecate.config);
-        match self.hecate.config.placement.policy {
+        // Windows are placed by their frames (border, label band), so a frame stays on the
+        // usable area along with its window; the window sits inside by the frame's extents.
+        let ext = self.frame_extents();
+        let inset = Point::from((ext.left, ext.top));
+        let size = ext.around(Rectangle::from_size(size)).size;
+        let frame = match self.hecate.config.placement.policy {
             PlacementPolicy::Center => centered(area, size),
             PlacementPolicy::Cursor => {
                 let p = self.hecate.pointer_location.to_i32_round::<i32>();
@@ -263,7 +268,7 @@ impl State {
                     .and_then(|ws| ws.windows.last().cloned());
                 match top {
                     Some(t) => {
-                        let r = self.hecate.wm.window_rect(&t);
+                        let r = ext.around(self.hecate.wm.window_rect(&t));
                         let mut p = r.loc + Point::from((dx, dy));
                         if p.x + size.w > area.loc.x + area.size.w || p.y + size.h > area.loc.y + area.size.h
                         {
@@ -279,11 +284,17 @@ impl State {
                     .hecate
                     .wm
                     .workspace(ws_id)
-                    .map(|ws| ws.windows.iter().map(|w| self.hecate.wm.window_rect(w)).collect())
+                    .map(|ws| {
+                        ws.windows
+                            .iter()
+                            .map(|w| ext.around(self.hecate.wm.window_rect(w)))
+                            .collect()
+                    })
                     .unwrap_or_default();
                 geometry::place_automatic(area, size, &existing)
             }
-        }
+        };
+        frame + inset
     }
 
     /// Commit on a mapped window: keep resize anchors in place.
@@ -518,12 +529,13 @@ impl State {
     ) -> Rectangle<i32, Logical> {
         let area = Wm::usable_area(output, &self.hecate.config);
         let gap = self.hecate.config.general.gaps;
-        let bw = if self.hecate.config.border.keep_on_maximize {
-            self.border_px()
+        let full = geometry::shrink(area, gap);
+        // A frame kept on a maximized window takes its room from the window.
+        let full = if self.hecate.config.border.keep_on_maximize {
+            self.frame_extents().inside(full)
         } else {
-            0
+            full
         };
-        let full = geometry::shrink(area, gap + bw);
         let cur = current.unwrap_or(full);
         match how {
             Maximized::Both | Maximized::No => full,
@@ -536,9 +548,12 @@ impl State {
         }
     }
 
-    /// Border width in whole pixels, drawn outside a window's geometry.
-    pub fn border_px(&self) -> i32 {
-        self.hecate.config.border.width.ceil() as i32
+    /// What a window's frame takes outside its geometry on each side: the border, and at
+    /// the top the label's band when `border.label` is on.
+    // shortcut: the configured frame, not each window's; one a rule gave another border
+    // (or none) is laid out as if it had this one.
+    pub fn frame_extents(&self) -> crate::render::border::Extents {
+        crate::render::border::default_extents(&self.hecate.config)
     }
 
     /// Move and resize a window to a rect (geometry, border excluded).
@@ -699,8 +714,8 @@ impl State {
         self.save_restore(window);
         let area = Wm::usable_area(&output, &self.hecate.config);
         let gap = self.hecate.config.general.gaps;
-        // The border is part of what's snapped: it stays clear of the bar and the other half.
-        let rect = geometry::shrink(snap_rect(area, edge, gap), self.border_px());
+        // The frame is part of what's snapped: it stays clear of the bar and the other half.
+        let rect = self.frame_extents().inside(snap_rect(area, edge, gap));
         {
             let mut d = window.data();
             d.snapped = Some(Snap::Edge(edge));
@@ -749,10 +764,9 @@ impl State {
                 let rect = self.maximized_rect(output, maximized, restore);
                 self.set_window_rect(&w, rect);
             } else if let Some(Snap::Edge(edge)) = snapped {
-                let rect = geometry::shrink(
-                    snap_rect(area, edge, self.hecate.config.general.gaps),
-                    self.border_px(),
-                );
+                let rect =
+                    self.frame_extents()
+                        .inside(snap_rect(area, edge, self.hecate.config.general.gaps));
                 self.set_window_rect(&w, rect);
             }
             w.toplevel_surface()

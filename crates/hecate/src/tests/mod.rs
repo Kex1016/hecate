@@ -12,6 +12,7 @@ mod focus_grab;
 mod foreign_toplevel;
 mod gaming;
 mod gamma;
+mod haiiro;
 mod image_copy_capture;
 mod input;
 mod ipc;

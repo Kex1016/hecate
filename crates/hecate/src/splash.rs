@@ -1,8 +1,9 @@
 //! The login splash (`splash.enable`). When the session locks or ends, each output's desktop is
 //! saved as a picture: the wallpaper and the shell's layers, no windows, overlays or cursor.
 //! The next session shows it from its first frame, so there's no bare screen while the shell
-//! starts, and fades it out once the shell says it's ready (action `splash_done`), or after
-//! `TIMEOUT`. hecate-greetd shows the same pictures, so a login fades straight into them.
+//! starts, and takes it away once the shell says it's ready (action `splash_done`), or after
+//! `TIMEOUT`: with a fade, a cut or a pixelate (`splash.handover`). hecate-greetd shows the
+//! same pictures, so a login goes straight into them.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -11,13 +12,17 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use smithay::backend::allocator::Fourcc;
-use smithay::backend::renderer::element::Kind;
 use smithay::backend::renderer::element::memory::{MemoryRenderBuffer, MemoryRenderBufferRenderElement};
+use smithay::backend::renderer::element::{Id, Kind};
 use smithay::backend::renderer::gles::GlesRenderer;
+use smithay::backend::renderer::utils::CommitCounter;
 use smithay::output::Output;
 use smithay::reexports::calloop::timer::{TimeoutAction, Timer};
-use smithay::utils::{Physical, Scale, Size, Transform};
+use smithay::utils::{Buffer, Physical, Scale, Size, Transform};
 
+use crate::config::SplashHandover;
+use crate::render::HecateElement;
+use crate::render::pixelate::{self, PixelateElement};
 use crate::state::Hecate;
 use crate::wm::Wm;
 
@@ -26,11 +31,27 @@ const TIMEOUT: Duration = Duration::from_secs(20);
 /// How long `splash.hold` keeps the first frame off screen waiting for the shell.
 const HOLD: Duration = Duration::from_secs(5);
 const FADE: Duration = Duration::from_millis(400);
+/// The pixelate handover: this long, in this many steps, each with blocks twice the size of
+/// the step before, up to `PIXELATE_CELL` logical pixels.
+const PIXELATE: Duration = Duration::from_millis(500);
+const PIXELATE_STEPS: u32 = 4;
+const PIXELATE_CELL: u32 = 16;
 
-/// One output's splash, and when it started fading.
+/// One output's splash, and when it started going away.
 pub struct Splash {
     buffer: MemoryRenderBuffer,
+    /// The picture's size in pixels.
+    size: Size<i32, Buffer>,
+    /// The element's id while it pixelates.
+    id: Id,
     fading_since: Option<Duration>,
+}
+
+/// Block size, in logical pixels, of a pixelate handover `elapsed` into it: 2, 4, 8, 16.
+fn pixelate_cell(elapsed: Duration) -> u32 {
+    let step = (elapsed.as_nanos() * PIXELATE_STEPS as u128 / PIXELATE.as_nanos()) as u32;
+    let step = step.min(PIXELATE_STEPS - 1);
+    PIXELATE_CELL >> (PIXELATE_STEPS - 1 - step)
 }
 
 type Decoded = anyhow::Result<(Vec<u8>, u32, u32)>;
@@ -180,6 +201,8 @@ impl Hecate {
             output.clone(),
             Splash {
                 buffer,
+                size: (w as i32, h as i32).into(),
+                id: Id::new(),
                 fading_since: None,
             },
         );
@@ -224,12 +247,28 @@ impl Hecate {
             && self.splash.get(output).is_some_and(|s| s.fading_since.is_none())
     }
 
-    /// The shell is ready (or it's too late): fade every splash out.
+    /// How long the handover takes: nothing for a cut, and for any of them when animations
+    /// are off (Game Mode, `animations.enable = false`).
+    fn splash_handover(&self) -> Option<Duration> {
+        if self.wm.clock.instant || !self.wm.anim.enable {
+            return None;
+        }
+        match self.config.splash.handover {
+            SplashHandover::Fade => Some(FADE),
+            SplashHandover::Pixelate => Some(PIXELATE),
+            SplashHandover::Cut => None,
+        }
+    }
+
+    /// The shell is ready (or it's too late): take every splash away.
     pub fn finish_splash(&mut self) {
         if self.splash_done {
             return;
         }
         self.splash_done = true;
+        if self.splash_handover().is_none() {
+            self.splash.clear();
+        }
         let now = self.wm.clock.now();
         for splash in self.splash.values_mut() {
             splash.fading_since = Some(now);
@@ -237,13 +276,13 @@ impl Hecate {
         self.queue_redraw_all();
     }
 
-    /// Keeps frames coming while the output's splash fades; drops it when done.
+    /// Keeps frames coming while the output's splash goes away; drops it when done.
     pub fn splash_animating(&mut self, output: &Output) -> bool {
         let now = self.wm.clock.now();
         let Some(since) = self.splash.get(output).and_then(|s| s.fading_since) else {
             return false;
         };
-        if self.wm.clock.instant || now >= since + FADE {
+        if self.splash_handover().is_none_or(|d| now >= since + d) {
             self.splash.remove(output);
             return false;
         }
@@ -251,16 +290,17 @@ impl Hecate {
     }
 
     /// The splash element, on top of everything else.
-    pub fn splash_element(
-        &self,
-        renderer: &mut GlesRenderer,
-        output: &Output,
-    ) -> Option<MemoryRenderBufferRenderElement<GlesRenderer>> {
+    pub fn splash_element(&self, renderer: &mut GlesRenderer, output: &Output) -> Option<HecateElement> {
         let splash = self.splash.get(output)?;
-        let alpha = splash.fading_since.map_or(1., |since| {
-            1. - (self.wm.clock.now().saturating_sub(since).as_secs_f64() / FADE.as_secs_f64()).min(1.)
-        });
-        MemoryRenderBufferRenderElement::from_buffer(
+        let elapsed = splash
+            .fading_since
+            .map(|since| self.wm.clock.now().saturating_sub(since));
+        let pixelate = self.config.splash.handover == SplashHandover::Pixelate;
+        let alpha = match elapsed {
+            Some(elapsed) if !pixelate => 1. - (elapsed.as_secs_f64() / FADE.as_secs_f64()).min(1.),
+            _ => 1.,
+        };
+        let element = MemoryRenderBufferRenderElement::from_buffer(
             renderer,
             (0., 0.),
             &splash.buffer,
@@ -269,7 +309,22 @@ impl Hecate {
             Some(Wm::output_geometry(output).size),
             Kind::Unspecified,
         )
-        .ok()
+        .ok()?;
+        match elapsed {
+            Some(elapsed) if pixelate => {
+                let scale = Scale::from(output.current_scale().fractional_scale());
+                let cell = pixelate::cell_px(pixelate_cell(elapsed) as f64, scale);
+                Some(HecateElement::PixelatedMemory(PixelateElement::new(
+                    renderer,
+                    element,
+                    splash.id.clone(),
+                    CommitCounter::from(cell as usize),
+                    cell,
+                    splash.size,
+                )))
+            }
+            _ => Some(HecateElement::Memory(element)),
+        }
     }
 
     /// Save every output's desktop for the next login's splash. Encoding runs on threads; join
@@ -306,6 +361,15 @@ impl Hecate {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pixelate_handover_doubles_its_blocks() {
+        let cells: Vec<u32> = [0, 124, 125, 250, 375, 499, 500, 900]
+            .into_iter()
+            .map(|ms| pixelate_cell(Duration::from_millis(ms)))
+            .collect();
+        assert_eq!(cells, [2, 2, 4, 8, 16, 16, 16, 16]);
+    }
 
     #[test]
     fn png_round_trip() {
