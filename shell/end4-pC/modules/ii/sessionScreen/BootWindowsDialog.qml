@@ -3,8 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import qs.modules.common
-import qs.services
-import qs.modules.common.widgets
+import qs.modules.common.widgets.haiiro as H
 
 /**
  * hecate: asks for the sudo password, then runs the boot-to-Windows script
@@ -15,24 +14,22 @@ Item {
     signal closed()
 
     property string error: ""
+    property string password: ""
     readonly property bool busy: bootProc.running
     readonly property string script: Config.options.apps.bootWindows.replace(/^~(?=\/|$)/, Quickshell.env("HOME"))
 
     function submit() {
-        if (root.busy || inputField.text === "") return;
+        if (root.busy || line.text === "") return;
         root.error = "";
-        root.password = inputField.text;
-        inputField.text = "";
+        root.password = line.text;
+        line.clear();
         bootProc.running = true;
     }
     function cancel() {
         if (!root.busy) root.closed();
     }
-    property string password: ""
 
-    Keys.onPressed: event => {
-        if (event.key === Qt.Key_Escape) root.cancel();
-    }
+    Keys.onEscapePressed: root.cancel()
 
     Process {
         id: bootProc
@@ -51,90 +48,84 @@ Item {
             if (exitCode === 0) return; // Rebooting.
             const out = (stderrCollector.text + "\n" + stdoutCollector.text).trim();
             if (/incorrect password|try again|no password was provided/i.test(out))
-                root.error = Translation.tr("Wrong password");
+                root.error = "Wrong password.";
             else if (/command not found|No such file/i.test(out))
-                root.error = Translation.tr("%1 doesn't exist").arg(Config.options.apps.bootWindows);
+                root.error = `${Config.options.apps.bootWindows} doesn't exist.`;
             else
-                root.error = out.split("\n").filter(l => l.trim() !== "").pop() ?? Translation.tr("Failed (exit code %1)").arg(exitCode);
-            inputField.forceActiveFocus();
+                root.error = out.split("\n").filter(l => l.trim() !== "").pop() ?? `Failed (exit code ${exitCode}).`;
+            line.forceInputFocus();
         }
     }
 
-    Rectangle {
+    // dims the menu behind; a click outside the window cancels
+    H.Veil {
         anchors.fill: parent
-        color: Appearance.colors.colScrim
-        MouseArea {
-            anchors.fill: parent
-            onClicked: root.cancel()
-        }
+        onClicked: root.cancel()
     }
 
-    WindowDialog {
+    H.PixelTransition {
+        id: pixels
         anchors.centerIn: parent
-        backgroundWidth: 450
-        show: false
-        Component.onCompleted: {
-            show = true;
-            inputField.forceActiveFocus();
-        }
-
-        MaterialSymbol {
-            Layout.alignment: Qt.AlignHCenter
-            iconSize: 26
-            text: "window"
-            color: Appearance.colors.colSecondary
-        }
-
-        WindowDialogTitle {
-            Layout.fillWidth: true
-            horizontalAlignment: Text.AlignHCenter
-            text: Translation.tr("Boot Windows")
-        }
-
-        WindowDialogParagraph {
-            Layout.fillWidth: true
-            horizontalAlignment: Text.AlignLeft
-            text: root.busy
-                ? Translation.tr("Rebooting into Windows…")
-                : Translation.tr("The computer restarts into Windows once. Enter your password to continue.")
-        }
-
-        MaterialTextField {
-            id: inputField
-            Layout.fillWidth: true
-            focus: true
-            enabled: !root.busy
-            placeholderText: Translation.tr("Password")
-            echoMode: TextInput.Password
-            onAccepted: root.submit()
-            Keys.onPressed: event => {
-                if (event.key === Qt.Key_Escape) root.cancel();
-            }
-        }
-
-        StyledText {
-            Layout.fillWidth: true
-            visible: root.error !== ""
-            wrapMode: Text.Wrap
-            color: Appearance.colors.colError
-            text: root.error
-        }
-
-        WindowDialogButtonRow {
-            Layout.bottomMargin: 10
-            Item {
+        width: win.implicitWidth
+        height: win.implicitHeight
+        H.HWindow {
+            id: win
+            width: 540
+            height: implicitHeight
+            label: "sudo: boot-windows"
+            hints: [
+                { key: "enter", text: root.busy ? "working" : "reboot into windows" },
+                { key: "esc", text: "cancel" }
+            ]
+            ColumnLayout {
                 Layout.fillWidth: true
-            }
-            DialogButton {
-                buttonText: Translation.tr("Cancel")
-                enabled: !root.busy
-                onClicked: root.cancel()
-            }
-            DialogButton {
-                buttonText: Translation.tr("Reboot")
-                enabled: !root.busy && inputField.text !== ""
-                onClicked: root.submit()
+                spacing: 12
+                H.HText {
+                    Layout.fillWidth: true
+                    text: root.busy ? "The other drive hums. Hold on." : "You reach for the other drive. It asks who you are."
+                    ink: "rose"
+                    wrapMode: Text.Wrap
+                }
+                RowLayout {
+                    spacing: 0
+                    H.HText { text: "Next boot goes to " }
+                    H.HText { text: "Windows Boot Manager"; ink: "iris" }
+                    H.HText { text: ", once." }
+                }
+                PasswordLine {
+                    id: line
+                    busy: root.busy
+                    onAccepted: root.submit()
+                    onCancelled: root.cancel()
+                    H.HText { text: "[sudo]"; ink: "gold" }
+                    H.HText { text: "password for" }
+                    H.HText { text: Quickshell.env("USER") + ":"; ink: "pine" }
+                }
+                H.HText {
+                    Layout.fillWidth: true
+                    visible: root.error !== ""
+                    text: root.error
+                    ink: "love"
+                    wrapMode: Text.Wrap
+                }
+                RowLayout {
+                    spacing: 8
+                    H.InkButton {
+                        text: "reboot into windows"
+                        ink: "c7"
+                        enabled: !root.busy && line.text !== ""
+                        onClicked: root.submit()
+                    }
+                    H.InkButton {
+                        text: "cancel"
+                        ink: "c1"
+                        enabled: !root.busy
+                        onClicked: root.cancel()
+                    }
+                }
             }
         }
     }
+
+    Component.onCompleted: line.forceInputFocus()
 }
