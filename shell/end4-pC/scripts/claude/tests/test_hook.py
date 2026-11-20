@@ -335,6 +335,7 @@ class FakeBridge:
         self.reply = reply
         self.close = close
         self.received = []
+        self.arrived = threading.Condition()
         self.kept = []
         threading.Thread(target=self.serve, daemon=True).start()
 
@@ -351,7 +352,9 @@ class FakeBridge:
                     break
                 data += chunk
             message = json.loads(data.decode() or "null")
-            self.received.append(message)
+            with self.arrived:
+                self.received.append(message)
+                self.arrived.notify_all()
             reply = self.reply(message) if callable(self.reply) else self.reply
             try:
                 conn.sendall(reply)
@@ -361,6 +364,13 @@ class FakeBridge:
                 conn.close()
             else:
                 self.kept.append(conn)
+
+    def wait_for(self, count, timeout=10):
+        """The messages once `count` have arrived. A hook that expects no answer exits as soon as
+        it has sent its line, so the last one can still be on its way to this thread."""
+        with self.arrived:
+            self.arrived.wait_for(lambda: len(self.received) >= count, timeout)
+            return list(self.received)
 
 
 def run_hook(hook_input, runtime_dir, extra_env=None, timeout=20, raw=None):
@@ -411,8 +421,9 @@ class EndToEnd(unittest.TestCase):
         for event in ("PreToolUse", "PostToolUse", "Stop", "Notification", "SessionStart", "SessionEnd", "UserPromptSubmit"):
             done = run_hook(permission_input(hook_event_name=event), bridge.tmp.name)
             self.assertEqual((done.returncode, done.stdout), (0, b""), event)
-        self.assertEqual(len(bridge.received), 7)
-        self.assertFalse(any(m["reply"] for m in bridge.received))
+        received = bridge.wait_for(7)
+        self.assertEqual(len(received), 7)
+        self.assertFalse(any(m["reply"] for m in received))
 
     def test_broken_answers_print_nothing(self):
         replies = [
