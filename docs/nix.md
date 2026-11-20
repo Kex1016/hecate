@@ -109,6 +109,20 @@ sync with the compositor). After v1, generate fully typed Nix options with
 descriptions from the JSON Schema, like niri-flake's typed `settings`,
 so `nixos-option` and editor completion work in Nix too.
 
+## Haiiro fonts and hecate-mcp
+
+- `packages.<system>.haiiro-fonts` (from `nix/fonts.nix`): IBM VGA 8x16,
+  Jacquard 24 and GNU Unifont, with their fontconfig fallback order.
+  `programs.hecate.fonts.enable` (NixOS) installs them system-wide. The Home
+  Manager module adds them to the shell's font fallbacks.
+- `packages.<system>.hecate-mcp`: the MCP server alone, with `grim` and
+  `notify-send` on its `PATH`. See [hecate-mcp.md](hecate-mcp.md).
+- `wayland.windowManager.hecate.shell.blobs.resume` (default
+  `/run/hecate-greetd/blobs.json`): where the blob background carries on
+  from at startup. `null` leaves it out.
+- `wayland.windowManager.hecate.shell.theming.compositor`: the haiiro look
+  for the compositor's frame and animations ([config.md](config.md#haiiro-look)).
+
 ## Bundled shell
 
 `wayland.windowManager.hecate.shell`:
@@ -121,37 +135,44 @@ so `nixos-option` and editor completion work in Nix too.
     keybinds = true;               # add the end-4 profile as `shell_binds` (keybinds.md)
     layerRules = true;             # blur and per-panel animations for the shell's layers;
                                    # your settings.layer_rules come after and win
-    dotfiles = [ "matugen" "kde-material-you-colors" "Kvantum" "fuzzel" ];  # default; also fontconfig, kitty, foot, fish
+    dotfiles = [ "fuzzel" ];       # default; also fish
     extraPackages = [ ];           # more tools on the shell's PATH (hecate itself is always there)
     theming = {
-      borders = true;              # border colours from the wallpaper; default off if you set
-                                   # settings.border.color
-      qt = true;                   # Qt apps: KDE platform theme + Darkly, colours from the wallpaper
-      folderIcons = true;          # Papirus with folders in the wallpaper's colour
+      compositor = true;           # the haiiro frame, motion and blobs (config.md#haiiro-look)
+      apps = true;                 # haiiro templates for kitty, foot, GTK and monospace
+      qt = true;                   # Qt apps: KDE platform theme + Darkly, the Haiiro colour scheme
+      folderIcons = true;          # Papirus-Dark as the KDE icon theme
     };
   };
 }
 ```
 
-### Theming from the wallpaper
+### Fixed haiiro templates
 
-The shell recolours everything from the wallpaper when it changes (and once on first start,
-with its default wallpaper):
+Nothing is coloured from the wallpaper. Programs the shell does not draw get fixed haiiro
+templates from `nix/haiiro/` (Rosé Pine colours, IBM VGA 8x16 at 16px with Unifont behind it,
+square corners):
 
-- **GTK**: matugen writes `~/.config/gtk-{3,4}.0/gtk.css` over adw-gtk3, and the shell sets
-  `gtk-theme` and `color-scheme` through gsettings. Don't set `gtk.theme` or write those
-  `gtk.css` files from Home Manager, or they'll fight.
+- **kitty, foot** (`theming.apps`): `~/.config/kitty/haiiro.conf` and
+  `~/.config/foot/haiiro.ini`, included from their main config. With Home Manager's
+  `programs.kitty`/`programs.foot` on, the include is added to what they write (first, so your
+  settings win); otherwise a `kitty.conf`/`foot.ini` with just the include (foot's also
+  includes `/etc/xdg/foot/foot.ini`) is written once if there is none. An existing file of
+  yours is left alone: add `include haiiro.conf` (kitty) or
+  `include=~/.config/foot/haiiro.ini` (foot) to it.
+- **GTK** (`theming.apps`): `~/.config/gtk-{3,4}.0/gtk.css` set libadwaita's named colours
+  (adw-gtk3-dark reads the same for GTK 3) and square corners. The GTK theme, dark style and
+  the haiiro fonts go into dconf once, while those keys are unset. Don't enable Home Manager's
+  `gtk` module with it: both write `gtk.css`.
+- **monospace** (`theming.apps`): `~/.config/fontconfig/conf.d/50-haiiro-mono.conf` puts IBM
+  VGA 8x16, Unifont and Unifont Upper first.
 - **Qt** (`theming.qt`): `QT_QPA_PLATFORMTHEME=kde` (plasma-integration, through Home
-  Manager's `qt` module) with the Darkly style. kde-material-you-colors writes a colour
-  scheme; without Plasma there's no `plasma-apply-colorscheme`, so the shell merges it into
-  `~/.config/kdeglobals` itself and sends the D-Bus signal that makes running Qt apps reload.
-  `kdeglobals` is seeded once from illogical-impulse's and stays writable.
-- **hecate's borders** (`theming.borders`): matugen writes `~/.config/hecate/colors.toml`
-  (`[border.color]` active = primary, inactive = outline variant, urgent = error), included
-  first, so `shell.toml` and `extraConfigFiles` override it. hecate reloads on the change.
-- **Icons** (`theming.folderIcons`): Papirus(-Dark) with its blue folders recoloured to the
-  primary colour, as a theme in `~/.local/share/icons/Papirus-Hecate` (or `-Alt`: the name
-  alternates so GTK and Qt reload it), set through gsettings and `kdeglobals`.
+  Manager's `qt` module) with the Darkly style and `~/.local/share/color-schemes/Haiiro.colors`.
+  `~/.config/kdeglobals` is seeded once (writable) from `nix/haiiro/kdeglobals`, or again if it
+  still names the old MaterialYouDark scheme (kept as `kdeglobals.material-bak`). The shell's
+  settings change its icons and fonts, never its colours.
+- **Icons** (`theming.folderIcons`): Papirus-Dark, installed and named in the seeded
+  `kdeglobals`.
 
 On the NixOS side, `programs.hecate.shell.enable = true` turns on what the shell needs from
 the system (see below).
@@ -167,18 +188,18 @@ What `hecate-shell` is (`nix/shell-package.nix`):
   `wrapQtAppsHook` with qt5compat, qtdeclarative, qtimageformats,
   qtmultimedia, qtpositioning, qtquicktimeline, qtsensors, qtsvg,
   qtvirtualkeyboard, qtwayland, kirigami, syntax-highlighting.
-- Runtime `PATH` from `sdata/deps-info.md`: matugen, cliphist, wl-clipboard,
+- Runtime `PATH` from `sdata/deps-info.md` (see `nix/shell-package.nix` for the list as it is): cliphist, wl-clipboard,
   grim, slurp, wf-recorder, tesseract, translate-shell, jq, curl, wget, bc,
   brightnessctl, ddcutil, playerctl, cava, pavucontrol-qt, wlsunset,
   hyprpicker, fuzzel, ydotool, libnotify, xdg-user-dirs, geoclue2 demo
-  agent, kde-material-you-colors, plus `hecate` itself for `hecate msg`.
+  agent, plus `hecate` itself for `hecate msg`.
 - Python env from `sdata/uv/requirements.in`, all from nixpkgs, behind a small
   `bin/activate` so the shell's `$ILLOGICAL_IMPULSE_VIRTUAL_ENV` scripts work unchanged.
-- Fonts (`fonts.packages` hint in the NixOS module, `home.packages` in HM):
-  Material Symbols, Space Grotesk, Rubik, JetBrains Mono Nerd, Readex Pro,
-  and the rest from the `illogical-impulse-fonts-themes` list.
-- Themes: adw-gtk3, Breeze, Bibata cursor; Darkly, plasma-integration and Papirus with
-  `shell.theming` (below).
+- Fonts: the shell loads its own copies of the haiiro faces; `haiiro-fonts` goes into
+  `home.packages` (and system-wide with the NixOS module's `fonts.enable`) for every other
+  program.
+- Themes: adw-gtk3 and Breeze; Darkly, plasma-integration and Papirus with `shell.theming`
+  (above).
 
 What the HM module does with it:
 
@@ -190,9 +211,8 @@ What the HM module does with it:
 - Adds `include = [ "shell.toml" ]` so the shell's settings UI can write
   compositor tweaks to `~/.config/hecate/shell.toml` without touching the
   Nix-made file.
-- Installs the dotfiles above into `~/.config` (matugen writes generated
-  colours into mutable locations, so templates are linked and outputs are
-  left writable).
+- Installs the dotfiles above into `~/.config` and the haiiro templates
+  (see Fixed haiiro templates).
 - Leaves mutable shell state alone: `~/.config/illogical-impulse/`
   (`config.json`, written by the settings UI), `~/.local/state/quickshell`,
   `~/.cache/quickshell`.

@@ -18,16 +18,9 @@ let
   rev = "26fe30f";
 
   pythonEnv = python3.withPackages (
+    # What the bundled scripts import: thumbnails/thumbgen.py (click, loguru, gi, tqdm),
+    # images/*.py (numpy, opencv), gCloud/token_from_key.py (google-auth).
     ps: with ps; [
-      pillow
-      pywayland
-      psutil
-      materialyoucolor
-      # Moved out of python3Packages to pkgs/by-name (still a Python package).
-      (pkgs.kde-material-you-colors or ps.kde-material-you-colors)
-      libsass
-      material-color-utilities
-      setproctitle
       click
       loguru
       pycairo
@@ -73,10 +66,12 @@ let
       ripgrep
       file
       libnotify
+      # secret-tool: the calendars, Cider and iCloud read their secrets from the keyring
+      libsecret
       glib
       xdg-user-dirs
       dbus
-      # The QML calls `python3` directly for some scripts (colour schemes, ...).
+      # The QML calls `python3` directly for some scripts (claude usage, calendars, ...).
       pythonEnv
       # audio
       cava
@@ -87,7 +82,6 @@ let
       brightnessctl
       ddcutil
       # theming
-      matugen
       imagemagick
       kdePackages.kconfig
       # capture
@@ -99,6 +93,8 @@ let
       hyprpicker
       wl-clipboard
       cliphist
+      # the launcher's / (files under ~)
+      fd
       ffmpeg
       # widgets and tools
       fuzzel
@@ -113,6 +109,9 @@ let
       wlsunset
       mpvpaper
       quickshell
+      # iCloud: Photos as a wallpaper album, Drive as a mount
+      icloudpd
+      rclone
     ]
     ++ extraPackages;
 
@@ -197,7 +196,9 @@ stdenv.mkDerivation {
     dir=\$(${pkgs.coreutils}/bin/mktemp -d) || exit 1
     trap '${pkgs.coreutils}/bin/rm -rf "\$dir"' EXIT
     ${pkgs.coreutils}/bin/mkfifo "\$dir/answer" || exit 1
-    $out/bin/hecate-shell-ipc sharePicker pick "\$dir/answer" >/dev/null || exit 1
+    # xdg-desktop-portal-wlr doesn't say who asks; the app that has focus almost always does.
+    app=\$(hecate msg --json focused-window 2>/dev/null | ${pkgs.jq}/bin/jq -r '.app_id // empty' 2>/dev/null)
+    $out/bin/hecate-shell-ipc sharePicker pickFor "\$dir/answer" "\$app" >/dev/null || exit 1
     ${pkgs.coreutils}/bin/timeout 600 ${pkgs.coreutils}/bin/cat "\$dir/answer"
     EOF
     chmod +x $out/bin/hecate-shell $out/bin/hecate-shell-ipc $out/bin/hecate-share-picker

@@ -389,12 +389,19 @@ impl State {
             out.window = Some(w);
             return out;
         }
-        // Border area of a window.
-        let bw = self.hecate.config.border.width.ceil() as i32;
-        if bw > 0
-            && let Some(w) = self.hecate.wm.window_at(point, bw)
-            && !w.data().fullscreen
-        {
+        // The frame of a window: its border, and the label's band above it.
+        let framed = self
+            .hecate
+            .wm
+            .windows_on_output(&output)
+            .into_iter()
+            .rev()
+            .find(|w| {
+                let ext = crate::render::border::extents_for(&self.hecate.config, w);
+                ext != Default::default()
+                    && ext.around(self.hecate.wm.window_rect(w)).to_f64().contains(point)
+            });
+        if let Some(w) = framed {
             out.window = Some(w);
             out.on_border = true;
             return out;

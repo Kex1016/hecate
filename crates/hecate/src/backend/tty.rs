@@ -8,10 +8,10 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::Duration;
 
-use smithay::backend::allocator::Fourcc;
 use smithay::backend::allocator::dmabuf::Dmabuf;
 use smithay::backend::allocator::format::FormatSet;
 use smithay::backend::allocator::gbm::{GbmAllocator, GbmBufferFlags, GbmDevice};
+use smithay::backend::allocator::{Fourcc, Modifier};
 use smithay::backend::drm::compositor::FrameFlags;
 use smithay::backend::drm::exporter::gbm::GbmFramebufferExporter;
 use smithay::backend::drm::output::{DrmOutput, DrmOutputManager, DrmOutputRenderElements};
@@ -33,7 +33,7 @@ use smithay::output::{Mode as WlMode, Output, PhysicalProperties};
 use smithay::reexports::calloop::channel::{self, Channel, Sender};
 use smithay::reexports::calloop::{LoopHandle, RegistrationToken};
 use smithay::reexports::drm::Device as _;
-use smithay::reexports::drm::control::{Device as _, ModeTypeFlags, connector, crtc};
+use smithay::reexports::drm::control::{Device as _, ModeTypeFlags, connector, crtc, plane};
 use smithay::reexports::input::{DeviceCapability, Libinput};
 use smithay::reexports::rustix::fs::OFlags;
 use smithay::reexports::wayland_protocols::wp::presentation_time::server::wp_presentation_feedback;
@@ -94,8 +94,74 @@ struct Surface {
     missed_vblank: Option<Vblank>,
     /// A power change asked for while the output was away.
     pending_power: Option<bool>,
+    /// Adaptive sync asked for while the output was away.
+    pending_vrr: Option<bool>,
     /// The first frame is being held back (`splash.hold`), logged once.
     holding: bool,
+    /// What was on screen when the output connected, kept until our first frame is up: the
+    /// journal then says whether that frame changed more than the picture.
+    found: Option<OnScreen>,
+}
+
+/// What a CRTC shows, as the kernel has it. Read before our first frame (what the login screen,
+/// or whatever else ran before us, left there) and again once that frame is committed. A flip
+/// that also changes the framebuffer's format or modifier, or adaptive sync, is more work for
+/// the display driver than one that only brings a new picture, and on some monitors a dark
+/// frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+struct OnScreen {
+    /// Format and modifier of the framebuffer on the primary plane. None with nothing on it.
+    fb: Option<(Fourcc, Option<Modifier>)>,
+    /// `VRR_ENABLED`, on a CRTC that has the property.
+    vrr: Option<bool>,
+}
+
+impl OnScreen {
+    fn read(drm: &DrmDevice, crtc: crtc::Handle, plane: plane::Handle) -> Self {
+        let fb = drm
+            .get_plane(plane)
+            .ok()
+            .filter(|p| p.crtc() == Some(crtc))
+            .and_then(|p| p.framebuffer())
+            .and_then(|fb| drm.get_planar_framebuffer(fb).ok())
+            .map(|info| {
+                // GETFB2 hands a DRM master new GEM handles to the framebuffer's buffers, one
+                // per buffer however many planes share it: they are ours to close.
+                let mut closed = Vec::new();
+                for handle in info.buffers().into_iter().flatten() {
+                    if !closed.contains(&handle) {
+                        closed.push(handle);
+                        let _ = drm.close_buffer(handle);
+                    }
+                }
+                (info.pixel_format(), info.modifier())
+            });
+        let vrr = drm.get_properties(crtc).ok().and_then(|props| {
+            props.into_iter().find_map(|(handle, value)| {
+                let info = drm.get_property(handle).ok()?;
+                if info.name().to_str() != Ok("VRR_ENABLED") {
+                    return None;
+                }
+                info.value_type().convert_value(value).as_boolean()
+            })
+        });
+        OnScreen { fb, vrr }
+    }
+}
+
+impl std::fmt::Display for OnScreen {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.fb {
+            Some((format, Some(modifier))) => write!(f, "{format} {:#018x}", u64::from(modifier))?,
+            Some((format, None)) => write!(f, "{format}, no modifier")?,
+            None => write!(f, "nothing")?,
+        }
+        match self.vrr {
+            Some(true) => write!(f, ", VRR on"),
+            Some(false) => write!(f, ", VRR off"),
+            None => Ok(()),
+        }
+    }
 }
 
 /// What a DRM vblank event said.
@@ -679,11 +745,32 @@ impl Tty {
             wl_mode.refresh
         );
         let drm = device.manager.device();
+        let primary = drm_output.with_compositor(|c| c.surface().plane());
+        let found = OnScreen::read(drm, crtc, primary);
+        // Adaptive sync left on: keep it for the first frame, so that flip changes nothing but
+        // the picture. Smithay starts every output with it off without asking the kernel, and
+        // its first flip would turn it off. What the config wants comes right after
+        // (`refresh_vrr`).
+        if vrr_supported && found.vrr == Some(true) {
+            drm_output.with_compositor(|c| {
+                let modeset = c.surface().commit_pending();
+                match c.use_vrr(true) {
+                    // Only a modeset would keep it: rather the flip that turns it off.
+                    Ok(()) if !modeset && c.surface().commit_pending() => {
+                        let _ = c.use_vrr(false);
+                    }
+                    Ok(()) => {}
+                    Err(err) => tracing::debug!("couldn't keep VRR on for {name}: {err:?}"),
+                }
+            });
+        }
         let mut gamma = GammaProps::new(drm, crtc)
             .inspect_err(|err| tracing::debug!("no gamma control for {name}: {err:?}"))
             .ok();
-        // Reset gamma left over from a previous session.
+        // Reset gamma left over from a previous session. With none left there is nothing to
+        // reset, and the reset is a commit of its own ahead of the first frame.
         if let Some(g) = &mut gamma
+            && g.found_set()
             && let Err(err) = g.set_gamma(drm, None)
         {
             tracing::debug!("couldn't reset gamma on {name}: {err:?}");
@@ -701,7 +788,9 @@ impl Tty {
                 modeset_pending: true,
                 missed_vblank: None,
                 pending_power: None,
+                pending_vrr: None,
                 holding: false,
+                found: Some(found),
             },
         );
         hecate.add_output(output.clone());
@@ -986,11 +1075,10 @@ impl Tty {
     /// A commit thread finished: the output is ours again.
     fn commit_done(&mut self, hecate: &mut Hecate, done: CommitDone) {
         self.commits_in_flight = self.commits_in_flight.saturating_sub(1);
-        let Some(surface) = self
-            .devices
-            .get_mut(&done.node)
-            .and_then(|d| d.surfaces.get_mut(&done.crtc))
-        else {
+        let Some(device) = self.devices.get_mut(&done.node) else {
+            return;
+        };
+        let Some(surface) = device.surfaces.get_mut(&done.crtc) else {
             // Disconnected or disabled meanwhile: dropping the output turns the CRTC off.
             return;
         };
@@ -1003,11 +1091,29 @@ impl Tty {
                 output.name(),
                 done.took.as_secs_f64() * 1000.,
                 if done.modeset {
-                    "modeset: the mode, connector or active state on screen differed"
+                    "modeset: the mode, connector, active or VRR state on screen differed"
                 } else {
                     "flipped onto the mode already on screen, no modeset"
                 }
             );
+            // And, the first time, whether the flip changed more than the picture.
+            if let Some(found) = surface.found.take()
+                && done.result.is_ok()
+            {
+                let primary = done.drm_output.with_compositor(|c| c.surface().plane());
+                let now = OnScreen::read(device.manager.device(), done.crtc, primary);
+                if now == found {
+                    tracing::info!(
+                        "first frame on {} kept what was on screen: {found}",
+                        output.name()
+                    );
+                } else {
+                    tracing::info!(
+                        "first frame on {} changed what was on screen: {found} before, {now} now",
+                        output.name()
+                    );
+                }
+            }
         } else if done.took > std::time::Duration::from_millis(500) {
             tracing::info!(
                 "committing a frame to {} took {:.1} s (modeset)",
@@ -1026,6 +1132,9 @@ impl Tty {
         }
         if let Some(vblank) = surface.missed_vblank.take() {
             Self::presented(surface, hecate, vblank);
+        }
+        if let Some(on) = surface.pending_vrr.take() {
+            Self::apply_vrr(surface, on);
         }
         if let Some(on) = surface.pending_power.take() {
             self.set_output_powered(hecate, &output, on);
@@ -1304,12 +1413,24 @@ impl Tty {
 
     /// Turn adaptive sync on or off for an output.
     pub fn set_vrr(&mut self, output: &Output, on: bool) {
-        if let Some(surface) = self.surface_for(output)
-            && surface.vrr_supported
+        let Some(surface) = self.surface_for(output) else {
+            return;
+        };
+        if surface.drm_output.is_none() {
+            // Away on a commit thread, as every output is with its first frame when the config
+            // is first applied: once it's back.
+            surface.pending_vrr = Some(on);
+            return;
+        }
+        Self::apply_vrr(surface, on);
+    }
+
+    fn apply_vrr(surface: &mut Surface, on: bool) {
+        if surface.vrr_supported
             && let Some(drm_output) = surface.drm_output.as_ref()
             && let Err(err) = drm_output.with_compositor(|c| c.use_vrr(on))
         {
-            tracing::debug!("error setting VRR on {}: {err:?}", output.name());
+            tracing::debug!("error setting VRR on {}: {err:?}", surface.output.name());
         }
     }
 
@@ -1480,5 +1601,33 @@ mod closefb_tests {
     fn closefb_ioctl_number() {
         // From the kernel's drm.h: DRM_IOWR(0xD0, struct drm_mode_closefb).
         assert_eq!(super::DRM_IOCTL_MODE_CLOSEFB, 0xC008_64D0);
+    }
+}
+
+#[cfg(test)]
+mod on_screen_tests {
+    use super::*;
+
+    #[test]
+    fn says_what_a_crtc_shows() {
+        let greeter = OnScreen {
+            fb: Some((Fourcc::Abgr2101010, Some(Modifier::from(0x0200_0000_1860_1b04)))),
+            vrr: Some(true),
+        };
+        assert_eq!(greeter.to_string(), "AB30 0x0200000018601b04, VRR on");
+        let console = OnScreen {
+            fb: Some((Fourcc::Xrgb8888, None)),
+            vrr: Some(false),
+        };
+        assert_eq!(console.to_string(), "XR24, no modifier, VRR off");
+        assert_eq!(OnScreen::default().to_string(), "nothing");
+        // A flip that also turns adaptive sync off is not the same screen.
+        assert_ne!(
+            greeter,
+            OnScreen {
+                vrr: Some(false),
+                ..greeter
+            }
+        );
     }
 }

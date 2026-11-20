@@ -1,0 +1,60 @@
+/*
+ * haiiro for GTK 3: Rosé Pine (main) as libadwaita's named colours (adw-gtk3 reads the same names), square
+ * corners. Installed by hecate's Home Manager module; nothing here comes from a wallpaper.
+ * Window = surface, views and sidebars = base, cards and popovers = overlay, accent = pine
+ * (foam where it is text), destructive and errors = love, warnings = gold.
+ */
+
+@define-color accent_color #9ccfd8;
+@define-color accent_bg_color #31748f;
+@define-color accent_fg_color #e0def4;
+@define-color destructive_color #eb6f92;
+@define-color destructive_bg_color #eb6f92;
+@define-color destructive_fg_color #191724;
+@define-color success_color #9ccfd8;
+@define-color success_bg_color #9ccfd8;
+@define-color success_fg_color #191724;
+@define-color warning_color #f6c177;
+@define-color warning_bg_color #f6c177;
+@define-color warning_fg_color #191724;
+@define-color error_color #eb6f92;
+@define-color error_bg_color #eb6f92;
+@define-color error_fg_color #191724;
+@define-color window_bg_color #1f1d2e;
+@define-color window_fg_color #e0def4;
+@define-color view_bg_color #191724;
+@define-color view_fg_color #e0def4;
+@define-color headerbar_bg_color #1f1d2e;
+@define-color headerbar_fg_color #e0def4;
+@define-color headerbar_border_color #403d52;
+@define-color headerbar_backdrop_color #1f1d2e;
+@define-color headerbar_shade_color #191724;
+@define-color headerbar_darker_shade_color #191724;
+@define-color sidebar_bg_color #191724;
+@define-color sidebar_fg_color #e0def4;
+@define-color sidebar_backdrop_color #191724;
+@define-color sidebar_border_color #403d52;
+@define-color sidebar_shade_color #191724;
+@define-color secondary_sidebar_bg_color #1f1d2e;
+@define-color secondary_sidebar_fg_color #e0def4;
+@define-color secondary_sidebar_backdrop_color #1f1d2e;
+@define-color secondary_sidebar_border_color #403d52;
+@define-color secondary_sidebar_shade_color #191724;
+@define-color card_bg_color #26233a;
+@define-color card_fg_color #e0def4;
+@define-color card_shade_color #191724;
+@define-color dialog_bg_color #1f1d2e;
+@define-color dialog_fg_color #e0def4;
+@define-color popover_bg_color #26233a;
+@define-color popover_fg_color #e0def4;
+@define-color popover_shade_color #191724;
+@define-color thumbnail_bg_color #26233a;
+@define-color thumbnail_fg_color #e0def4;
+@define-color overview_bg_color #191724;
+@define-color overview_fg_color #e0def4;
+@define-color shade_color #191724;
+@define-color scrollbar_outline_color #191724;
+
+/* Square: pixels have corners. Radios stay round so they still read as radios. */
+* { border-radius: 0; }
+radio { border-radius: 100%; }

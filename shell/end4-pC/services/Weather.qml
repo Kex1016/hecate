@@ -20,6 +20,14 @@ Singleton {
     onUseUSCSChanged: root.getData()
     onCityChanged: root.getData()
 
+    // The next hours from Open-Meteo (no key needed), for the weather widget's rain chart:
+    // [{ hour: "22", rain: 0-100 (chance of precipitation, %), temp: number }], the current
+    // hour first. Fetched for wherever the current weather came from.
+    readonly property int hourlyCount: 7
+    property var hourly: []
+    // The current temperature as a number, in the unit of `data.temp`.
+    property real tempValue: 0
+
     property var location: ({
         valid: false,
         lat: 0,
@@ -89,7 +97,38 @@ Singleton {
 
         temp.lastRefresh = DateTime.time + " • " + DateTime.date
 
+        root.tempValue = Math.round(data?.main?.temp || 0)
         root.data = temp
+
+        const lat = root.gpsActive && root.location.valid ? root.location.lat : data?.coord?.lat
+        const lon = root.gpsActive && root.location.valid ? root.location.lon : data?.coord?.lon
+        if (lat !== undefined && lon !== undefined) root.getHourly(lat, lon)
+    }
+
+    function getHourly(lat, lon) {
+        let url = "https://api.open-meteo.com/v1/forecast"
+            + `?latitude=${Number(lat).toFixed(3)}&longitude=${Number(lon).toFixed(3)}`
+            + "&hourly=precipitation_probability,temperature_2m"
+            + `&forecast_hours=${root.hourlyCount}&timezone=auto`
+        if (root.useUSCS) url += "&temperature_unit=fahrenheit"
+        hourlyFetcher.command = ["curl", "-sf", "--max-time", "20", url]
+        hourlyFetcher.running = false
+        hourlyFetcher.running = true
+    }
+
+    function refineHourly(parsed) {
+        const h = parsed?.hourly
+        if (!h?.time) return
+        const out = []
+        for (let i = 0; i < h.time.length && out.length < root.hourlyCount; i++) {
+            // local time as "YYYY-MM-DDTHH:MM"
+            out.push({
+                hour: String(h.time[i]).slice(11, 13),
+                rain: Math.max(0, Math.min(100, Number(h.precipitation_probability?.[i] ?? 0))),
+                temp: Math.round(Number(h.temperature_2m?.[i] ?? 0)),
+            })
+        }
+        root.hourly = out
     }
 
     function getData() {
@@ -148,6 +187,20 @@ Singleton {
                     root.refineData(parsedData)
                 } catch (e) {
                     console.error("[WeatherService] JSON parse error:", e.message)
+                }
+            }
+        }
+    }
+
+    Process {
+        id: hourlyFetcher
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (text.length === 0) return
+                try {
+                    root.refineHourly(JSON.parse(text))
+                } catch (e) {
+                    console.error("[WeatherService] Hourly forecast parse error:", e.message)
                 }
             }
         }

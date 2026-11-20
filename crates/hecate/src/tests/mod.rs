@@ -3,6 +3,7 @@
 //! Nix devShell) and check pixels.
 
 mod animations;
+mod blobs;
 mod blur;
 mod client;
 mod decorations;
@@ -12,6 +13,7 @@ mod focus_grab;
 mod foreign_toplevel;
 mod gaming;
 mod gamma;
+mod haiiro;
 mod image_copy_capture;
 mod input;
 mod ipc;

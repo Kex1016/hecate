@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- Docs for the haiiro shell: the look and its config (`docs/config.md#haiiro-look`), the blob
+  background's keys and IPC, border tints in the IPC and as a bind (`docs/ipc.md`,
+  `docs/keybinds.md`), the optional Claude and Apple services (`docs/shell.md`), the nix outputs
+  (`docs/nix.md`), and the new `docs/hecate-mcp.md`.
+- Claude and every Apple service (AirPods, iCloud Drive, Cider) are off by default, and
+  switching Claude off stops all of it, the hourly brief included. Every `claude -p` the shell
+  starts runs isolated from the user's Claude Code setup.
+- Fixed haiiro templates for kitty, foot, GTK, Qt and fontconfig's `monospace`
+  (`shell.theming.apps`, `nix/haiiro/`); the wallpaper theming dotfiles (matugen,
+  kde-material-you-colors, Kvantum, kitty, foot) are gone from `shell.dotfiles`.
+- Do-not-disturb holds every toast back except the sessions panel's permission toast.
+- iCloud contacts show in the launcher's search.
+- `hecate-mcp`, a read-only MCP server for hecate (windows, workspaces, outputs, notifications,
+  screenshots), with `windows`, `tint` and `notify` permissions that are off by default.
+  Exported as `packages.hecate-mcp`.
+- `border_tint` is a window field in `windows` and an action: `hecate msg tint gold`, or bind it.
 - Snapping counts the border: a window snapped to an edge or corner keeps its border inside
   the usable area and clear of the other half, and edge resistance lines windows up border to
   border, instead of the border sitting under the bar or on top of the next window.

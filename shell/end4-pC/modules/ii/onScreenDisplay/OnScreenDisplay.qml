@@ -1,7 +1,7 @@
 import qs
 import qs.services
 import qs.modules.common
-import qs.modules.common.widgets
+import qs.modules.common.widgets.haiiro as H
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -29,6 +29,14 @@ Scope {
         {
             id: "gamma",
             sourceUrl: "indicators/GammaIndicator.qml"
+        },
+        {
+            id: "mic",
+            sourceUrl: "indicators/MicIndicator.qml"
+        },
+        {
+            id: "keyboard",
+            sourceUrl: "indicators/KeyboardIndicator.qml"
         },
     ]
 
@@ -83,6 +91,36 @@ Scope {
         }
     }
 
+    property string layoutPrevious: ""
+    property string layoutCurrent: HyprlandXkb.currentLayoutCode
+    onLayoutCurrentChanged: {
+        if (layoutCurrent === "") return;
+        const was = layoutShown;
+        layoutShown = layoutCurrent;
+        if (was === "") return; // first value after start-up is not a change
+        layoutPrevious = was;
+        protectionMessage = "";
+        currentIndicator = "keyboard";
+        triggerOsd();
+    }
+    property string layoutShown: ""
+
+    Connections {
+        target: Audio.source?.audio ?? null
+        function onVolumeChanged() {
+            if (!Audio.ready) return;
+            root.protectionMessage = "";
+            root.currentIndicator = "mic";
+            root.triggerOsd();
+        }
+        function onMutedChanged() {
+            if (!Audio.ready) return;
+            root.protectionMessage = "";
+            root.currentIndicator = "mic";
+            root.triggerOsd();
+        }
+    }
+
     Connections {
         // Listen to protection triggers
         target: Audio
@@ -93,13 +131,23 @@ Scope {
         }
     }
 
+    // Keep the window mapped until the close frames have played.
+    property bool windowMapped: false
+    Connections {
+        target: GlobalStates
+        function onOsdVolumeOpenChanged() {
+            if (GlobalStates.osdVolumeOpen) root.windowMapped = true;
+        }
+    }
+
     Loader {
         id: osdLoader
-        active: GlobalStates.osdVolumeOpen
+        active: root.windowMapped
 
         sourceComponent: PanelWindow {
             id: osdRoot
             color: "transparent"
+            readonly property int pad: 12 // room for the pixelate margin
 
             Connections {
                 target: root
@@ -111,34 +159,39 @@ Scope {
             WlrLayershell.namespace: "quickshell:onScreenDisplay"
             WlrLayershell.layer: WlrLayer.Overlay
             anchors {
-                top: !Config.options.bar.bottom
-                bottom: Config.options.bar.bottom
+                bottom: true
             }
             mask: Region {
-                item: osdValuesWrapper
+                item: osdFrame
             }
 
             exclusionMode: ExclusionMode.Ignore
             exclusiveZone: 0
             margins {
-                top: Appearance.sizes.barHeight
-                bottom: Appearance.sizes.barHeight
+                bottom: 80 - pad
             }
 
-            implicitWidth: columnLayout.implicitWidth
-            implicitHeight: columnLayout.implicitHeight
-            visible: osdLoader.active && !GlobalStates.dynamicIslandEnabled
+            implicitWidth: osdFrame.width + 2 * pad
+            implicitHeight: osdFrame.height + 2 * pad
+            visible: osdLoader.active
 
-            ColumnLayout {
-                id: columnLayout
-                anchors.horizontalCenter: parent.horizontalCenter
+            // One window at a time, bottom centre: it pixelates in, sits for
+            // the timeout and pixelates out. Nothing slides.
+            H.PixelTransition {
+                id: osdFrame
+                x: osdRoot.pad
+                y: osdRoot.pad
+                shown: GlobalStates.osdVolumeOpen
+                width: H.HTokens.osdWidth
+                height: content.implicitHeight
+                onClosed: {
+                    if (!GlobalStates.osdVolumeOpen) root.windowMapped = false;
+                }
 
                 Item {
-                    id: osdValuesWrapper
-                    // Extra space for shadow
-                    implicitHeight: contentColumnLayout.implicitHeight
-                    implicitWidth: contentColumnLayout.implicitWidth
-                    clip: true
+                    id: content
+                    width: osdFrame.width
+                    implicitHeight: root.protectionMessage !== "" ? protection.implicitHeight : osdIndicatorLoader.implicitHeight
 
                     MouseArea {
                         anchors.fill: parent
@@ -146,58 +199,32 @@ Scope {
                         onEntered: GlobalStates.osdVolumeOpen = false
                     }
 
-                    Column {
-                        id: contentColumnLayout
-                        anchors {
-                            top: parent.top
-                            left: parent.left
-                            right: parent.right
-                        }
-                        spacing: 0
+                    Loader {
+                        id: osdIndicatorLoader
+                        visible: root.protectionMessage === ""
+                        width: parent.width
+                        source: root.indicators.find(i => i.id === root.currentIndicator)?.sourceUrl
+                    }
 
-                        Loader {
-                            id: osdIndicatorLoader
-                            source: root.indicators.find(i => i.id === root.currentIndicator)?.sourceUrl
-                        }
+                    Binding {
+                        target: osdIndicatorLoader.item
+                        property: "previous"
+                        value: root.layoutPrevious
+                        when: root.currentIndicator === "keyboard" && osdIndicatorLoader.item !== null
+                    }
+                    Binding {
+                        target: osdIndicatorLoader.item
+                        property: "current"
+                        value: root.layoutCurrent
+                        when: root.currentIndicator === "keyboard" && osdIndicatorLoader.item !== null
+                    }
 
-                        Item {
-                            id: protectionMessageWrapper
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            implicitHeight: protectionMessageBackground.implicitHeight
-                            implicitWidth: protectionMessageBackground.implicitWidth
-                            opacity: root.protectionMessage !== "" ? 1 : 0
-
-                            StyledRectangularShadow {
-                                target: protectionMessageBackground
-                            }
-                            Rectangle {
-                                id: protectionMessageBackground
-                                anchors.centerIn: parent
-                                color: Appearance.m3colors.m3error
-                                property real padding: 10
-                                implicitHeight: protectionMessageRowLayout.implicitHeight + padding * 2
-                                implicitWidth: protectionMessageRowLayout.implicitWidth + padding * 2
-                                radius: Appearance.rounding.normal
-
-                                RowLayout {
-                                    id: protectionMessageRowLayout
-                                    anchors.centerIn: parent
-                                    MaterialSymbol {
-                                        id: protectionMessageIcon
-                                        text: "dangerous"
-                                        iconSize: Appearance.font.pixelSize.hugeass
-                                        color: Appearance.m3colors.m3onError
-                                    }
-                                    StyledText {
-                                        id: protectionMessageTextWidget
-                                        horizontalAlignment: Text.AlignHCenter
-                                        color: Appearance.m3colors.m3onError
-                                        wrapMode: Text.Wrap
-                                        text: root.protectionMessage
-                                    }
-                                }
-                            }
-                        }
+                    OsdValueIndicator {
+                        id: protection
+                        visible: root.protectionMessage !== ""
+                        name: "vol"
+                        variant: "love"
+                        message: root.protectionMessage
                     }
                 }
             }

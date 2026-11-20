@@ -1,13 +1,15 @@
-//! Window borders with per-corner radii, and rounded clipping of window contents.
+//! Window frames: borders with per-corner radii, solid or double, the notch label on the
+//! top edge, and rounded clipping of window contents.
 //!
 //! The clipping element is adapted from niri's `ClippedSurfaceRenderElement`
 //! (https://github.com/YaLTeR/niri, GPL-3.0-or-later). The border is a pixel shader that
-//! draws the ring between an outer rounded rectangle and an inner one.
+//! draws the rings between nested rounded rectangles.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use glam::{Mat3, Vec2};
 use smithay::backend::renderer::buffer_y_inverted;
+use smithay::backend::renderer::element::memory::MemoryRenderBufferRenderElement;
 use smithay::backend::renderer::element::surface::{
     WaylandSurfaceRenderElement, render_elements_from_surface_tree,
 };
@@ -23,7 +25,8 @@ use smithay::utils::user_data::UserDataMap;
 use smithay::utils::{Buffer, Logical, Physical, Point, Rectangle, Scale, Size, Transform};
 
 use super::WindowElement;
-use crate::config::{Color, Config, Corners};
+use super::label::{NOTCH_HEIGHT, NotchCache};
+use crate::config::{BorderLine, Color, Config, Corners};
 use crate::wm::{Maximized, WindowExt};
 
 pub type BorderElement = PixelShaderElement;
@@ -59,26 +62,38 @@ uniform float tint;
 #endif
 
 uniform vec4 color;
+uniform vec4 background;
 uniform vec4 outer_radius;
 uniform vec4 inner_radius;
-uniform float border_width;
+// A line of the border, the gap between two of them (0 for a solid border), the whole
+// width, and the band under the top edge.
+uniform vec4 widths;
 uniform float hecate_scale;
 
 float hecate_rounding_alpha(vec2 coords, vec2 size, vec4 r, float scale);
 
+// How much of the pixel is inside the frame's rectangle shrunk by `inset` on every side
+// and by `top` more at the top.
+float within(vec2 coords, float inset, float top, vec4 radius) {
+    vec2 extent = size - vec2(2.0 * inset, 2.0 * inset + top);
+    vec2 c = coords - vec2(inset, inset + top);
+    if (c.x < 0.0 || c.y < 0.0 || c.x > extent.x || c.y > extent.y)
+        return 0.0;
+    return hecate_rounding_alpha(c, extent, radius, hecate_scale);
+}
+
 void main() {
     vec2 coords = v_coords * size;
-    float outer = hecate_rounding_alpha(coords, size, outer_radius, hecate_scale);
+    float line = widths.x;
+    float gap = widths.y;
+    // From the outside in: a line, the gap, the second line, the band, the window.
+    float a0 = within(coords, 0.0, 0.0, outer_radius);
+    float a1 = within(coords, line, 0.0, max(outer_radius - line, 0.0));
+    float a2 = within(coords, line + gap, 0.0, max(outer_radius - line - gap, 0.0));
+    float a3 = within(coords, widths.z, 0.0, inner_radius);
+    float a4 = within(coords, widths.z, widths.w, inner_radius);
 
-    vec2 inner_size = size - vec2(2.0 * border_width);
-    vec2 inner_coords = coords - vec2(border_width);
-    float inner = 0.0;
-    if (inner_coords.x >= 0.0 && inner_coords.y >= 0.0
-        && inner_coords.x <= inner_size.x && inner_coords.y <= inner_size.y) {
-        inner = hecate_rounding_alpha(inner_coords, inner_size, inner_radius, hecate_scale);
-    }
-
-    gl_FragColor = color * (outer * (1.0 - inner)) * alpha;
+    gl_FragColor = (color * (a0 - a1 + a2 - a3) + background * (a1 - a2 + a3 - a4)) * alpha;
 #if defined(DEBUG_FLAGS)
     if (tint == 1.0)
         gl_FragColor = vec4(0.0, 0.3, 0.0, 0.2) + gl_FragColor * 0.8;
@@ -133,6 +148,7 @@ void main() {
 pub struct Shaders {
     pub border: Option<GlesPixelProgram>,
     pub clip: Option<GlesTexProgram>,
+    pub pixelate: Option<GlesTexProgram>,
 }
 
 impl Shaders {
@@ -143,9 +159,10 @@ impl Shaders {
                 format!("{BORDER_FRAG}\n{ROUNDING_ALPHA}"),
                 &[
                     UniformName::new("color", UniformType::_4f),
+                    UniformName::new("background", UniformType::_4f),
                     UniformName::new("outer_radius", UniformType::_4f),
                     UniformName::new("inner_radius", UniformType::_4f),
-                    UniformName::new("border_width", UniformType::_1f),
+                    UniformName::new("widths", UniformType::_4f),
                     UniformName::new("hecate_scale", UniformType::_1f),
                 ],
             )
@@ -163,15 +180,21 @@ impl Shaders {
             )
             .map_err(|e| tracing::warn!("error compiling clip shader: {e:?}"))
             .ok();
+        let pixelate = super::pixelate::compile(renderer);
         let data = renderer.egl_context().user_data();
         data.insert_if_missing(|| {
             RefCell::new(Shaders {
                 border: None,
                 clip: None,
+                pixelate: None,
             })
         });
         let cell = data.get::<RefCell<Shaders>>().unwrap();
-        *cell.borrow_mut() = Shaders { border, clip };
+        *cell.borrow_mut() = Shaders {
+            border,
+            clip,
+            pixelate,
+        };
         super::blur::BlurShaders::init(renderer);
     }
 
@@ -190,16 +213,174 @@ impl Shaders {
             .get::<RefCell<Shaders>>()
             .and_then(|s| s.borrow().clip.clone())
     }
+
+    pub fn pixelate(renderer: &GlesRenderer) -> Option<GlesTexProgram> {
+        renderer
+            .egl_context()
+            .user_data()
+            .get::<RefCell<Shaders>>()
+            .and_then(|s| s.borrow().pixelate.clone())
+    }
+}
+
+/// How far a window's frame reaches beyond its content on each side, in logical pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Extents {
+    pub top: i32,
+    pub right: i32,
+    pub bottom: i32,
+    pub left: i32,
+}
+
+impl Extents {
+    /// The frame around a window's rectangle.
+    pub fn around(&self, rect: Rectangle<i32, Logical>) -> Rectangle<i32, Logical> {
+        Rectangle::new(
+            (rect.loc.x - self.left, rect.loc.y - self.top).into(),
+            (
+                rect.size.w + self.left + self.right,
+                rect.size.h + self.top + self.bottom,
+            )
+                .into(),
+        )
+    }
+
+    /// The window's rectangle that fills `rect` with its frame.
+    pub fn inside(&self, rect: Rectangle<i32, Logical>) -> Rectangle<i32, Logical> {
+        Rectangle::new(
+            (rect.loc.x + self.left, rect.loc.y + self.top).into(),
+            (
+                (rect.size.w - self.left - self.right).max(1),
+                (rect.size.h - self.top - self.bottom).max(1),
+            )
+                .into(),
+        )
+    }
+}
+
+/// An explicit border colour for one window (`border_tint`), in its user data. It wins
+/// over urgency and focus until it is cleared.
+#[derive(Default)]
+struct Tint {
+    color: Cell<Option<Color>>,
+    /// Counts every change, so a timer only clears the tint it was set for.
+    generation: Cell<u64>,
+}
+
+/// Tint a window's border, or give it back its usual colours. Returns a token for
+/// `clear_tint_if`.
+pub fn set_tint(window: &Window, color: Option<Color>) -> u64 {
+    let tint = window.user_data().get_or_insert(Tint::default);
+    tint.color.set(color);
+    tint.generation.set(tint.generation.get() + 1);
+    tint.generation.get()
+}
+
+pub fn tint(window: &Window) -> Option<Color> {
+    window.user_data().get::<Tint>().and_then(|t| t.color.get())
+}
+
+/// Clear the tint that `set_tint` returned `token` for, unless it changed since. Returns
+/// whether it did clear it.
+pub fn clear_tint_if(window: &Window, token: u64) -> bool {
+    match window.user_data().get::<Tint>() {
+        Some(t) if t.generation.get() == token && t.color.get().is_some() => {
+            t.color.set(None);
+            true
+        }
+        _ => false,
+    }
 }
 
 /// Resolved border look for one window.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BorderStyle {
     pub width: f32,
+    pub line: BorderLine,
     pub radius: Corners,
     pub color: Color,
+    /// Fills a double border's gap and the label's band.
+    pub background: Color,
     pub clip: bool,
     pub draw_border: bool,
+    /// The notch label: its text colour and its offset from the border's inner left edge.
+    /// None for a frame without label and band.
+    pub label: Option<(Color, i32)>,
+}
+
+impl BorderStyle {
+    /// The border's width in whole pixels (0 when it isn't drawn).
+    fn width_px(&self) -> i32 {
+        if self.draw_border {
+            self.width.ceil() as i32
+        } else {
+            0
+        }
+    }
+
+    /// Height of the band between the top line and the window. The label is centred on the
+    /// line's inner edge, as in the mockups, so its lower half needs this much room to stay
+    /// off the window.
+    fn band(&self) -> i32 {
+        if self.draw_border && self.label.is_some() {
+            NOTCH_HEIGHT / 2
+        } else {
+            0
+        }
+    }
+
+    /// Widths of one line and of the gap between two (0 when there is one line).
+    fn lines(&self) -> (i32, i32) {
+        let w = self.width_px();
+        let line = ((w + 1) / 3).max(1);
+        match self.line {
+            BorderLine::Double if w - 2 * line > 0 => (line, w - 2 * line),
+            _ => (w, 0),
+        }
+    }
+
+    /// The border with its band: what the shader fills.
+    fn border_extents(&self) -> Extents {
+        let w = self.width_px();
+        Extents {
+            top: w + self.band(),
+            right: w,
+            bottom: w,
+            left: w,
+        }
+    }
+
+    /// Everything drawn around the window: the border, the band, and the upper half of the
+    /// label where it stands above a thin top line.
+    pub fn extents(&self) -> Extents {
+        let w = self.width_px();
+        let band = self.band();
+        Extents {
+            top: band + w.max(band),
+            ..self.border_extents()
+        }
+    }
+}
+
+/// The frame around `window` as layout sees it (snapping, maximizing, hit-testing).
+pub fn extents_for(config: &Config, window: &Window) -> Extents {
+    style_for(config, window, false).extents()
+}
+
+/// The frame around a window that is neither maximized nor fullscreen and has no rules.
+pub fn default_extents(config: &Config) -> Extents {
+    let b = &config.border;
+    BorderStyle {
+        width: b.width.max(0.),
+        line: b.style,
+        radius: b.radius.corners(),
+        color: b.color.inactive,
+        background: b.background,
+        clip: b.clip_content,
+        draw_border: b.width > 0.,
+        label: b.label.enable.then_some((b.label.color, b.label.offset)),
+    }
+    .extents()
 }
 
 pub fn style_for(config: &Config, window: &Window, focused: bool) -> BorderStyle {
@@ -218,7 +399,9 @@ fn style_for_inner(config: &Config, window: &Window, focused: bool, identify: bo
     let radius = o.radius.unwrap_or(config.border.radius).corners();
     let colors = config.border.color;
     let oc = o.color.unwrap_or_default();
-    let color = if d.urgent {
+    let color = if let Some(tint) = tint(window) {
+        tint
+    } else if d.urgent {
         oc.urgent.unwrap_or(colors.urgent)
     } else if focused {
         oc.active.unwrap_or(colors.active)
@@ -229,17 +412,27 @@ fn style_for_inner(config: &Config, window: &Window, focused: bool, identify: bo
     let maximized_hides = d.maximized != Maximized::No && !config.border.keep_on_maximize;
     let fullscreen = d.fullscreen;
     let draw_border = width > 0. && !d.border_hidden && !maximized_hides && !fullscreen;
+    let line = o.style.unwrap_or(config.border.style);
+    let background = config.border.background;
+    let label = o
+        .label
+        .unwrap_or(config.border.label.enable)
+        .then_some((config.border.label.color, config.border.label.offset));
     if identify {
         return BorderStyle {
             width: width.max(6.),
+            line,
             radius,
             color: colors.urgent,
+            background,
             clip,
             draw_border: true,
+            label,
         };
     }
     BorderStyle {
         width: if draw_border { width } else { 0. },
+        line,
         // Fullscreen and maximized windows get square corners.
         radius: if fullscreen || maximized_hides {
             Corners::default()
@@ -247,17 +440,65 @@ fn style_for_inner(config: &Config, window: &Window, focused: bool, identify: bo
             radius
         },
         color,
+        background,
         clip: clip && !fullscreen,
         draw_border,
+        label: label.filter(|_| draw_border),
     }
 }
 
-/// Per-window persistent border element (so its damage tracking stays stable).
-struct BorderSlot(RefCell<Option<PixelShaderElement>>);
+/// Per-window persistent border element (so its damage tracking stays stable), and the
+/// uniform values it was last given: they are only sent again when one changes, since
+/// every update damages the whole border.
+struct BorderSlot(RefCell<Option<(PixelShaderElement, Vec<f32>)>>);
 
-/// Push a window's elements (popups, clipped content, border), topmost first.
+/// Push a window's elements (popups, clipped content, label, border), topmost first.
 #[allow(clippy::too_many_arguments)]
 pub fn push_window(
+    renderer: &mut GlesRenderer,
+    out: &mut Vec<WindowElement>,
+    window: &Window,
+    geo: Rectangle<i32, Logical>,
+    output_loc: Point<i32, Logical>,
+    scale: Scale<f64>,
+    alpha: f32,
+    style: &BorderStyle,
+) {
+    push_popups(renderer, out, window, geo, output_loc, scale, alpha);
+    push_body(renderer, out, window, geo, output_loc, scale, alpha, style);
+}
+
+/// A window's popups. They are never clipped and go on top.
+pub fn push_popups(
+    renderer: &mut GlesRenderer,
+    out: &mut Vec<WindowElement>,
+    window: &Window,
+    geo: Rectangle<i32, Logical>,
+    output_loc: Point<i32, Logical>,
+    scale: Scale<f64>,
+    alpha: f32,
+) {
+    let toplevel = window.toplevel_surface();
+    let surface = toplevel.wl_surface();
+    let render_loc = geo.loc - window.geometry().loc;
+    for (popup, popup_offset) in PopupManager::popups_for_surface(surface) {
+        let loc = render_loc + window.geometry().loc + popup_offset - popup.geometry().loc - output_loc;
+        let elems: Vec<WaylandSurfaceRenderElement<GlesRenderer>> = render_elements_from_surface_tree(
+            renderer,
+            popup.wl_surface(),
+            loc.to_physical_precise_round(scale),
+            scale,
+            alpha,
+            Kind::Unspecified,
+        );
+        out.extend(elems.into_iter().map(WindowElement::Surface));
+    }
+}
+
+/// A window without its popups: the (clipped) content and the frame around it, all
+/// within `style.extents()` of `geo`.
+#[allow(clippy::too_many_arguments)]
+pub fn push_body(
     renderer: &mut GlesRenderer,
     out: &mut Vec<WindowElement>,
     window: &Window,
@@ -271,20 +512,6 @@ pub fn push_window(
     let surface = toplevel.wl_surface();
     let render_loc = geo.loc - window.geometry().loc;
     let local_geo = Rectangle::new(geo.loc - output_loc, geo.size);
-
-    // Popups are never clipped and go on top.
-    for (popup, popup_offset) in PopupManager::popups_for_surface(surface) {
-        let loc = render_loc + window.geometry().loc + popup_offset - popup.geometry().loc - output_loc;
-        let elems: Vec<WaylandSurfaceRenderElement<GlesRenderer>> = render_elements_from_surface_tree(
-            renderer,
-            popup.wl_surface(),
-            loc.to_physical_precise_round(scale),
-            scale,
-            alpha,
-            Kind::Unspecified,
-        );
-        out.extend(elems.into_iter().map(WindowElement::Surface));
-    }
 
     let elems: Vec<WaylandSurfaceRenderElement<GlesRenderer>> = render_elements_from_surface_tree(
         renderer,
@@ -317,15 +544,46 @@ pub fn push_window(
         }
     }
 
-    if style.draw_border
-        && let Some(program) = Shaders::border(renderer)
-    {
-        let w = style.width;
-        let wi = w.ceil() as i32;
-        let area = Rectangle::new(
-            (local_geo.loc.x - wi, local_geo.loc.y - wi).into(),
-            (local_geo.size.w + 2 * wi, local_geo.size.h + 2 * wi).into(),
+    if !style.draw_border {
+        return;
+    }
+    let band = style.band();
+
+    // The label straddles the top line's inner edge, over the border.
+    if let Some((color, offset)) = style.label {
+        let zoom = scale.x.ceil().max(1.) as usize;
+        let cache = window.user_data().get_or_insert(NotchCache::default);
+        let room = local_geo.size.w - 2 * offset;
+        let label = cache.get(
+            &window.app_id(),
+            &window.title(),
+            room,
+            color,
+            style.background,
+            zoom,
         );
+        if let Some((buffer, _)) = label {
+            let loc = Point::<i32, Logical>::from((local_geo.loc.x + offset, local_geo.loc.y - 2 * band));
+            match MemoryRenderBufferRenderElement::from_buffer(
+                renderer,
+                loc.to_physical_precise_round(scale),
+                &buffer,
+                Some(alpha),
+                None,
+                None,
+                Kind::Unspecified,
+            ) {
+                Ok(e) => out.push(WindowElement::Label(e)),
+                Err(err) => tracing::warn!("error importing window label: {err:?}"),
+            }
+        }
+    }
+
+    if let Some(program) = Shaders::border(renderer) {
+        let w = style.width;
+        let wi = style.width_px();
+        let (line, gap) = style.lines();
+        let area = style.border_extents().around(local_geo);
         // Outer radii grow by the border width so the inner edge follows the window's corners.
         let outer = Corners {
             top_left: style.radius.top_left + w,
@@ -338,27 +596,45 @@ pub fn push_window(
         } else {
             outer
         };
-        let uniforms = vec![
-            // The element's own alpha is fixed when it's created; fade through the colour.
-            Uniform::new("color", style.color.premultiplied().map(|c| c * alpha)),
-            Uniform::new("outer_radius", outer.as_array()),
-            Uniform::new("inner_radius", style.radius.as_array()),
-            Uniform::new("border_width", wi as f32),
-            Uniform::new("hecate_scale", scale.x as f32),
-        ];
+        // The element's own alpha is fixed when it's created; fade through the colours.
+        let color = style.color.premultiplied().map(|c| c * alpha);
+        let background = style.background.premultiplied().map(|c| c * alpha);
+        let widths = [line as f32, gap as f32, wi as f32, band as f32];
+        let values: Vec<f32> = [
+            &color[..],
+            &background[..],
+            &outer.as_array()[..],
+            &style.radius.as_array()[..],
+            &widths[..],
+            &[scale.x as f32][..],
+        ]
+        .concat();
+        let uniforms = || {
+            vec![
+                Uniform::new("color", color),
+                Uniform::new("background", background),
+                Uniform::new("outer_radius", outer.as_array()),
+                Uniform::new("inner_radius", style.radius.as_array()),
+                Uniform::new("widths", widths),
+                Uniform::new("hecate_scale", scale.x as f32),
+            ]
+        };
         let slot = window
             .user_data()
             .get_or_insert(|| BorderSlot(RefCell::new(None)));
         let mut slot = slot.0.borrow_mut();
         let elem = match slot.as_mut() {
-            Some(e) => {
+            Some((e, last)) => {
                 e.resize(area, None);
-                e.update_uniforms(uniforms);
+                if *last != values {
+                    e.update_uniforms(uniforms());
+                    *last = values;
+                }
                 e.clone()
             }
             None => {
-                let e = PixelShaderElement::new(program, area, None, 1.0, uniforms, Kind::Unspecified);
-                *slot = Some(e.clone());
+                let e = PixelShaderElement::new(program, area, None, 1.0, uniforms(), Kind::Unspecified);
+                *slot = Some((e.clone(), values));
                 e
             }
         };
@@ -576,5 +852,66 @@ mod tests {
             bottom_left: 4.,
         };
         assert_eq!(c.shrink(2.).as_array(), [8., 8., 2., 2.]);
+    }
+
+    fn style(width: f32, line: BorderLine, label: bool) -> BorderStyle {
+        BorderStyle {
+            width,
+            line,
+            radius: Corners::default(),
+            color: Color::rgb(0x31, 0x74, 0x8f),
+            background: Color::rgb(0x1f, 0x1d, 0x2e),
+            clip: true,
+            draw_border: width > 0.,
+            label: label.then_some((Color::rgb(0xe0, 0xde, 0xf4), 15)),
+        }
+    }
+
+    #[test]
+    fn double_lines_split_the_width_in_thirds() {
+        let lines = |w: f32, line| style(w, line, false).lines();
+        assert_eq!(lines(5., BorderLine::Double), (2, 1), "the haiiro frame: 2, 1, 2");
+        assert_eq!(lines(3., BorderLine::Double), (1, 1));
+        assert_eq!(lines(6., BorderLine::Double), (2, 2));
+        assert_eq!(lines(9., BorderLine::Double), (3, 3));
+        assert_eq!(lines(2., BorderLine::Double), (2, 0), "too thin for two lines");
+        assert_eq!(lines(5., BorderLine::Solid), (5, 0));
+    }
+
+    #[test]
+    fn frame_extents() {
+        let plain = Extents {
+            top: 5,
+            right: 5,
+            bottom: 5,
+            left: 5,
+        };
+        assert_eq!(style(5., BorderLine::Double, false).extents(), plain);
+        // With a label the top grows by a band of half the label's height, and the label's
+        // upper half stands 4 px above the 5 px line.
+        let labelled = style(5., BorderLine::Double, true);
+        assert_eq!(labelled.border_extents().top, 5 + 9);
+        assert_eq!(labelled.extents(), Extents { top: 18, ..plain });
+        // A line thicker than half the label holds all of it.
+        assert_eq!(style(12., BorderLine::Solid, true).extents().top, 12 + 9);
+        // No border, no band.
+        assert_eq!(style(0., BorderLine::Solid, true).extents(), Extents::default());
+
+        let rect = Rectangle::new((100, 100).into(), (300, 200).into());
+        let frame = labelled.extents().around(rect);
+        assert_eq!(frame, Rectangle::new((95, 82).into(), (310, 223).into()));
+        assert_eq!(labelled.extents().inside(frame), rect);
+    }
+
+    #[test]
+    fn default_extents_follow_the_config() {
+        let mut config = Config::default();
+        assert_eq!(default_extents(&config).top, 2);
+        config.border.width = 5.;
+        config.border.label.enable = true;
+        assert_eq!(default_extents(&config).top, 18);
+        assert_eq!(default_extents(&config).left, 5);
+        config.border.width = 0.;
+        assert_eq!(default_extents(&config), Extents::default());
     }
 }

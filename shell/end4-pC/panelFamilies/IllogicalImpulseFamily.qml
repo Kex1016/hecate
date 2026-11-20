@@ -5,33 +5,24 @@ import qs
 import qs.modules.common
 import qs.modules.ii.background
 import qs.modules.ii.bar
-import qs.modules.ii.dock
 import qs.modules.ii.equalizer
 import qs.modules.ii.lock
 import qs.modules.ii.mediaControls
 import qs.modules.ii.notificationPopup
 import qs.modules.ii.onScreenDisplay
-import qs.modules.ii.onScreenKeyboard
 import qs.modules.ii.overview
 import qs.modules.ii.polkit
 import qs.modules.ii.settings
 import qs.modules.ii.regionSelector
-import qs.modules.ii.screenCorners
 import qs.modules.ii.screenTranslator
 import qs.modules.ii.sessionScreen
-import qs.modules.ii.sidebarLeft
 import qs.modules.ii.sidebarRight
-import qs.modules.ii.overlay
-import qs.modules.ii.verticalBar
 import qs.modules.ii.wallpaperSelector
-import qs.modules.ii.desktopMenu
-import qs.modules.ii.dropover
-import qs.modules.ii.frame
 import qs.modules.ii.idle
 import qs.modules.ii.sharePicker
 import qs.modules.ii.altTab
 import qs.modules.ii.cakeosUpdater
-import qs.modules.ii.themeEditor
+import qs.modules.ii.claude
 import qs.services
 
 Scope {
@@ -40,21 +31,17 @@ Scope {
 
     // On screen
     PanelLoader { id: background; component: Background {} }
-    PanelLoader { component: NiriBackdrop {} }
-    PanelLoader { component: ScreenFrame {} }
-    PanelLoader { component: ScreenCorners {} }
-    PanelLoader { id: bar; extraCondition: !Config.options.bar.vertical; component: Bar {} }
-    PanelLoader { id: verticalBar; extraCondition: Config.options.bar.vertical; component: VerticalBar {} }
+    PanelLoader { id: bar; component: Bar {} }
 
-    // hecate's login splash (a picture of this desktop) covers the screen until the wallpaper
-    // and bar are up; the delay lets their first frames land before it fades.
+    // Tells hecate the shell is up once the background and bar are, which ends its login
+    // splash (with the haiiro look there is none to see: it hands over with a cut); the
+    // delay lets their first frames land first.
     Timer {
         interval: 300
         running: WM.compositor === "hecate" && background.item !== null
-            && (bar.item !== null || verticalBar.item !== null) && !GlobalStates.startupLockPending
+            && bar.item !== null && !GlobalStates.startupLockPending
         onTriggered: Quickshell.execDetached(["hecate", "msg", "action", "splash-done"])
     }
-    PanelLoader { extraCondition: Config.options.dock.enable; component: Dock {} }
 
     // Lock screen, notifications, OSD
     PanelLoader { component: Lock {} }
@@ -68,18 +55,18 @@ Scope {
     PanelLoader { extraCondition: WM.compositor === "hecate"; component: AltTab {} }
     PanelLoader { extraCondition: WM.compositor === "hecate"; component: SharePicker {} }
     PanelLoader { component: SidebarRight {} }
-    PanelLoader { component: SidebarLeft {} }
     PanelLoader { component: Overview {} }
+    // Claude is opt-in (claude.enable): Mod+/, Mod+Shift+/, the launcher's `?` and the
+    // calendar and music cards exist only once it is on.
+    PanelLoader { extraCondition: Config.options.claude.enable; component: Sessions {} }
+    PanelLoader { extraCondition: Config.options.claude.enable; component: AskPanel {} }
+    PanelLoader { extraCondition: Config.options.claude.enable; component: AppleCardsPanel {} }
+    PanelLoader { extraCondition: Config.options.claude.enable; component: FailToast {} }
     PanelLoader { component: MediaControls {} }
     PanelLoader { component: EqualizerPopup {} }
-    PanelLoader { component: OnScreenKeyboard {} }
-    PanelLoader { component: Overlay {} }
     PanelLoader { component: RegionSelector {} }
     PanelLoader { component: ScreenTranslator {} }
-    PanelLoader { component: DesktopMenu {} }
     PanelLoader { component: WallpaperSelector {} }
     PanelLoader { component: Settings {} }
     PanelLoader { extraCondition: Updates.cakeos; component: CakeosUpdater {} }
-    PanelLoader { component: ThemeEditor {} }
-    PanelLoader { extraCondition: GlobalStates.dropShelfOpen; component: DropShelfPanel {} }
 }

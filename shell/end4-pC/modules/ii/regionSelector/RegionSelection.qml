@@ -3,10 +3,10 @@ import qs.modules.common
 import qs.modules.common.utils
 import qs.modules.common.functions
 import qs.modules.common.widgets
+import qs.modules.common.widgets.haiiro as H
 import qs.services
 import QtQuick
 import QtQuick.Controls
-import Qt.labs.synchronizer
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -27,28 +27,34 @@ PanelWindow {
     }
 
     // Modes
-    // TODO: Ask: sidebar AI
-    enum SnipAction { Copy, Edit, Search, CharRecognition, Record, RecordWithSound } 
+    // Ask only puts the region on the clipboard for now; the Claude integration takes it from there.
+    // Pick takes one pixel. Ocr, Ask, Translate and Pick are run by RegionSelector (`process`),
+    // the others by ScreenshotAction.
+    enum SnipAction { Copy, Edit, Search, CharRecognition, Record, RecordWithSound, Ask, Translate, Pick }
     enum SelectionMode { RectCorners, Circle, ScreenTarget }
     enum Phase { Select, Post }
     property var action: RegionSelection.SnipAction.Copy
     property var selectionMode: RegionSelection.SelectionMode.RectCorners
     property var phase: RegionSelection.Phase.Select
+    // shot: copy to the clipboard, save to a file, or both
+    property bool copyToClipboard: true
+    property bool saveToFile: false
     signal dismiss()
+    // An action RegionSelector runs: the capture, the region in pixels of the capture.
+    signal process(var action, string path, real x, real y, real width, real height)
+    // A recording started on this region (logical size).
+    signal recordingStarted(real width, real height)
 
     // Styles
     property string screenshotDir: Directories.screenshotTemp
-    property color overlayColor: ColorUtils.transparentize("#000000", 0.4)
-    property color brightText: Appearance.m3colors.darkmode ? Appearance.colors.colOnLayer0 : Appearance.colors.colLayer0
-    property color brightSecondary: Appearance.m3colors.darkmode ? Appearance.colors.colSecondary : Appearance.colors.colOnSecondary
-    property color brightTertiary: Appearance.m3colors.darkmode ? Appearance.colors.colTertiary : Qt.lighter(Appearance.colors.colPrimary)
-    property color selectionBorderColor: ColorUtils.mix(brightText, brightSecondary, 0.5)
-    property color selectionFillColor: "#33ffffff"
-    property color windowBorderColor: brightSecondary
-    property color windowFillColor: ColorUtils.transparentize(windowBorderColor, 0.85)
-    property color imageBorderColor: brightTertiary
-    property color imageFillColor: ColorUtils.transparentize(imageBorderColor, 0.85)
-    property color onBorderColor: "#ff000000"
+    // The veil of the Region board: base at 72%.
+    property color overlayColor: Qt.alpha(H.HTokens.base, 0.72)
+    property color selectionBorderColor: H.HTokens.text
+    property color selectionFillColor: Qt.alpha(H.HTokens.text, 0.2)
+    property color windowBorderColor: H.HTokens.foam
+    property color windowFillColor: Qt.alpha(windowBorderColor, 0.15)
+    property color imageBorderColor: H.HTokens.iris
+    property color imageFillColor: Qt.alpha(imageBorderColor, 0.15)
     property real targetRegionOpacity: Config.options.regionSelector.targetRegions.opacity
     property bool contentRegionOpacity: Config.options.regionSelector.targetRegions.contentRegionOpacity
 
@@ -116,10 +122,11 @@ PanelWindow {
 
     // Config
     property bool isCircleSelection: (root.selectionMode === RegionSelection.SelectionMode.Circle)
-    property bool isScreenMode: (root.selectionMode === RegionSelection.SelectionMode.ScreenTarget)
-    property bool enableWindowRegions: Config.options.regionSelector.targetRegions.windows && !isCircleSelection && !root.isScreenMode
-    property bool enableLayerRegions: Config.options.regionSelector.targetRegions.layers && !isCircleSelection && !root.isScreenMode
-    property bool enableContentRegions: Config.options.regionSelector.targetRegions.content && !root.isScreenMode
+    property bool isScreenMode: (root.selectionMode === RegionSelection.SelectionMode.ScreenTarget) && !root.isPick
+    property bool isPick: root.action === RegionSelection.SnipAction.Pick
+    property bool enableWindowRegions: Config.options.regionSelector.targetRegions.windows && !isCircleSelection && !root.isScreenMode && !root.isPick
+    property bool enableLayerRegions: Config.options.regionSelector.targetRegions.layers && !isCircleSelection && !root.isScreenMode && !root.isPick
+    property bool enableContentRegions: Config.options.regionSelector.targetRegions.content && !root.isScreenMode && !root.isPick
 
     // Target
     property real targetedRegionX: -1
@@ -261,8 +268,6 @@ PanelWindow {
                 return ScreenshotAction.Action.Edit;
             case RegionSelection.SnipAction.Search:
                 return ScreenshotAction.Action.Search;
-            case RegionSelection.SnipAction.CharRecognition:
-                return ScreenshotAction.Action.CharRecognition;
             case RegionSelection.SnipAction.Record:
                 return ScreenshotAction.Action.Record;
             case RegionSelection.SnipAction.RecordWithSound:
@@ -272,6 +277,23 @@ PanelWindow {
                 root.dismiss();
                 return;
         }
+    }
+
+    readonly property bool runsInSelector: root.action === RegionSelection.SnipAction.CharRecognition
+        || root.action === RegionSelection.SnipAction.Ask
+        || root.action === RegionSelection.SnipAction.Translate
+        || root.action === RegionSelection.SnipAction.Pick
+    readonly property string defaultSaveDir: FileUtils.trimFileProtocol(Directories.pictures) + "/Screenshots"
+
+    // Save without copying: the clipboard is left alone.
+    function saveOnlyCommand(x, y, width, height, dir) {
+        const q = s => `'${StringUtils.shellSingleQuoteEscape(s)}'`;
+        const crop = `-crop ${Math.round(width)}x${Math.round(height)}+${Math.round(x)}+${Math.round(y)} +repage`;
+        return ["bash", "-c", `mkdir -p ${q(dir)} && f=${q(dir)}/"screenshot-$(date '+%Y-%m-%d_%H.%M.%S').png" && `
+            + `if magick 'png:${StringUtils.shellSingleQuoteEscape(root.screenshotPath)}' ${crop} "png:$f.part" && mv "$f.part" "$f"; `
+            + `then notify-send -a "Screen Snip" -i image-x-generic "Screenshot saved" "$f"; `
+            + `else rm -f "$f.part"; notify-send -a "Screen Snip" -i image-x-generic "Screenshot failed" "could not crop the capture"; fi; `
+            + `rm -f ${q(root.screenshotPath)}`];
     }
 
     // Execution after selection
@@ -295,25 +317,68 @@ PanelWindow {
         
         const screenshotDir = Config.options.screenSnip.savePath !== "" ? //
             Config.options.screenSnip.savePath : "";
+        const px = root.regionX * root.monitorScale;
+        const py = root.regionY * root.monitorScale;
+        const pw = root.regionWidth * root.monitorScale;
+        const ph = root.regionHeight * root.monitorScale;
+
+        // RegionSelector runs these, so it can show what came out of them.
+        if (root.runsInSelector) {
+            root.process(root.action, root.screenshotPath, px, py, pw, ph);
+            root.dismiss();
+            return;
+        }
+
+        // shot: copy and/or save
+        const wantsFile = root.saveToFile && root.action === RegionSelection.SnipAction.Copy;
+        const saveDirectory = wantsFile ? (screenshotDir !== "" ? screenshotDir : root.defaultSaveDir) : "";
+        if (wantsFile && !root.copyToClipboard) {
+            Quickshell.execDetached(root.saveOnlyCommand(px, py, pw, ph, saveDirectory));
+            root.dismiss();
+            return;
+        }
+
         var screenshotAction = root.getScreenshotAction();
         const command = ScreenshotAction.getCommand(
-            root.regionX * root.monitorScale, //
-            root.regionY * root.monitorScale, //
-            root.regionWidth * root.monitorScale,// 
-            root.regionHeight * root.monitorScale, //
+            px, py, pw, ph, //
             root.screenshotPath, //
             screenshotAction, //
-            screenshotDir, //
+            root.action === RegionSelection.SnipAction.Copy ? saveDirectory : screenshotDir, //
             Config.options.screenRecord.systemAudio, //
             Config.options.screenRecord.microphone
         )
         Quickshell.execDetached(command);
         if (root.action == RegionSelection.SnipAction.Record || root.action == RegionSelection.SnipAction.RecordWithSound) {
+            root.recordingStarted(root.regionWidth, root.regionHeight);
             root.phase = RegionSelection.Phase.Post
             root.selectionMode = RegionSelection.SelectionMode.RectCorners
         } else {
             root.dismiss();
         }
+    }
+
+    function stepMode(step) {
+        const n = RegionModes.modes.length;
+        const next = RegionModes.modes[((RegionModes.indexOf(root.action) + step) % n + n) % n];
+        root.action = next.action;
+        if (root.action === RegionSelection.SnipAction.Record && root.selectionMode === RegionSelection.SelectionMode.Circle)
+            root.selectionMode = RegionSelection.SelectionMode.RectCorners;
+    }
+
+    function takeNow() {
+        if (root.isPick) {
+            root.regionX = mouseArea.mouseX;
+            root.regionY = mouseArea.mouseY;
+            root.regionWidth = 1;
+            root.regionHeight = 1;
+        } else if (root.isScreenMode) {
+            root.selectFullScreen();
+        } else if (root.regionWidth < 1 || root.regionHeight < 1) {
+            root.updateTargetedRegion(mouseArea.mouseX, mouseArea.mouseY);
+            if (root.targetedRegionValid()) root.setRegionToTargeted();
+            else root.selectFullScreen();
+        }
+        root.snip();
     }
 
     // Only clickable in Selection phase
@@ -333,10 +398,26 @@ PanelWindow {
         visible: root.phase === RegionSelection.Phase.Select
 
         focus: root.visible
-        Keys.onPressed: (event) => { // Esc to close
-            if (event.key === Qt.Key_Escape) {
+        Keys.onPressed: (event) => {
+            if (root.phase !== RegionSelection.Phase.Select) return;
+            switch (event.key) {
+            case Qt.Key_Escape: // cancel
                 Qt.callLater(root.dismiss);
+                break;
+            case Qt.Key_Tab: // next mode
+                root.stepMode(1);
+                break;
+            case Qt.Key_Backtab:
+                root.stepMode(-1);
+                break;
+            case Qt.Key_Return: // take what is selected, else the window under the pointer, else the screen
+            case Qt.Key_Enter:
+                root.takeNow();
+                break;
+            default:
+                return;
             }
+            event.accepted = true;
         }
     }
 
@@ -349,7 +430,7 @@ PanelWindow {
 
         // Controls
         onPressed: (mouse) => {
-            if (root.isScreenMode) {
+            if (root.isScreenMode || root.isPick) {
                 root.mouseButton = mouse.button;
                 return;
             }
@@ -361,6 +442,14 @@ PanelWindow {
             root.mouseButton = mouse.button;
         }
         onReleased: (mouse) => {
+            if (root.isPick) {
+                root.regionX = mouse.x;
+                root.regionY = mouse.y;
+                root.regionWidth = 1;
+                root.regionHeight = 1;
+                root.snip();
+                return;
+            }
             if (root.isScreenMode) {
                 root.selectFullScreen();
                 root.snip();
@@ -458,11 +547,10 @@ PanelWindow {
                     && root.targetedRegionWidth === modelData.size[0] //
                     && root.targetedRegionHeight === modelData.size[1])
 
-                opacity: root.draggedAway ? 0 : root.targetRegionOpacity
+                opacity: root.draggedAway ? 0 : (targeted ? 1 : root.targetRegionOpacity)
                 borderColor: root.windowBorderColor
                 fillColor: targeted ? root.windowFillColor : "transparent"
-                text: `${modelData.class}`
-                radius: Appearance.rounding.windowRounding
+                text: modelData.title ? `${modelData.class}: ${modelData.title}` : `${modelData.class}`
             }
         }
 
@@ -487,11 +575,10 @@ PanelWindow {
                     && root.targetedRegionWidth === modelData.size[0]
                     && root.targetedRegionHeight === modelData.size[1])
 
-                opacity: root.draggedAway ? 0 : root.targetRegionOpacity
+                opacity: root.draggedAway ? 0 : (targeted ? 1 : root.targetRegionOpacity)
                 borderColor: root.windowBorderColor
                 fillColor: targeted ? root.windowFillColor : "transparent"
                 text: `${modelData.namespace}`
-                radius: Appearance.rounding.windowRounding
             }
         }
 
@@ -516,70 +603,42 @@ PanelWindow {
                     && root.targetedRegionWidth === modelData.size[0]
                     && root.targetedRegionHeight === modelData.size[1])
 
-                opacity: root.draggedAway ? 0 : root.contentRegionOpacity
+                opacity: root.draggedAway ? 0 : (targeted ? 1 : root.contentRegionOpacity)
                 borderColor: root.imageBorderColor
                 fillColor: targeted ? root.imageFillColor : "transparent"
-                text: Translation.tr("Content region")
+                text: "picture"
             }
         }
 
-        // Controls
-        Row {
-            id: regionSelectionControls
+        // The mode bar
+        H.PixelTransition {
+            id: barTransition
             z: 10
-            visible: root.phase === RegionSelection.Phase.Select
+            shown: root.visible && root.phase === RegionSelection.Phase.Select
             anchors {
                 horizontalCenter: parent.horizontalCenter
                 bottom: parent.bottom
-                bottomMargin: -height
+                bottomMargin: 40
             }
-            opacity: 0
-            Connections {
-                target: root
-                function onVisibleChanged() {
-                    if (!visible) return;
-                    regionSelectionControls.anchors.bottomMargin = 8;
-                    regionSelectionControls.opacity = 1;
-                }
-            }
-            Behavior on opacity {
-                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-            }
-            Behavior on anchors.bottomMargin {
-                animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
-            }
-            spacing: 6
+            width: modeBar.implicitWidth
+            height: modeBar.implicitHeight
 
-            OptionsToolbar {
-                Synchronizer on action {
-                    property alias source: root.action
+            ModeBar {
+                id: modeBar
+                action: root.action
+                selectionMode: root.selectionMode
+                copyToClipboard: root.copyToClipboard
+                saveToFile: root.saveToFile
+                onActionPicked: action => {
+                    root.action = action;
+                    if (action === RegionSelection.SnipAction.Record && root.selectionMode === RegionSelection.SelectionMode.Circle)
+                        root.selectionMode = RegionSelection.SelectionMode.RectCorners;
                 }
-                Synchronizer on selectionMode {
-                    property alias source: root.selectionMode
-                }
-                onDismiss: root.dismiss();
-            }
-            ToolbarPairedFab {
-                anchors.verticalCenter: parent.verticalCenter
-                visible: root.isScreenMode
-                iconText: root.isRecording ? "fiber_manual_record" : "screenshot_monitor"
-                onClicked: {
-                    root.selectFullScreen();
-                    root.snip();
-                }
-                StyledToolTip {
-                    text: root.isRecording ? Translation.tr("Record this screen") : Translation.tr("Capture this screen")
-                }
-            }
-            ToolbarPairedFab {
-                anchors.verticalCenter: parent.verticalCenter
-                iconText: "close"
-                onClicked: root.dismiss();
-                StyledToolTip {
-                    text: Translation.tr("Close")
-                }
+                onSelectionModePicked: mode => root.selectionMode = mode
+                // at least one of the two stays on
+                onCopyToggled: if (!root.copyToClipboard || root.saveToFile) root.copyToClipboard = !root.copyToClipboard
+                onSaveToggled: if (!root.saveToFile || root.copyToClipboard) root.saveToFile = !root.saveToFile
             }
         }
-        
     }
 }

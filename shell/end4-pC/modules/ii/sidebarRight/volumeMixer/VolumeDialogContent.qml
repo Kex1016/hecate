@@ -1,85 +1,111 @@
+pragma ComponentBehavior: Bound
 import qs
 import qs.services
 import qs.modules.common
-import qs.modules.common.widgets
+import qs.modules.common.widgets.haiiro as H
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Services.Pipewire
 
+// Where sound goes (or comes from) and how loud each app is: the devices,
+// the default one on the overlay band, then a slider per app stream.
 ColumnLayout {
     id: root
+
     required property bool isSink
-    readonly property list<var> appPwNodes: isSink ? Audio.outputAppNodes : Audio.inputAppNodes
-    readonly property list<var> devices: isSink ? Audio.outputDevices : Audio.inputDevices
-    readonly property bool hasApps: appPwNodes.length > 0
-    spacing: 16
+    readonly property var devices: isSink ? Audio.outputDevices : Audio.inputDevices
+    readonly property var apps: isSink ? Audio.outputAppNodes : Audio.inputAppNodes
+    readonly property var current: isSink ? Pipewire.defaultAudioSink : Pipewire.defaultAudioSource
+    readonly property var actions: [
+        { text: "mixer", run: () => {
+            GlobalStates.sidebarRightOpen = false;
+            Quickshell.execDetached(["bash", "-c", Config.options.apps.volumeMixer]);
+        } }
+    ]
 
-    DialogSectionListView {
-        Layout.fillHeight: true
-        topMargin: 14
+    spacing: H.HTokens.space2
 
+    PwObjectTracker {
+        objects: [...root.devices, ...root.apps]
+    }
+
+    H.HLabel {
+        text: root.isSink ? "devices" : "microphones"
+    }
+
+    Repeater {
         model: ScriptModel {
-            values: root.appPwNodes
+            values: root.devices
         }
-        delegate: VolumeMixerEntry {
-            anchors {
-                left: parent?.left
-                right: parent?.right
-            }
+        H.ListRow {
             required property var modelData
-            node: modelData
-        }
-        PagePlaceholder {
-            icon: "widgets"
-            title: Translation.tr("No applications")
-            shown: !root.hasApps
-            shape: MaterialShape.Shape.Cookie7Sided
+            Layout.fillWidth: true
+            text: Audio.friendlyDeviceName(modelData).toLowerCase()
+            selected: modelData.id === root.current?.id
+            meta: modelData.audio?.muted ? "muted" : Math.round((modelData.audio?.volume ?? 0) * 100) + "%"
+            onClicked: root.isSink ? Audio.setDefaultSink(modelData) : Audio.setDefaultSource(modelData)
         }
     }
 
-    StyledComboBox {
-        id: deviceSelector
-        Layout.fillHeight: false
+    H.HRule {
         Layout.fillWidth: true
-        Layout.bottomMargin: 6
-        model: root.devices.map(node => Audio.friendlyDeviceName(node))
-        currentIndex: root.devices.findIndex(item => {
-            if (root.isSink) {
-                return item.id === Pipewire.defaultAudioSink?.id
-            } else {
-                return item.id === Pipewire.defaultAudioSource?.id
-            }
-        })
-        onActivated: (index) => {
-            print(index)
-            const item = root.devices[index]
-            if (root.isSink) {
-                Audio.setDefaultSink(item)
-            } else {
-                Audio.setDefaultSource(item)
-            }
-        }
     }
 
-    component DialogSectionListView: StyledListView {
-        Layout.fillWidth: true
-        Layout.topMargin: -22
-        Layout.bottomMargin: -16
-        Layout.leftMargin: -Appearance.rounding.large
-        Layout.rightMargin: -Appearance.rounding.large
-        topMargin: 12
-        bottomMargin: 12
-        leftMargin: 20
-        rightMargin: 20
+    H.HLabel {
+        text: "apps"
+    }
 
+    ListView {
+        id: list
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        Layout.preferredHeight: contentHeight
         clip: true
-        spacing: 4
-        animateAppearance: false
-    }
+        spacing: H.HTokens.space3
+        boundsBehavior: Flickable.StopAtBounds
+        model: ScriptModel {
+            values: root.apps
+        }
+        delegate: ColumnLayout {
+            id: app
+            required property var modelData
+            width: list.width
+            spacing: H.HTokens.space1
 
-    Component {
-        id: listElementComp
-        ListElement {}
+            RowLayout {
+                Layout.fillWidth: true
+                H.HText {
+                    Layout.fillWidth: true
+                    text: {
+                        const name = Audio.appNodeDisplayName(app.modelData);
+                        const media = app.modelData.properties["media.name"];
+                        return (media !== undefined ? `${name} · ${media}` : name).toLowerCase();
+                    }
+                    role: "code"
+                    ink: app.modelData.audio?.muted ? "c1" : "text"
+                    elide: Text.ElideRight
+                }
+                H.InkButton {
+                    flat: true
+                    on: app.modelData.audio?.muted ?? false
+                    text: app.modelData.audio?.muted ? "unmute" : "mute"
+                    onClicked: app.modelData.audio.muted = !app.modelData.audio.muted
+                }
+            }
+            H.Slider {
+                Layout.fillWidth: true
+                enabled: !(app.modelData.audio?.muted ?? false)
+                value: app.modelData.audio?.volume ?? 0
+                onMoved: v => app.modelData.audio.volume = v
+            }
+        }
+
+        H.HText {
+            visible: list.count === 0
+            width: list.width
+            text: root.isSink ? "Nothing is playing." : "Nothing is listening."
+            ink: "c4"
+        }
     }
 }

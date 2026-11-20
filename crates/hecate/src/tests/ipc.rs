@@ -252,3 +252,28 @@ fn frame_stats() {
     });
     assert!(matches!(bad, Some(Reply::Error(_))), "{bad:?}");
 }
+
+#[test]
+fn border_tint_reads_back_by_name_or_hex() {
+    let (mut f, _) = setup();
+    let tint = |f: &mut Fixture, value: Value| {
+        ok(f.hecate().ipc_request(Request::Action {
+            action: json!({ "border_tint": value }),
+            target: None,
+        }))
+    };
+    let windows = |f: &mut Fixture| ok(f.hecate().ipc_request(Request::Windows));
+    assert_eq!(windows(&mut f)[0]["border_tint"], Value::Null);
+    tint(&mut f, json!("gold"));
+    assert_eq!(windows(&mut f)[0]["border_tint"], "gold");
+    tint(&mut f, json!({ "color": "#eb6f92", "ms": 60000 }));
+    assert_eq!(
+        windows(&mut f)[0]["border_tint"],
+        "love",
+        "love's colour reads back as love"
+    );
+    tint(&mut f, json!("#010203"));
+    assert_eq!(windows(&mut f)[0]["border_tint"], "#010203");
+    tint(&mut f, json!("none"));
+    assert_eq!(windows(&mut f)[0]["border_tint"], Value::Null);
+}

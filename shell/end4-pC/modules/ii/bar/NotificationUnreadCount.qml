@@ -1,44 +1,77 @@
+pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Layouts
 import qs
 import qs.services
-import qs.modules.common
-import qs.modules.common.widgets
+import qs.modules.common.widgets.haiiro
 
-MaterialSymbol {
+// Unread notifications as a love ink block ("3"), shown only when there
+// are some; do not disturb adds a muted "dnd" before it. Hover: the latest
+// three; click: the quick panel, where they are read.
+BarSegment {
     id: root
-    property color contentColor: Appearance.colors.colOnLayer1
-    property bool contentColorOverridden: false
-    readonly property bool showUnreadCount: Config.options.bar.indicators.notifications.showUnreadCount
-    readonly property bool isDi: GlobalStates.dynamicIslandEnabled && Config.options.bar.dynamicIsland.rightWidget === "systemIcons"
 
-    text: Notifications.silent ? "notifications_paused" : "notifications"
-    iconSize: Appearance.font.pixelSize.larger
-    readonly property bool isMaterial: Config.options.bar.cornerStyle === 3 || Config.options.bar.cornerStyle === 4
-    color: root.contentColorOverridden ? root.contentColor : (root.isDi ? Appearance.colors.colOnLayer1 : (root.isMaterial ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer1))
+    readonly property int unread: Notifications.unread
+    readonly property var latest: Notifications.list.slice(-3).reverse()
+
+    visible: root.unread > 0 || Notifications.silent
+    popupLabel: "notify"
+    popupWidth: 360
+    popupBlocked: root.unread === 0
+    onClicked: GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen
+
+    HText {
+        visible: Notifications.silent
+        text: "dnd"
+        ink: "muted"
+    }
 
     Rectangle {
-        id: notifPing
-        visible: !Notifications.silent && Notifications.unread > 0
-        anchors {
-            right: parent.right
-            top: parent.top
-            rightMargin: root.showUnreadCount ? 0 : 1
-            topMargin: root.showUnreadCount ? 0 : 3
+        visible: root.unread > 0
+        width: count.implicitWidth + 2 * HTokens.ch()
+        height: count.implicitHeight
+        color: HTokens.love
+
+        HText {
+            id: count
+            x: HTokens.ch()
+            text: root.unread
+            ink: "surface"
         }
-        radius: Appearance.rounding.full
-        color: root.isDi ? Appearance.colors.colOnLayer1 : (root.isMaterial ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer0)
-        z: 1
+    }
 
-        implicitHeight: root.showUnreadCount ? Math.max(notificationCounterText.implicitWidth, notificationCounterText.implicitHeight) : 8
-        implicitWidth: implicitHeight
+    popup: Component {
+        ColumnLayout {
+            spacing: HTokens.space2
 
-        StyledText {
-            id: notificationCounterText
-            visible: root.showUnreadCount
-            anchors.centerIn: parent
-            font.pixelSize: Appearance.font.pixelSize.smallest
-            color: root.isDi ? Appearance.colors.colOnPrimary : (root.isMaterial ? Appearance.colors.colPrimary : Appearance.colors.colLayer0)
-            text: Notifications.unread
+            Repeater {
+                model: root.latest
+
+                Column {
+                    id: note
+                    required property var modelData
+                    Layout.fillWidth: true
+
+                    HText {
+                        width: note.width
+                        text: BarState.appName(note.modelData.appName) || "notify"
+                        ink: "foam"
+                        elide: Text.ElideRight
+                    }
+                    HText {
+                        width: note.width
+                        text: BarState.oneLine(note.modelData.summary)
+                        elide: Text.ElideRight
+                    }
+                }
+            }
+            HText {
+                Layout.fillWidth: true
+                visible: root.unread > root.latest.length
+                text: root.latest.length > 0 ? "and " + (root.unread - root.latest.length) + " more" : root.unread + " unread"
+                ink: "inkMuted"
+                role: "caption"
+            }
         }
     }
 }

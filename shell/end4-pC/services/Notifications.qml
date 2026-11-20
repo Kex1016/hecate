@@ -168,10 +168,15 @@ Singleton {
             });
 			root.list = [...root.list, newNotifObject];
 
-            // Popup
-            if (!root.popupInhibited) {
+            // Popup. Claude permission requests already have their own toast (the only
+            // toast that breaks through do-not-disturb), so they only go to the history.
+            // Every other notification respects do-not-disturb, whatever it claims to be;
+            // critical ones and other requests stay until they are dismissed.
+            const claudeRequest = notification.hints?.["x-hecate-claude-request"] !== undefined;
+            const urgent = root.isUrgent(notification);
+            if (!claudeRequest && !root.popupInhibited) {
                 newNotifObject.popup = true;
-                if (notification.expireTimeout != 0) {
+                if (!urgent && notification.expireTimeout != 0) {
                     newNotifObject.timer = notifTimerComponent.createObject(root, {
                         "notificationId": newNotifObject.notificationId,
                         "interval": notification.expireTimeout < 0 ? (Config?.options.notifications.timeout ?? 7000) : notification.expireTimeout,
@@ -183,6 +188,17 @@ Singleton {
             // console.log(notifToString(newNotifObject));
             notifFileView.setText(stringifyList(root.list));
         }
+    }
+
+    // Critical, or a request that needs an answer (the `permission` category, or Claude
+    // asking whether it may do something): no timeout. Any app can claim these, so they
+    // never get through do-not-disturb. Kept in step with Toasts.isCritical/isPermission.
+    function isUrgent(notification) {
+        const urgency = String(notification?.urgency ?? "");
+        if (urgency === "2" || /critical/i.test(urgency)) return true;
+        const category = notification?.hints?.category ?? "";
+        if (category === "permission" || category === "permission.request") return true;
+        return /claude/i.test(notification?.appName ?? "") && /permission|allow|approve/i.test(notification?.summary ?? "");
     }
 
     function markAllRead() {

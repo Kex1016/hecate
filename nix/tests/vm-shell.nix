@@ -88,26 +88,40 @@ pkgs.testers.runNixOSTest {
         print(machine.execute(as_alice("timeout 15 hecate-shell-ipc shortcut list; echo ipc-rc=$?"))[1])
 
     try:
+        # Count layers by namespace: transient ones (a toast, the OSD) come and go on their own.
+        def has_layer(name):
+            return as_alice(f"HECATE_SOCKET={sock} hecate msg --json layers | grep -qw quickshell:{name}")
+
         # The bar and the background both map as layer surfaces.
-        machine.wait_until_succeeds(
-            as_alice(
-                f"test $(HECATE_SOCKET={sock} hecate msg --json layers | grep -o quickshell | wc -l) -ge 2"
-            ),
-            timeout=180,
-        )
+        machine.wait_until_succeeds(has_layer("background"), timeout=180)
+        machine.wait_until_succeeds(has_layer("bar"), timeout=30)
         # Every shortcut the shell's binds trigger is registered over its IPC.
         machine.wait_until_succeeds(
             as_alice("timeout 15 hecate-shell-ipc shortcut list | grep -q sidebarRightToggle"), timeout=180
         )
-        before = msg("--json layers").count("quickshell")
+        machine.fail(has_layer("sidebarRight"))
         machine.succeed(as_alice("timeout 15 hecate-shell-ipc shortcut trigger sidebarRightToggle"))
-        machine.wait_until_succeeds(
-            as_alice(
-                f"test $(HECATE_SOCKET={sock} hecate msg --json layers | grep -o quickshell | wc -l) -gt {before}"
-            ),
-            timeout=30,
-        )
+        machine.wait_until_succeeds(has_layer("sidebarRight"), timeout=30)
         machine.succeed(as_alice("systemctl --user is-active hecate-shell"))
+
+        # Nothing the shell loaded may have failed to compile or bind: a component that cannot
+        # load is dropped silently by its loader, so the journal is the only place it shows.
+        # Double quotes: as_alice already wraps the command in single ones.
+        # (Runtime tools the VM lacks, like a player or a network, are not QML errors, and
+        # neither is the shell's own logging, such as "[To Do] File not found, creating new file.")
+        qml_errors = (
+            "is not a type|is not installed|Cannot assign|Cannot read property|"
+            "ReferenceError|TypeError|Unable to assign|"
+            "Type .* unavailable|File not found|Cannot open"
+        )
+        errors = machine.execute(
+            as_alice(
+                "journalctl --user -u hecate-shell --no-pager | grep -v icon "
+                '| grep -v "qml: \\[" '
+                f'| grep -E "{qml_errors}"'
+            )
+        )[1]
+        assert not errors.strip(), "the shell logged QML errors:\n" + errors
     except Exception:
         dump()
         raise

@@ -64,6 +64,7 @@ pub enum Request {
         #[serde(default)]
         output: Option<String>,
     },
+    Blobs(Blobs),
     LogLevel(String),
     EventStream,
     KeyStream,
@@ -238,6 +239,67 @@ pub struct Window {
     /// Grows each time the window gets focus: sort descending for most recently used first.
     #[serde(default)]
     pub focus_serial: u64,
+    /// The `border_tint` set on it: `gold`, `love` or `foam` while it is the colour that name
+    /// has in `border.tint`, else `#rrggbb`. None when its border has its usual colours.
+    #[serde(default)]
+    pub border_tint: Option<String>,
+}
+
+/// The `border_tint` action's argument: `{"border_tint": "gold"}`, or
+/// `{"border_tint": {"color": "gold", "ms": 3000}}` to have it clear itself. The colour is
+/// `gold`, `love`, `foam` (`border.tint`), any `#rrggbb`, or `none` to clear it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(untagged)]
+pub enum BorderTint {
+    Color(String),
+    Timed(TimedTint),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct TimedTint {
+    pub color: String,
+    /// Clear the tint again after this many milliseconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ms: Option<u64>,
+}
+
+impl BorderTint {
+    pub fn new(color: impl Into<String>, ms: Option<u64>) -> BorderTint {
+        let color = color.into();
+        match ms {
+            None => BorderTint::Color(color),
+            Some(ms) => BorderTint::Timed(TimedTint { color, ms: Some(ms) }),
+        }
+    }
+
+    /// The colour, and how long it lasts.
+    pub fn parts(&self) -> (&str, Option<u64>) {
+        match self {
+            BorderTint::Color(color) => (color, None),
+            BorderTint::Timed(t) => (&t.color, t.ms),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for BorderTint {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Raw {
+            Color(String),
+            Timed(TimedTint),
+        }
+        match Raw::deserialize(d) {
+            Ok(Raw::Color(c)) => Ok(BorderTint::Color(c)),
+            Ok(Raw::Timed(t)) => Ok(BorderTint::Timed(t)),
+            Err(_) => Err(serde::de::Error::custom(
+                "border_tint takes a colour name or { color, ms }",
+            )),
+        }
+    }
 }
 
 /// Everything about one window (`hecate msg pick` / `window`).
@@ -377,6 +439,75 @@ pub struct FrameStats {
     pub avg_queue_ms: f64,
 }
 
+/// A request about the blob background (`background.blobs`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Blobs {
+    /// Whether it is drawn, and whether it moves on each output: a `BlobsStatus`.
+    Status,
+    /// Draw it or not, whatever the config file says: the runtime override
+    /// `background.blobs.enable`. A shell that draws a wallpaper turns it off.
+    Enable(bool),
+    /// Every output's simulation as it is now: a `BlobsState`.
+    Export,
+    /// Continue from exported simulations: outputs that have one take it over at once, the
+    /// others when they appear.
+    Import(BlobsState),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BlobsStatus {
+    pub enabled: bool,
+    /// One frame that doesn't move (`background.blobs.still`).
+    pub still: bool,
+    /// The outputs it has been drawn on.
+    pub outputs: Vec<BlobsOutputStatus>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BlobsOutputStatus {
+    pub output: String,
+    /// The grid, in cells.
+    pub width: u32,
+    pub height: u32,
+    /// A cell's side in physical pixels.
+    pub cell: u32,
+    pub blobs: usize,
+    pub moving: bool,
+    /// Why it doesn't move: `off`, `still`, `animations_off`, `fullscreen` or `output_off`.
+    pub paused: Option<String>,
+}
+
+/// The blob simulations of a compositor, to carry over to another one (the login screen's
+/// to the session's), which then draws the next frame of the same picture.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct BlobsState {
+    pub outputs: Vec<BlobsOutput>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BlobsOutput {
+    pub output: String,
+    /// The grid the positions are on, in cells. On another grid they scale with it.
+    pub width: u32,
+    pub height: u32,
+    /// Seconds simulated so far.
+    pub time: f64,
+    /// The random number generator's state: what enters next is the same too.
+    pub seed: u64,
+    pub blobs: Vec<Blob>,
+}
+
+/// A blob: centre, radius and velocity, in cells and cells per second.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Blob {
+    pub x: f32,
+    pub y: f32,
+    pub r: f32,
+    pub vx: f32,
+    pub vy: f32,
+}
+
 /// Events on an `event_stream` connection.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Event {
@@ -461,6 +592,70 @@ mod tests {
         assert_eq!(r, Request::Pick(PickKind::Window));
         let r: Request = serde_json::from_str(r#"{"identify":{}}"#).unwrap();
         assert_eq!(r, Request::Identify { ms: 1500 });
+        let r: Request = serde_json::from_str(r#"{"blobs":{"enable":false}}"#).unwrap();
+        assert_eq!(r, Request::Blobs(Blobs::Enable(false)));
+        let r: Request = serde_json::from_str(r#"{"blobs":"export"}"#).unwrap();
+        assert_eq!(r, Request::Blobs(Blobs::Export));
+    }
+
+    #[test]
+    fn border_tint_shapes() {
+        let t: BorderTint = serde_json::from_str(r#""gold""#).unwrap();
+        assert_eq!(t, BorderTint::new("gold", None));
+        let t: BorderTint = serde_json::from_str(r#"{"color":"love","ms":3000}"#).unwrap();
+        assert_eq!(t.parts(), ("love", Some(3000)));
+        let t: BorderTint = serde_json::from_str(r#"{"color":"foam"}"#).unwrap();
+        assert_eq!(t.parts(), ("foam", None));
+        let err = serde_json::from_str::<BorderTint>(r#"{"colour":"gold"}"#).unwrap_err();
+        assert!(err.to_string().contains("colour name or { color, ms }"), "{err}");
+        assert_eq!(
+            serde_json::to_string(&BorderTint::new("love", Some(5))).unwrap(),
+            r#"{"color":"love","ms":5}"#
+        );
+    }
+
+    #[test]
+    fn window_without_border_tint_still_parses() {
+        // A compositor from before `border_tint` leaves the field out.
+        let mut v = serde_json::to_value(Window {
+            id: 1,
+            title: None,
+            app_id: None,
+            pid: None,
+            workspace_id: None,
+            is_focused: false,
+            is_floating: true,
+            is_urgent: false,
+            layout: WindowLayout {
+                window_size: (1, 1),
+                tile_size: (1., 1.),
+                pos_in_scrolling_layout: None,
+                tile_pos_in_workspace_view: None,
+                window_offset_in_tile: (0., 0.),
+            },
+            output: None,
+            geometry: Rect {
+                x: 0,
+                y: 0,
+                width: 1,
+                height: 1,
+            },
+            stacking: 0,
+            is_maximized: false,
+            is_fullscreen: false,
+            is_minimized: false,
+            always_on_top: false,
+            always_on_bottom: false,
+            omnipresent: false,
+            is_x11: false,
+            focus_serial: 0,
+            border_tint: Some("gold".into()),
+        })
+        .unwrap();
+        assert_eq!(v["border_tint"], "gold");
+        v.as_object_mut().unwrap().remove("border_tint");
+        let w: Window = serde_json::from_value(v).unwrap();
+        assert_eq!(w.border_tint, None);
     }
 
     #[test]

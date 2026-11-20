@@ -1,262 +1,92 @@
 pragma ComponentBehavior: Bound
-
-import qs.services
-import qs.modules.common
-import qs.modules.common.widgets
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
+import qs.modules.common.widgets.haiiro
 
-PopupWindow {
+// A tray item's menu as a window under its icon: one ListRow per entry with
+// the rose » on the row under the pointer, hairline rules for separators,
+// quit and exit in love. An entry with a submenu opens it in place, with a
+// "‹ back" row on top.
+Scope {
     id: root
-    required property QsMenuHandle trayItemMenuHandle
-    property string trayItemId: ""
-    property real popupBackgroundMargin: 0
 
-    signal menuClosed
-    signal menuOpened(qsWindow: var) // Correct type is QsWindow, but QML does not like that
+    required property Item target
+    property QsMenuHandle handle: null
+    property string label: ""
+    property bool wanted: false
+    readonly property var popupWindow: window.popupWindow
+    signal done()
 
-    color: "transparent"
-    property real padding: Appearance.sizes.elevationMargin
+    // the submenus walked into, innermost last
+    property list<QsMenuHandle> trail: []
+    readonly property QsMenuHandle current: root.trail.length > 0 ? root.trail[root.trail.length - 1] : root.handle
 
-    implicitHeight: {
-        let result = 0;
-        for (let child of stackView.children) {
-            result = Math.max(child.implicitHeight, result);
-        }
-        return result + popupBackground.padding * 2 + root.padding * 2;
-    }
-    implicitWidth: {
-        let result = 0;
-        for (let child of stackView.children) {
-            result = Math.max(child.implicitWidth, result);
-        }
-        return result + popupBackground.padding * 2 + root.padding * 2;
-    }
+    onWantedChanged: if (!root.wanted) root.trail = []
 
-    function open() {
-        root.visible = true;
-        root.menuOpened(root);
-    }
+    BarPopup {
+        id: window
+        target: root.target
+        wanted: root.wanted
+        label: root.label
+        windowWidth: 240
+        content: Component {
+            ColumnLayout {
+                id: list
+                spacing: 0
 
-    function close() {
-        root.visible = false;
-        while (stackView.depth > 1)
-            stackView.pop();
-        root.menuClosed();
-    }
-
-    MouseArea {
-        anchors.fill: parent
-        acceptedButtons: Qt.BackButton | Qt.RightButton
-        onPressed: event => {
-            if ((event.button === Qt.BackButton || event.button === Qt.RightButton) && stackView.depth > 1)
-                stackView.pop();
-        }
-
-        StyledRectangularShadow {
-            target: popupBackground
-            opacity: popupBackground.opacity
-        }
-
-        Rectangle {
-            id: popupBackground
-            readonly property real padding: 4
-            anchors {
-                left: parent.left
-                right: parent.right
-                verticalCenter: Config.options.bar.vertical ? parent.verticalCenter : undefined
-                top: Config.options.bar.vertical ? undefined : Config.options.bar.bottom ? undefined : parent.top
-                bottom: Config.options.bar.vertical ? undefined : Config.options.bar.bottom ? parent.bottom : undefined
-                margins: root.padding
-            }
-
-            color: Appearance.colors.colLayer0
-            radius: Appearance.rounding.windowRounding
-            border.width: 1
-            border.color: Appearance.colors.colLayer0Border
-            clip: true
-
-            opacity: 0
-            Component.onCompleted: opacity = 1
-            implicitWidth: stackView.implicitWidth + popupBackground.padding * 2
-            implicitHeight: stackView.implicitHeight + popupBackground.padding * 2
-
-            Behavior on opacity {
-                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-            }
-            Behavior on implicitHeight {
-                animation: Appearance.animation.elementResize.numberAnimation.createObject(this)
-            }
-            Behavior on implicitWidth {
-                animation: Appearance.animation.elementResize.numberAnimation.createObject(this)
-            }
-
-            StackView {
-                id: stackView
-                anchors {
-                    fill: parent
-                    margins: popupBackground.padding
-                }
-                pushEnter: NoAnim {}
-                pushExit: NoAnim {}
-                popEnter: NoAnim {}
-                popExit: NoAnim {}
-
-                implicitWidth: currentItem.implicitWidth
-                implicitHeight: currentItem.implicitHeight
-
-                initialItem: SubMenu {
-                    handle: root.trayItemMenuHandle
-                }
-            }
-        }
-    }
-
-    component NoAnim: Transition {
-        NumberAnimation {
-            duration: 0
-        }
-    }
-
-    component SubMenu: ColumnLayout {
-        id: submenu
-        required property QsMenuHandle handle
-        property bool isSubMenu: false
-        property bool shown: false
-        opacity: shown ? 1 : 0
-
-        Behavior on opacity {
-            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-        }
-
-        Component.onCompleted: shown = true
-        StackView.onActivating: shown = true
-        StackView.onDeactivating: shown = false
-        StackView.onRemoved: destroy()
-
-        QsMenuOpener {
-            id: menuOpener
-            menu: submenu.handle
-        }
-
-        spacing: 0
-
-        Loader {
-            Layout.fillWidth: true
-            visible: submenu.isSubMenu
-            active: visible
-            sourceComponent: RippleButton {
-                id: backButton
-                buttonRadius: popupBackground.radius - popupBackground.padding
-                horizontalPadding: 12
-                implicitWidth: contentItem.implicitWidth + horizontalPadding * 2
-                implicitHeight: 36
-
-                downAction: () => stackView.pop()
-
-                contentItem: RowLayout {
-                    anchors {
-                        verticalCenter: parent.verticalCenter
-                        left: parent.left
-                        right: parent.right
-                        leftMargin: backButton.horizontalPadding
-                        rightMargin: backButton.horizontalPadding
-                    }
-                    spacing: 8
-                    MaterialSymbol {
-                        iconSize: 20
-                        text: "chevron_left"
-                    }
-                    StyledText {
-                        Layout.fillWidth: true
-                        text: Translation.tr("Back")
-                    }
-                }
-            }
-        }
-        RippleButton {
-            id: pinEntry
-            buttonRadius: popupBackground.radius - popupBackground.padding
-            horizontalPadding: 12
-            implicitWidth: contentItem.implicitWidth + horizontalPadding * 2
-            implicitHeight: 36
-            Layout.topMargin: 0
-            Layout.bottomMargin: 0
-            Layout.fillWidth: true
-
-            visible: root.trayItemId !== undefined && root.trayItemId.length > 0 && stackView.depth === 1
-            releaseAction: () => TrayService.togglePin(root.trayItemId);
-
-            contentItem: RowLayout {
-                anchors {
-                    verticalCenter: parent.verticalCenter
-                    left: parent.left
-                    right: parent.right
-                    leftMargin: pinEntry.horizontalPadding
-                    rightMargin: pinEntry.horizontalPadding
-                }
-                spacing: 8
-
-                MaterialSymbol {
-                    iconSize: 18
-                    text: "push_pin"
+                QsMenuOpener {
+                    id: opener
+                    menu: root.current
                 }
 
-                StyledText {
+                ListRow {
                     Layout.fillWidth: true
-                    text: TrayService.isPinned(root.trayItemId) ? Translation.tr("Unpin") : Translation.tr("Pin")
+                    visible: root.trail.length > 0
+                    text: "‹ back"
+                    ink: "muted"
+                    selected: hovered
+                    onClicked: root.trail = root.trail.slice(0, -1)
+                }
+
+                Repeater {
+                    model: opener.children
+
+                    Item {
+                        id: entry
+                        required property QsMenuEntry modelData
+                        readonly property bool quits: /\b(quit|exit)\b/i.test(entry.modelData.text)
+                        Layout.fillWidth: true
+                        implicitHeight: entry.modelData.isSeparator ? rule.implicitHeight : row.implicitHeight
+                        visible: entry.modelData.isSeparator || entry.modelData.text.length > 0
+
+                        HRule {
+                            id: rule
+                            width: parent.width
+                            visible: entry.modelData.isSeparator
+                        }
+
+                        ListRow {
+                            id: row
+                            width: parent.width
+                            visible: !entry.modelData.isSeparator
+                            enabled: entry.modelData.enabled
+                            opacity: enabled ? 1 : 0.55
+                            selected: hovered && enabled
+                            text: (entry.modelData.checkState === Qt.Checked ? "✓ " : "") + entry.modelData.text.replace(/_(?!_)/g, "") + (entry.modelData.hasChildren ? " ›" : "")
+                            ink: entry.quits ? "love" : "text"
+                            onClicked: {
+                                if (entry.modelData.hasChildren) {
+                                    root.trail = root.trail.concat([entry.modelData]);
+                                } else {
+                                    entry.modelData.triggered();
+                                    root.done();
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
-
-        Rectangle {
-            Layout.fillWidth: true
-            implicitHeight: 1
-            color: Appearance.colors.colSubtext
-            Layout.topMargin: 4
-            Layout.bottomMargin: 4
-        }
-
-        Repeater {
-            id: menuEntriesRepeater
-            property bool iconColumnNeeded: {
-                for (let i = 0; i < menuOpener.children.values.length; i++) {
-                    if (menuOpener.children.values[i].icon.length > 0)
-                        return true;
-                }
-                return false;
-            }
-            property bool specialInteractionColumnNeeded: {
-                for (let i = 0; i < menuOpener.children.values.length; i++) {
-                    if (menuOpener.children.values[i].buttonType !== QsMenuButtonType.None)
-                        return true;
-                }
-                return false;
-            }
-            model: menuOpener.children
-            delegate: SysTrayMenuEntry {
-                required property QsMenuEntry modelData
-                forceIconColumn: menuEntriesRepeater.iconColumnNeeded
-                forceSpecialInteractionColumn: menuEntriesRepeater.specialInteractionColumnNeeded
-                menuEntry: modelData
-
-                buttonRadius: popupBackground.radius - popupBackground.padding
-
-                onDismiss: root.close()
-                onOpenSubmenu: handle => {
-                    stackView.push(subMenuComponent.createObject(null, {
-                        handle: handle,
-                        isSubMenu: true
-                    }));
-                }
-            }
-        }
-    }
-
-    Component {
-        id: subMenuComponent
-        SubMenu {}
     }
 }

@@ -56,7 +56,7 @@ Singleton {
     function apply(password, mode) {
         if (!root.cakeos || root.applying) return;
         root.applyLog = [];
-        root.applyStatus = Translation.tr("Starting…");
+        root.applyStatus = "Starting…";
         root.applyResult = "";
         root.applyMode = mode;
         applyProc.password = password;
@@ -122,7 +122,7 @@ Singleton {
                     // An unknown installed version counts as one update: updating records it.
                     if (!status.error) root.count = status.behind ?? 1;
                 } catch (e) {
-                    root.cakeosStatus = { error: Translation.tr("Couldn't read the update check") };
+                    root.cakeosStatus = { error: "Couldn't read the update check" };
                 }
             }
         }
@@ -148,14 +148,14 @@ Singleton {
             if (exitCode === 0) {
                 root.applyResult = "ok";
                 root.applyStatus = root.applyMode === "boot"
-                    ? Translation.tr("Restart to finish the update")
-                    : Translation.tr("CakeOS is up to date");
+                    ? "Restart to finish the update"
+                    : "CakeOS is up to date";
             } else if (root.applyLog.some(l => /incorrect password|try again|no password was provided/i.test(l))) {
                 root.applyResult = "wrongPassword";
             } else {
                 root.applyResult = "failed";
                 const error = root.applyLog.slice().reverse().find(l => l.startsWith("!!! ") || /^error:/i.test(l));
-                root.applyStatus = error ? error.replace(/^!!! /, "") : Translation.tr("The update failed (exit code %1)").arg(exitCode);
+                root.applyStatus = error ? error.replace(/^!!! /, "") : "The update failed (exit code %1)".arg(exitCode);
             }
             root.refresh();
         }

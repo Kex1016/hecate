@@ -146,6 +146,11 @@ impl State {
                     self.hecate.queue_redraw_all();
                 }
             }
+            Action::BorderTint(tint) => {
+                if let Err(err) = self.border_tint(&tint, window) {
+                    tracing::warn!("border_tint: {err}");
+                }
+            }
             Action::Center => {
                 if let Some(w) = window {
                     self.center_window(&w);

@@ -9,7 +9,7 @@ use smithay::input::pointer::{
 };
 use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
-use smithay::utils::{IsAlive, Logical, Point, Rectangle, SERIAL_COUNTER, Serial, Size};
+use smithay::utils::{IsAlive, Logical, Point, Rectangle, SERIAL_COUNTER, Serial};
 
 use crate::config::action::Edge;
 use crate::state::State;
@@ -345,12 +345,14 @@ impl PointerGrab<State> for MoveGrab {
 pub(crate) fn resist(state: &State, window: &Window, loc: Point<i32, Logical>) -> Point<i32, Logical> {
     let screen = state.hecate.config.resistance.screen_edge;
     let win = state.hecate.config.resistance.window_edge;
-    // Edges meet border to border: work with the windows' outer rects, border included.
-    // shortcut: assumes every window draws the configured border; a window with its border hidden
+    // Edges meet frame to frame: work with the windows' outer rects, border and label band
+    // included.
+    // shortcut: assumes every window draws the configured frame; a window with its border hidden
     // by a rule keeps a border-wide gap, fine until that's common.
-    let bw = state.border_px();
-    let loc = loc - Point::from((bw, bw));
-    let size = window.geometry().size + Size::from((2 * bw, 2 * bw));
+    let ext = state.frame_extents();
+    let inset = Point::from((ext.left, ext.top));
+    let loc = loc - inset;
+    let size = ext.around(Rectangle::from_size(window.geometry().size)).size;
     let mut out = loc;
     let snap_axis = |value: i32, len: i32, edges: &[i32], range: i32| -> i32 {
         if range <= 0 {
@@ -386,13 +388,7 @@ pub(crate) fn resist(state: &State, window: &Window, loc: Point<i32, Logical>) -
             .windows_on_output(o)
             .iter()
             .filter(|w| *w != window)
-            .map(|w| {
-                let r = state.hecate.wm.window_rect(w);
-                Rectangle::new(
-                    r.loc - Point::from((bw, bw)),
-                    r.size + Size::from((2 * bw, 2 * bw)),
-                )
-            })
+            .map(|w| ext.around(state.hecate.wm.window_rect(w)))
             .collect();
         let xs: Vec<i32> = others
             .iter()
@@ -405,7 +401,7 @@ pub(crate) fn resist(state: &State, window: &Window, loc: Point<i32, Logical>) -
         out.x = snap_axis(out.x, size.w, &xs, win);
         out.y = snap_axis(out.y, size.h, &ys, win);
     }
-    out + Point::from((bw, bw))
+    out + inset
 }
 
 pub struct ResizeGrab {

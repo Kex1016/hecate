@@ -166,6 +166,8 @@ pub struct Hecate {
     pub satellite: Option<crate::xwayland::Satellite>,
     /// Outputs were powered off by the action; the next input powers them on.
     pub wake_outputs_on_input: bool,
+    /// The blob background's simulations (`background.blobs`).
+    pub blobs: crate::render::blobs::Blobs,
     /// Login splash per output (`splash.enable`), and whether it was dismissed.
     pub splash: std::collections::HashMap<Output, crate::splash::Splash>,
     pub splash_done: bool,
@@ -572,6 +574,7 @@ impl Hecate {
             output_heads_dirty: true,
             satellite: None,
             wake_outputs_on_input: false,
+            blobs: Default::default(),
             splash: Default::default(),
             splash_done: false,
             splash_hold_over: false,

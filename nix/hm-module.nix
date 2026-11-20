@@ -13,24 +13,90 @@ let
   shellBinds = lib.optionalAttrs (shellCfg.enable && shellCfg.keybinds) (
     import ./shell-binds.nix { shell = shellCfg.finalPackage; }
   );
+  haiiro = shellCfg.enable && shellCfg.theming.compositor;
+  # The haiiro look for what the compositor draws (Rosé Pine): no blur, square windows in
+  # a 5px double frame (2px line, 1px gap, 2px line) with their name in a notch, and
+  # nothing that slides or fades. Things pixelate in and out in four steps, workspace
+  # switches, programmatic moves and border colour changes are cuts, and the login splash
+  # hands over with one. `settings` overrides any of it.
+  pixelate = {
+    style = "pixelate";
+    ms = 500;
+    curve = "stepped";
+    cell = 16;
+    fade = false;
+  };
+  haiiroSettings = {
+    general.background_color = "#191724";
+    blur.enable = false;
+    border = {
+      width = 5;
+      style = "double";
+      radius = 0;
+      background = "#1f1d2e";
+      color = {
+        active = "#31748f";
+        inactive = "#403d52";
+        urgent = "#eb6f92";
+      };
+      label = {
+        enable = true;
+        color = "#e0def4";
+      };
+      tint = {
+        gold = "#f6c177";
+        love = "#eb6f92";
+        foam = "#9ccfd8";
+      };
+    };
+    animations = {
+      window_open = pixelate;
+      window_close = pixelate;
+      layer_open = pixelate;
+      layer_close = pixelate;
+      window_move.style = "none";
+      border.style = "none";
+      workspace_switch.style = "none";
+    };
+    splash.handover = "cut";
+    # The live blob background is the desktop until you pick wallpaper mode (the shell
+    # switches it over IPC). Set here too so the first frames, before the shell is up, are
+    # blobs and not the bare ground colour; `resume` carries on from the login screen's.
+    background.blobs = {
+      enable = true;
+    }
+    // lib.optionalAttrs (shellCfg.blobs.resume != null) { inherit (shellCfg.blobs) resume; };
+  };
+  # With that look a panel appears the way everything does: the shell's per-panel slides,
+  # fades and pop-ins are left out (a rule that says "none" still means it).
+  shellLayerRule =
+    rule:
+    if haiiro && (rule.animation or "none") != "none" then removeAttrs rule [ "animation" ] else rule;
   # Shell layer rules first: later rules win, so yours override them.
   layerRules =
-    lib.optionals (shellCfg.enable && shellCfg.layerRules) (import ./shell-layer-rules.nix)
+    lib.optionals (shellCfg.enable && shellCfg.layerRules) (
+      # A rule that was only an animation has nothing left to say.
+      lib.filter (rule: removeAttrs rule [ "match" ] != { }) (
+        map shellLayerRule (import ./shell-layer-rules.nix)
+      )
+    )
     ++ (cfg.settings.layer_rules or [ ]);
-  # Included in this order, later wins: the shell's wallpaper colours (matugen writes
-  # ~/.config/hecate/colors.toml), what its settings page writes (shell.toml), then yours.
+  # Included in this order, later wins: what the shell's settings page writes (shell.toml),
+  # then yours. The colours are haiiro's and fixed, so nothing is generated from the wallpaper.
   includes =
-    lib.optional (
-      shellCfg.enable && shellCfg.theming.borders
-    ) "${config.xdg.configHome}/hecate/colors.toml"
-    ++ lib.optional shellCfg.enable "${config.xdg.configHome}/hecate/shell.toml"
+    lib.optional shellCfg.enable "${config.xdg.configHome}/hecate/shell.toml"
     ++ map toString cfg.extraConfigFiles;
   configFile = toml.generate "hecate-config.toml" (
     lib.recursiveUpdate (
-      lib.optionalAttrs (shellBinds != { }) { shell_binds = shellBinds; }
+      lib.optionalAttrs haiiro haiiroSettings
+      // lib.optionalAttrs (shellBinds != { }) { shell_binds = shellBinds; }
       // lib.optionalAttrs (cfg.systemd.variables != [ ]) { session_variables = cfg.systemd.variables; }
       # The shell tells hecate when it's up, which ends the login splash.
-      // lib.optionalAttrs shellCfg.enable { splash.enable = true; }
+      // lib.optionalAttrs shellCfg.enable {
+        splash = lib.optionalAttrs haiiro haiiroSettings.splash // {
+          enable = true;
+        };
+      }
     ) cfg.settings
     // lib.optionalAttrs (layerRules != [ ]) { layer_rules = layerRules; }
     // lib.optionalAttrs (includes != [ ]) { include = includes; }
@@ -42,6 +108,13 @@ let
   '';
 in
 {
+  imports = [
+    (lib.mkRemovedOptionModule [ "wayland" "windowManager" "hecate" "shell" "theming" "borders" ] ''
+      The shell no longer colours borders from the wallpaper (matugen is gone): haiiro's frame
+      colours are fixed, and `settings.border.color` overrides them.
+    '')
+  ];
+
   options.wayland.windowManager.hecate = {
     enable = lib.mkEnableOption "the hecate Wayland compositor";
 
@@ -57,7 +130,7 @@ in
       default = { };
       example = lib.literalExpression ''
         {
-          border = { width = 2; radius = 15; };
+          border.color.active = "#9ccfd8";
           workspaces = { scope = "per_output"; kind = "fixed"; count = 9; };
           binds."Mod+Return".spawn = [ "kitty" ];
         }
@@ -134,19 +207,22 @@ in
         default = true;
         description = ''
           Add the shell's layer rules (blur behind panels, per-panel animations) before
-          `settings.layer_rules`, which can override them.
+          `settings.layer_rules`, which can override them. With `theming.compositor` the
+          per-panel animations are left out: panels pixelate like everything else.
         '';
       };
 
       theming = {
-        borders = lib.mkOption {
+        compositor = lib.mkOption {
           type = lib.types.bool;
-          default = !(cfg.settings ? border.color);
-          defaultText = lib.literalExpression "!(settings ? border.color)";
+          default = true;
           description = ''
-            Colour hecate's borders from the wallpaper: the shell's matugen run writes
-            `~/.config/hecate/colors.toml`, which the config includes. Off when
-            `settings.border.color` is set, since the include would override it.
+            Give what the compositor draws the haiiro look: blur off, square windows in a
+            5px double pine frame with "app: title" in a notch on its top edge, windows and
+            layers that pixelate in and out in four steps, and cuts for workspace switches,
+            border colour changes and the login splash. These are defaults under
+            `settings`, which overrides any of them. The shell's per-panel slide, fade and
+            pop-in layer rules are left out with it.
           '';
         };
 
@@ -154,10 +230,26 @@ in
           type = lib.types.bool;
           default = true;
           description = ''
-            Theme Qt apps from the wallpaper the way illogical-impulse does on Plasma: the KDE
-            platform theme (`QT_QPA_PLATFORMTHEME=kde`) with the Darkly style, reading the
-            colour scheme the shell writes into `~/.config/kdeglobals`. That file is seeded
-            once (writable) if it doesn't exist.
+            Theme Qt apps the way Plasma does: the KDE platform theme
+            (`QT_QPA_PLATFORMTHEME=kde`) with the Darkly style and the haiiro colour scheme
+            (`~/.local/share/color-schemes/Haiiro.colors`). `~/.config/kdeglobals` is seeded once
+            (writable) from nix/haiiro/kdeglobals if it doesn't exist, or still names the old
+            MaterialYouDark scheme (the old file is kept as `kdeglobals.material-bak`); the
+            shell's settings change its icons and fonts, never its colours.
+          '';
+        };
+
+        apps = lib.mkOption {
+          type = lib.types.bool;
+          default = true;
+          description = ''
+            The fixed haiiro templates for programs the shell does not draw (nix/haiiro/):
+            kitty and foot (`~/.config/kitty/haiiro.conf`, `~/.config/foot/haiiro.ini`, included
+            from their config: added to `programs.kitty`/`programs.foot` when those are on,
+            otherwise written into a new kitty.conf/foot.ini once), GTK 3 and 4
+            (`gtk.css` with adw-gtk3-dark, and the GTK theme, dark style and haiiro fonts in
+            dconf, set once while unset) and fontconfig's `monospace` (the haiiro mono stack
+            first). Leave Home Manager's `gtk` module off with it: both write gtk.css.
           '';
         };
 
@@ -165,34 +257,34 @@ in
           type = lib.types.bool;
           default = true;
           description = ''
-            Use Papirus with its folders recoloured to the wallpaper's primary colour as the
-            GTK and KDE icon theme (`~/.local/share/icons/Papirus-Hecate*`).
+            Use Papirus-Dark as the KDE icon theme (seeded into `kdeglobals`) and install
+            Papirus. The shell no longer recolours its folders from the wallpaper.
           '';
         };
+      };
+
+      blobs.resume = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = "/run/hecate-greetd/blobs.json";
+        description = ''
+          File the blob background carries on from at startup, so the desktop's first blob
+          frame follows the login screen's last one. hecate-greetd writes it when you log in;
+          a missing file just starts the blobs afresh. `null` leaves it out.
+        '';
       };
 
       dotfiles = lib.mkOption {
         type = lib.types.listOf (
           lib.types.enum [
-            "matugen"
-            "kde-material-you-colors"
-            "Kvantum"
-            "fontconfig"
             "fuzzel"
-            "kitty"
-            "foot"
             "fish"
           ]
         );
-        default = [
-          "matugen"
-          "kde-material-you-colors"
-          "Kvantum"
-          "fuzzel"
-        ];
+        default = [ "fuzzel" ];
         description = ''
-          illogical-impulse dotfiles to install into `~/.config`. matugen's templates are what
-          wallpaper theming needs; the terminal and shell configs are opt-in.
+          illogical-impulse dotfiles to install into `~/.config`: fuzzel (in haiiro colours, the
+          screen-share picker when the shell is not running) and fish. kitty, foot, GTK and Qt
+          get the haiiro templates instead (`theming.apps`, `theming.qt`).
         '';
       };
     };
@@ -236,15 +328,14 @@ in
           shellCfg.finalPackage
         ]
         ++ (with pkgs; [
-          # Fonts and themes the shell's look assumes.
-          rubik
-          nerd-fonts.jetbrains-mono
-          material-symbols
-          twemoji-color-font
+          # adw-gtk3 is the GTK 3 theme the haiiro gtk.css recolours; Breeze fills icons the
+          # icon theme lacks in KDE apps.
           adw-gtk3
           kdePackages.breeze-icons
-          bibata-cursors
         ])
+        # The haiiro faces for every other program, with their fallback order (the shell
+        # loads its own copies).
+        ++ [ self.packages.${pkgs.stdenv.hostPlatform.system}.haiiro-fonts ]
         ++ lib.optional shellCfg.theming.folderIcons pkgs.papirus-icon-theme
         ++ lib.optionals shellCfg.theming.qt [
           pkgs.darkly
@@ -272,7 +363,6 @@ in
             ConditionEnvironment = "WAYLAND_DISPLAY";
           };
           Service = {
-            Environment = lib.optional (!shellCfg.theming.folderIcons) "HECATE_FOLDER_COLORS=0";
             ExecStart = lib.getExe shellCfg.finalPackage;
             Restart = "on-failure";
             RestartSec = 1;
@@ -289,20 +379,90 @@ in
           platformTheme.name = lib.mkDefault "kde";
         };
 
-        # The shell rewrites kdeglobals on every wallpaper change, so it can't be a store
-        # symlink. Seed it from illogical-impulse's, minus fonts and icons nixpkgs lacks.
-        home.activation.hecateKdeglobals = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        xdg.dataFile."color-schemes/Haiiro.colors".source = ./haiiro/Haiiro.colors;
+
+        # The shell's settings write icons and fonts into kdeglobals, so it can't be a store
+        # symlink. Seeded from nix/haiiro/kdeglobals when missing, or when it is still the
+        # illogical-impulse Material seed of older versions.
+        home.activation.hecateKdeglobals = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
           kdeglobals="${config.xdg.configHome}/kdeglobals"
-          if [ ! -e "$kdeglobals" ]; then
-            run mkdir -p "${config.xdg.configHome}"
-            run sed -e 's/Google Sans Flex/Rubik/g' \
-              -e 's/^Theme=breeze-dark$/Theme=${
-                if shellCfg.theming.folderIcons then "Papirus-Dark" else "breeze-dark"
-              }/' \
-              ${dots}/kdeglobals > "$kdeglobals"
+          if [ -e "$kdeglobals" ] && grep -q '^ColorScheme=MaterialYouDark$' "$kdeglobals"; then
+            run mv "$kdeglobals" "$kdeglobals.material-bak"
+          fi
+          if [ ! -e "$kdeglobals" ] && [[ ! -v DRY_RUN ]]; then
+            mkdir -p "${config.xdg.configHome}"
+            sed -e 's/@ICON_THEME@/${
+              if shellCfg.theming.folderIcons then "Papirus-Dark" else "breeze-dark"
+            }/' ${./haiiro/kdeglobals} > "$kdeglobals"
+            chmod u+w "$kdeglobals"
           fi
         '';
       })
+
+      (lib.mkIf (shellCfg.enable && shellCfg.theming.apps) (
+        let
+          dconf = lib.getExe pkgs.dconf;
+          dbusRun = "${pkgs.dbus}/bin/dbus-run-session --dbus-daemon=${pkgs.dbus}/bin/dbus-daemon";
+          font = "IBM VGA 8x16 12";
+          # Set once while unset, so a choice made in the shell's settings later stays.
+          gsettings = {
+            "/org/gnome/desktop/interface/gtk-theme" = "'adw-gtk3-dark'";
+            "/org/gnome/desktop/interface/color-scheme" = "'prefer-dark'";
+            "/org/gnome/desktop/interface/font-name" = "'${font}'";
+            "/org/gnome/desktop/interface/document-font-name" = "'${font}'";
+            "/org/gnome/desktop/interface/monospace-font-name" = "'${font}'";
+          };
+          kittyInclude = "include haiiro.conf";
+          footInclude = "~/.config/foot/haiiro.ini";
+        in
+        {
+          xdg.configFile = {
+            "kitty/haiiro.conf".source = ./haiiro/kitty.conf;
+            "foot/haiiro.ini".source = ./haiiro/foot.ini;
+            "gtk-3.0/gtk.css".source = ./haiiro/gtk3.css;
+            "gtk-4.0/gtk.css".source = ./haiiro/gtk4.css;
+            "fontconfig/conf.d/50-haiiro-mono.conf".source = ./haiiro/50-haiiro-mono.conf;
+          };
+
+          # With Home Manager's kitty/foot modules on, the include goes into what they write
+          # (first, so their settings win); without them, into a new config file below.
+          programs.kitty.extraConfig = lib.mkIf config.programs.kitty.enable (lib.mkBefore kittyInclude);
+          programs.foot.settings.main.include = lib.mkIf config.programs.foot.enable footInclude;
+
+          home.activation.hecateAppTemplates = lib.hm.dag.entryAfter [ "linkGeneration" ] (
+            lib.optionalString (!config.programs.kitty.enable) ''
+              kitty="${config.xdg.configHome}/kitty/kitty.conf"
+              if [ ! -e "$kitty" ] && [ ! -L "$kitty" ] && [[ ! -v DRY_RUN ]]; then
+                mkdir -p "$(dirname "$kitty")"
+                printf '%s\n' "# Seeded once by hecate's Home Manager module; yours to edit." "${kittyInclude}" > "$kitty"
+              fi
+            ''
+            + lib.optionalString (!config.programs.foot.enable) ''
+              foot="${config.xdg.configHome}/foot/foot.ini"
+              if [ ! -e "$foot" ] && [ ! -L "$foot" ] && [[ ! -v DRY_RUN ]]; then
+                mkdir -p "$(dirname "$foot")"
+                {
+                  echo "# Seeded once by hecate's Home Manager module; yours to edit."
+                  [ ! -e /etc/xdg/foot/foot.ini ] || echo "include=/etc/xdg/foot/foot.ini"
+                  echo "include=${footInclude}"
+                } > "$foot"
+              fi
+            ''
+            + ''
+              hecate_dconf() {
+                if [ -n "''${DBUS_SESSION_BUS_ADDRESS:-}" ]; then ${dconf} "$@"; else ${dbusRun} ${dconf} "$@"; fi
+              }
+            ''
+            + lib.concatStrings (
+              lib.mapAttrsToList (key: value: ''
+                if [ -z "$(${dconf} read ${key} 2>/dev/null)" ]; then
+                  run hecate_dconf write ${key} ${lib.escapeShellArg value} || true
+                fi
+              '') gsettings
+            )
+          );
+        }
+      ))
     ]
   );
 }

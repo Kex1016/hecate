@@ -1,39 +1,17 @@
-# Layer rules for the bundled shell, after end-4's Hyprland ones: blur behind the panels
-# (only where they're mostly opaque) and per-panel open/close animations.
+# Layer rules for the bundled shell. The compositor owns the look of the layers (frames, tint),
+# so there is no blur here. The shell's panels, toasts and OSD pixelate in and out themselves
+# (PixelTransition), so the compositor's own layer pixelate is off for every shell layer:
+# with both, each panel would pixelate twice.
 let
   ns = name: { namespace = "^quickshell:${name}$"; };
   rule = name: attrs: { match = ns name; } // attrs;
 in
 [
-  {
-    match.namespace = "^quickshell:.*";
-    blur = true;
-    blur_popups = true;
-    ignore_alpha = 0.79;
-    xray = true;
-  }
-  # The wallpaper and the screen frame are what the rest blur.
-  (rule "(background|wallpaper|screenframe.*|screenCorners)" {
+  (rule ".*" {
+    animation = "none";
     blur = false;
-    animation = "none";
   })
-  # The lock screen is the wallpaper layer (blurred, with the clock) showing through the
-  # transparent lock surface, like Hyprland's session_lock_xray.
+  # The lock screen is the wallpaper layer (with the clock) showing through the transparent lock
+  # surface.
   (rule "background" { show_when_locked = true; })
-  (rule "bar" { animation = "slide"; })
-  (rule "verticalBar" { animation = "slide"; })
-  (rule "sidebarLeft" { animation = "slide_left"; })
-  (rule "sidebarRight" { animation = "slide_right"; })
-  (rule "(dock|osk)" { animation = "slide_bottom"; })
-  (rule "notificationPopup" { animation = "fade"; })
-  (rule "(onScreenDisplay|mediaControls|equalizer)" { animation = "fade"; })
-  # Things that must show up at once.
-  (rule "(regionSelector|overlay|reloadPopup)" {
-    animation = "none";
-  })
-  (rule "session" {
-    animation = "fade";
-    ignore_alpha = 0.0;
-  })
-  (rule "overview" { animation.popin = 0.95; })
 ]

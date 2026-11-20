@@ -150,6 +150,11 @@ pub enum MsgCommand {
         #[arg(long)]
         output: Option<String>,
     },
+    /// The blob background: where it is drawn and whether it moves, or switch it
+    Blobs {
+        #[command(subcommand)]
+        command: Option<BlobsCommand>,
+    },
     /// Connected clients
     Clients,
     /// Globals hecate advertises
@@ -169,6 +174,17 @@ pub enum MsgCommand {
         #[command(flatten)]
         target: SelectorArgs,
     },
+    /// Tint a window's border: `tint gold --app-id kitty`, `tint love --ms 3000`,
+    /// `tint none` to give it back its usual colours
+    Tint {
+        /// gold, love, foam (see `border.tint`), a #rrggbb colour, or none
+        color: String,
+        /// Clear the tint again after this many milliseconds
+        #[arg(long)]
+        ms: Option<u64>,
+        #[command(flatten)]
+        target: SelectorArgs,
+    },
     /// Switch workspace (index, name, next, prev)
     Workspace { workspace: String },
     /// Move a window to a workspace
@@ -181,6 +197,18 @@ pub enum MsgCommand {
     KeyboardLayout { layout: String },
     /// Quit the session
     Exit,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum BlobsCommand {
+    /// Draw it, whatever the config file says (the override `background.blobs.enable`)
+    On,
+    /// Don't draw it: for a shell that shows a wallpaper
+    Off,
+    /// Print the simulations as JSON, or write them to a file
+    Export { path: Option<String> },
+    /// Continue from exported simulations (`-` reads stdin)
+    Import { path: String },
 }
 
 fn connect() -> anyhow::Result<UnixStream> {
@@ -690,6 +718,60 @@ pub fn run(args: MsgArgs) -> anyhow::Result<()> {
                 );
             }
         }),
+        MsgCommand::Blobs { command: None } => out(request(Request::Blobs(ipc::Blobs::Status))?, &|v| {
+            println!(
+                "blobs {}{}",
+                if v["enabled"].as_bool() == Some(true) {
+                    "on"
+                } else {
+                    "off"
+                },
+                if v["still"].as_bool() == Some(true) {
+                    ", still"
+                } else {
+                    ""
+                },
+            );
+            for o in v["outputs"].as_array().into_iter().flatten() {
+                println!(
+                    "{}: {} blobs on {}x{} cells of {} px, {}",
+                    s(o, "output"),
+                    s(o, "blobs"),
+                    s(o, "width"),
+                    s(o, "height"),
+                    s(o, "cell"),
+                    match o["paused"].as_str() {
+                        Some(why) => format!("paused ({why})"),
+                        None => "moving".into(),
+                    }
+                );
+            }
+        }),
+        MsgCommand::Blobs {
+            command: Some(command),
+        } => match command {
+            BlobsCommand::On | BlobsCommand::Off => {
+                let on = matches!(command, BlobsCommand::On);
+                request(Request::Blobs(ipc::Blobs::Enable(on)))?;
+            }
+            BlobsCommand::Export { path } => {
+                let state = request(Request::Blobs(ipc::Blobs::Export))?;
+                match path {
+                    Some(path) => std::fs::write(&path, serde_json::to_vec(&state)?)
+                        .map_err(|e| anyhow::anyhow!("writing {path}: {e}"))?,
+                    None => print_json(&state),
+                }
+            }
+            BlobsCommand::Import { path } => {
+                let text = if path == "-" {
+                    std::io::read_to_string(std::io::stdin())?
+                } else {
+                    std::fs::read_to_string(&path).map_err(|e| anyhow::anyhow!("reading {path}: {e}"))?
+                };
+                let state = serde_json::from_str(&text).map_err(|e| anyhow::anyhow!("{path}: {e}"))?;
+                request(Request::Blobs(ipc::Blobs::Import(state)))?;
+            }
+        },
         MsgCommand::Clients => out(request(Request::Clients)?, &|v| {
             for c in v.as_array().into_iter().flatten() {
                 println!(
@@ -709,9 +791,10 @@ pub fn run(args: MsgArgs) -> anyhow::Result<()> {
                 println!("{}", p.as_str().unwrap_or(""));
             }
         }),
-        MsgCommand::Focus { target } => action_on("focus", &target)?,
-        MsgCommand::Close { target } => action_on("close", &target)?,
-        MsgCommand::Kill { target } => action_on("kill", &target)?,
+        MsgCommand::Focus { target } => action_on("focus".into(), &target)?,
+        MsgCommand::Close { target } => action_on("close".into(), &target)?,
+        MsgCommand::Kill { target } => action_on("kill".into(), &target)?,
+        MsgCommand::Tint { color, ms, target } => action_on(tint_action(&color, ms), &target)?,
         MsgCommand::Workspace { workspace } => {
             request(Request::Action {
                 action: action_from_args(&["workspace".into(), workspace])?,
@@ -740,7 +823,15 @@ pub fn run(args: MsgArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn action_on(name: &str, target: &SelectorArgs) -> anyhow::Result<()> {
+/// `tint gold` → `{"border_tint": "gold"}`; with `--ms`, `{"border_tint": {"color", "ms"}}`.
+fn tint_action(color: &str, ms: Option<u64>) -> Value {
+    match ms {
+        None => serde_json::json!({ "border_tint": color }),
+        Some(ms) => serde_json::json!({ "border_tint": { "color": color, "ms": ms } }),
+    }
+}
+
+fn action_on(action: Value, target: &SelectorArgs) -> anyhow::Result<()> {
     let target = match target.selector() {
         Some(Selector::Pick) => {
             eprintln!("click a window…");
@@ -752,10 +843,7 @@ fn action_on(name: &str, target: &SelectorArgs) -> anyhow::Result<()> {
         }
         other => other,
     };
-    request(Request::Action {
-        action: Value::String(name.into()),
-        target,
-    })?;
+    request(Request::Action { action, target })?;
     Ok(())
 }
 
@@ -797,5 +885,19 @@ mod tests {
         ] {
             serde_json::from_value::<crate::config::action::Action>(v).unwrap();
         }
+    }
+
+    #[test]
+    fn tint_actions() {
+        assert_eq!(
+            tint_action("gold", None),
+            serde_json::json!({"border_tint": "gold"})
+        );
+        assert_eq!(
+            tint_action("#eb6f92", Some(3000)),
+            serde_json::json!({"border_tint": {"color": "#eb6f92", "ms": 3000}})
+        );
+        // The generic form says the same.
+        assert_eq!(a(&["border-tint", "gold"]), tint_action("gold", None));
     }
 }

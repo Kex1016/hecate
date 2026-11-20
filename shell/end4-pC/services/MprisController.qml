@@ -10,29 +10,47 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Mpris
 import qs.modules.common
+import "../modules/ii/mediaControls/playerPriority.js" as Priority
 
 /**
  * A service that provides easy access to the active Mpris player.
  */
 Singleton {
 	id: root;
-	property list<MprisPlayer> players: Mpris.players.values.filter(player => isRealPlayer(player));
-	property MprisPlayer trackedPlayer: null;
+	property var players: Mpris.players.values.filter(player => isRealPlayer(player));
 
-	readonly property string preferredPlayerName: Config.options.bar.media.preferredPlayer.trim().toLowerCase();
-	readonly property MprisPlayer preferredPlayer: {
-		if (preferredPlayerName.length === 0) return null;
-		const _ = root.players.length;
-		for (const p of root.players) {
-			if ((p.identity ?? "").toLowerCase().includes(preferredPlayerName) ||
-				(p.desktopEntry ?? "").toLowerCase().includes(preferredPlayerName))
-				return p;
-		}
-		return null;
+	// Which player the shell shows. Spotify and Cider come first, whichever of
+	// them played last; a browser or mpv only when neither is open. The rule
+	// itself is in playerPriority.js, which has its own check.
+	// A player's stamp is when it last started or stopped playing.
+	property var stamps: ({});
+	property int stampRevision: 0;
+	function touch(player: MprisPlayer): void {
+		if (!player) return;
+		stamps[player.dbusName] = Date.now();
+		stampRevision++;
 	}
 
+	// Every real player, best first.
+	readonly property var rankedPlayers: {
+		const _ = root.stampRevision;
+		const described = root.players.map((p, i) => ({
+			player: p,
+			identity: p.identity ?? "",
+			desktopEntry: p.desktopEntry ?? "",
+			dbusName: p.dbusName ?? "",
+			isPlaying: p.isPlaying,
+			stamp: root.stamps[p.dbusName] ?? 0,
+			order: i,
+		}));
+		return Priority.rank(described).map(d => d.player);
+	}
+
+	// A player picked by hand (the chips in the media panel). It lasts until
+	// that player closes or the same chip is picked again.
 	property MprisPlayer manualPlayer: null;
-	property MprisPlayer activePlayer: manualPlayer ?? preferredPlayer ?? trackedPlayer ?? Mpris.players.values[0] ?? null;
+	readonly property bool manualValid: manualPlayer !== null && root.players.indexOf(manualPlayer) !== -1;
+	property MprisPlayer activePlayer: manualValid ? manualPlayer : (rankedPlayers[0] ?? null);
 	signal trackChanged(reverse: bool);
 
 	property bool __reverse: false;
@@ -55,7 +73,8 @@ Singleton {
             !(player.dbusName?.endsWith('.mpd') && !player.dbusName.endsWith('MediaPlayer2.mpd')));
     }
 
-	// Original stuff from fox below
+	// Stamp a player whenever it starts or stops playing, and the ones that are
+	// already playing when the shell starts.
 	Instantiator {
 		model: Mpris.players;
 
@@ -64,28 +83,11 @@ Singleton {
 			target: modelData;
 
 			Component.onCompleted: {
-				if (root.trackedPlayer == null || modelData.isPlaying) {
-					root.trackedPlayer = modelData;
-				}
-			}
-
-			Component.onDestruction: {
-				if (root.trackedPlayer == null || !root.trackedPlayer.isPlaying) {
-					for (const player of Mpris.players.values) {
-						if (player.playbackState.isPlaying) {
-							root.trackedPlayer = player;
-							break;
-						}
-					}
-
-					if (trackedPlayer == null && Mpris.players.values.length != 0) {
-						trackedPlayer = Mpris.players.values[0];
-					}
-				}
+				if (modelData.isPlaying) root.touch(modelData);
 			}
 
 			function onPlaybackStateChanged() {
-				if (root.trackedPlayer !== modelData) root.trackedPlayer = modelData;
+				root.touch(modelData);
 			}
 		}
 	}
@@ -167,18 +169,20 @@ Singleton {
 		}
 	}
 
+	// Pick a player by hand; the one already picked goes back to automatic.
 	function setActivePlayer(player: MprisPlayer) {
-		const targetPlayer = player ?? Mpris.players[0];
-		console.log(`[Mpris] Active player ${targetPlayer} << ${activePlayer}`)
-
-		if (targetPlayer && this.activePlayer) {
-			this.__reverse = Mpris.players.indexOf(targetPlayer) < Mpris.players.indexOf(this.activePlayer);
+		const current = root.activePlayer;
+		if (!player || player === root.manualPlayer) {
+			this.manualPlayer = null;
 		} else {
-			// always animate forward if going to null
+			this.manualPlayer = player;
+		}
+		const next = root.activePlayer;
+		if (next && current) {
+			this.__reverse = root.players.indexOf(next) < root.players.indexOf(current);
+		} else {
 			this.__reverse = false;
 		}
-
-		this.trackedPlayer = targetPlayer;
 	}
 
 	IpcHandler {

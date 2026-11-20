@@ -10,6 +10,8 @@
   libxi,
   libxrandr,
   xwayland-satellite,
+  grim,
+  libnotify,
 }:
 let
   # Loaded with dlopen at runtime. Kept in the RPATH rather than LD_LIBRARY_PATH so spawned
@@ -37,6 +39,15 @@ craneLib.buildPackage (
       patchelf --add-rpath ${lib.makeLibraryPath dlopenLibs} $out/bin/hecate
       wrapProgram $out/bin/hecate \
         --prefix PATH : ${lib.makeBinPath [ xwayland-satellite ]}
+      # The MCP server takes screenshots with grim and sends notifications with notify-send
+      # (both can also be named in ~/.config/hecate/mcp.toml).
+      wrapProgram $out/bin/hecate-mcp \
+        --suffix PATH : ${
+          lib.makeBinPath [
+            grim
+            libnotify
+          ]
+        }
 
       install -Dm644 resources/hecate.desktop $out/share/wayland-sessions/hecate.desktop
       install -Dm644 resources/hecate-portals.conf $out/share/xdg-desktop-portal/hecate-portals.conf
@@ -58,7 +69,7 @@ craneLib.buildPackage (
 
     meta = {
       description = "A stacking Wayland compositor";
-      homepage = "https://github.com/kex1016/wl-hex";
+      homepage = "https://github.com/Kex1016/hecate";
       license = lib.licenses.gpl3Plus;
       mainProgram = "hecate";
       platforms = lib.platforms.linux;

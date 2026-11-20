@@ -192,7 +192,13 @@ pub fn validate(config: &Config) -> Result<(), LoadError> {
         }
     }
 
-    let curves = &config.animations.curves;
+    for (name, timing) in &config.animations.curves {
+        if let super::Timing::Steps(s) = timing
+            && s.steps == 0
+        {
+            errors.push(format!("animations.curves.{name}: steps must be at least 1"));
+        }
+    }
     for (name, anim) in [
         ("window_open", &config.animations.window_open),
         ("window_close", &config.animations.window_close),
@@ -202,18 +208,49 @@ pub fn validate(config: &Config) -> Result<(), LoadError> {
         ("layer_close", &config.animations.layer_close),
         ("workspace_switch", &config.animations.workspace_switch),
     ] {
-        if !curves.contains_key(&anim.curve) {
+        if config.animations.timing(&anim.curve).is_none() {
             errors.push(format!("animations.{name}.curve: unknown curve {:?}", anim.curve));
+        }
+        if anim.cell == 0 {
+            errors.push(format!("animations.{name}.cell must be at least 1"));
         }
     }
     if config.animations.slowdown <= 0. {
         errors.push("animations.slowdown must be positive".into());
     }
 
+    let blobs = &config.background.blobs;
+    if blobs.cell == 0 {
+        errors.push("background.blobs.cell must be at least 1".into());
+    }
+    if blobs.density.is_nan() || blobs.density <= 0. {
+        errors.push("background.blobs.density must be positive".into());
+    }
+    if blobs.count_min > blobs.count_max || blobs.count_max as usize > crate::render::blobs::MAX_BLOBS {
+        errors.push(format!(
+            "background.blobs: count_min <= count_max <= {} must hold",
+            crate::render::blobs::MAX_BLOBS
+        ));
+    }
+    if blobs.radius_max.is_nan() || blobs.radius_max < crate::render::blobs::RADIUS_MIN {
+        errors.push(format!(
+            "background.blobs.radius_max must be at least {}",
+            crate::render::blobs::RADIUS_MIN
+        ));
+    }
+    let speeds = (blobs.speed_min, blobs.speed_max);
+    if speeds.0.is_nan() || speeds.1.is_nan() || speeds.0 <= 0. || speeds.0 > speeds.1 {
+        errors.push("background.blobs: 0 < speed_min <= speed_max must hold".into());
+    }
+    if !(1..=240).contains(&blobs.fps) {
+        errors.push("background.blobs.fps must be between 1 and 240".into());
+    }
+
     const LAYER_ANIMATIONS: &[&str] = &[
         "none",
         "fade",
         "popin",
+        "pixelate",
         "slide",
         "slide_top",
         "slide_bottom",
@@ -267,6 +304,9 @@ pub fn validate(config: &Config) -> Result<(), LoadError> {
 
     if config.border.width < 0. {
         errors.push("border.width must not be negative".into());
+    }
+    if config.border.label.offset < 0 {
+        errors.push("border.label.offset must not be negative".into());
     }
 
     if errors.is_empty() {
@@ -431,6 +471,7 @@ mod tests {
         assert!(from_toml_str(ok).is_ok());
         let popin = "[[layer_rules]]\nanimation = { popin = 0.9 }";
         assert!(from_toml_str(popin).is_ok());
+        assert!(from_toml_str("[[layer_rules]]\nanimation = \"pixelate\"").is_ok());
         let typo = "[[layer_rules]]\nanimation = \"slide-left\"";
         let err = from_toml_str(typo).unwrap_err().to_string();
         assert!(err.contains("slide-left"), "{err}");

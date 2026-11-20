@@ -5,7 +5,9 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 
 use hecate_ipc::{self as ipc, Event, Payload, Reply, Request};
+use smithay::desktop::Window;
 use smithay::reexports::calloop::generic::Generic;
+use smithay::reexports::calloop::timer::{TimeoutAction, Timer};
 use smithay::reexports::calloop::{Interest, Mode, PostAction, RegistrationToken};
 
 use crate::state::State;
@@ -253,7 +255,7 @@ impl State {
                 ipc: ipc::VERSION,
             })),
             Request::Action { action, target } => {
-                let action: crate::config::action::Action = match serde_json::from_value(action) {
+                let action = match serde_json::from_value::<crate::config::action::Action>(action) {
                     Ok(a) => a,
                     Err(err) => return Some(Reply::error(format!("invalid action: {err}"))),
                 };
@@ -264,7 +266,15 @@ impl State {
                         Err(e) => return Some(Reply::error(e)),
                     },
                 };
-                self.do_action(action, window);
+                match action {
+                    // The one action that can fail: say why to the caller.
+                    crate::config::action::Action::BorderTint(tint) => {
+                        if let Err(e) = self.border_tint(&tint, window) {
+                            return Some(Reply::error(e));
+                        }
+                    }
+                    action => self.do_action(action, window),
+                }
                 Reply::unit()
             }
             Request::Outputs => Reply::ok(Payload::Outputs(self.ipc_outputs())),
@@ -351,6 +361,7 @@ impl State {
                     Reply::ok(Payload::Frames(stats))
                 }
             }
+            Request::Blobs(request) => self.ipc_blobs(request),
             Request::LogLevel(level) => {
                 tracing::info!("log level change requested: {level} (restart with HECATE_LOG to persist)");
                 Reply::unit()
@@ -370,6 +381,36 @@ impl State {
                 Reply::unit()
             }
         })
+    }
+
+    /// Tint a window's border (the target, else the focused window) until told otherwise
+    /// or for `ms`: gold while its Claude session waits for an answer, love when it needs
+    /// attention now. Like every border colour change it snaps or fades by
+    /// `animations.border`.
+    pub fn border_tint(&mut self, tint: &ipc::BorderTint, window: Option<Window>) -> Result<(), String> {
+        use crate::render::border;
+        let (name, ms) = tint.parts();
+        let color = match name {
+            "none" => None,
+            name => Some(self.hecate.config.border.tint.resolve(name).ok_or_else(|| {
+                format!("unknown tint {name:?}: gold, love, foam, none or a #rrggbb colour")
+            })?),
+        };
+        let window = window
+            .or_else(|| self.focused_window())
+            .ok_or("no window to tint")?;
+        let token = border::set_tint(&window, color);
+        if let (Some(_), Some(ms)) = (color, ms) {
+            let timer = Timer::from_duration(std::time::Duration::from_millis(ms));
+            let _ = self.hecate.event_loop.insert_source(timer, move |_, _, state| {
+                if border::clear_tint_if(&window, token) {
+                    state.hecate.queue_redraw_all();
+                }
+                TimeoutAction::Drop
+            });
+        }
+        self.hecate.queue_redraw_all();
+        Ok(())
     }
 
     fn ipc_send_full_state(&mut self, id: u64) {
@@ -566,5 +607,38 @@ impl State {
                 None => ipc::Picked::Cancelled,
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::config::action::Action;
+    use hecate_ipc::{BorderTint, TimedTint};
+    use serde_json::json;
+
+    #[test]
+    fn border_tint_forms() {
+        let parse = |v| serde_json::from_value::<Action>(v).map_err(|e| e.to_string());
+        assert_eq!(
+            parse(json!({"border_tint": "gold"})),
+            Ok(Action::BorderTint(BorderTint::Color("gold".into())))
+        );
+        let timed = TimedTint {
+            color: "#ff0000".into(),
+            ms: Some(3000),
+        };
+        assert_eq!(
+            parse(json!({"border_tint": {"color": "#ff0000", "ms": 3000}})),
+            Ok(Action::BorderTint(BorderTint::Timed(timed)))
+        );
+        let err = parse(json!({"border_tint": {"colour": "gold"}})).unwrap_err();
+        assert!(
+            err.contains("border_tint takes a colour name or { color, ms }"),
+            "{err}"
+        );
+        assert!(parse(json!({"border_tint": 3})).is_err());
+        // Other actions are still themselves.
+        assert_eq!(parse(json!("close")), Ok(Action::Close));
+        assert!(matches!(parse(json!({"workspace": 3})), Ok(Action::Workspace(_))));
     }
 }

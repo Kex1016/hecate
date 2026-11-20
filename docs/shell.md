@@ -35,6 +35,59 @@ fontconfig, kitty/foot/fuzzel/fish), the Python requirements and the
 dist-nix wrapper as a starting point. The Hyprland config is dropped:
 hecate's config replaces it.
 
+## Haiiro look
+
+The shell's own look is haiiro: a Rosé Pine palette (ground `#191724`,
+text `#e0def4`, pine `#31748f` as the active accent, love `#eb6f92`,
+gold `#f6c177`, foam `#9ccfd8`), one frame for every window, and the
+haiiro faces. The colours are fixed, so nothing is taken from the wallpaper
+any more: the wallpaper only changes what the shell shows, and the desktop
+behind it is the blob background unless you pick a wallpaper (the shell
+turns the blobs off over IPC, see [config.md](config.md#haiiro-look)).
+
+- **Faces**: IBM VGA 8x16, Jacquard 24 and GNU Unifont as the glyph
+  fallback. `nix/fonts.nix` builds them as `haiiro-fonts`, and the NixOS
+  module installs them system-wide (`programs.hecate.fonts.enable`).
+- **Widgets**: the desktop widgets include a system group (weather, now
+  playing, meters, network, disks, repos and updates) under
+  `shell/end4-pC/modules/ii/background/widgets/system/`.
+- **Border tints** show what needs you: gold while a Claude session waits
+  for an answer, love for failures, foam when it's done. Any window can be
+  tinted by hand with `hecate msg tint`.
+
+## Optional services
+
+Nothing here runs until you turn it on. Each one is an entry in the shell's
+config (`Config.qml`), so the settings page is where you change it.
+
+- **Claude** (`claude.enable`, off by default). While it is off nothing
+  runs: no panel opens, the launcher's `?` row stays a placeholder, the
+  `claudeAsk` IPC does nothing and the hourly brief does not run, even if
+  its schedule was on. When it's on, the sessions panel, the ask panel and
+  the briefing widgets run the `claude` CLI, and the hook bridge takes
+  Claude Code's permission requests into the shell (`claude.bridge`, on
+  with it). Each widget runs only after you press it, shows what it would
+  send, and an hourly brief is off unless you switch it on. Every
+  `claude -p` the shell starts runs with no tools, no MCP servers, no slash
+  commands, no hooks, no CLAUDE.md and no memory, in a directory of its own,
+  so your Claude Code setup never attaches to text other people wrote.
+  Claude's own processes are kept away from the bridge with
+  `HECATE_CLAUDE_BRIDGE=0`. `hecate-mcp` is a separate, opt-in server for
+  Claude Code: [hecate-mcp.md](hecate-mcp.md).
+- **Apple** (`apple`), every part off until you switch it on in Settings ›
+  services: AirPods (`apple.airpods.enable`, through librepods, which
+  pauses playback when a bud comes out), iCloud Drive mounted at `~/iCloud`
+  (`apple.drive.enable`, also added to Dolphin's places once Dolphin has
+  written its places file) and Cider's local API (`apple.cider.enable`;
+  without it Cider is a plain MPRIS player). iCloud Photos (synced to
+  `~/Pictures/iCloud`) only runs in wallpaper mode with an album picked.
+  iCloud contacts come with the calendar account and show in the launcher's
+  search. The Apple ID is `apple.appleId`, or else the first iCloud account
+  in `calendars.toml`.
+- **Do-not-disturb** holds every toast back, critical ones too. Only the
+  sessions panel's permission toast gets through; a notification that only
+  calls itself a permission request does not.
+
 ## How Hyprland-bound end4-pC is
 
 Measured with grep over end4-pC:

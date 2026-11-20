@@ -1,82 +1,66 @@
-import qs.modules.common
-import qs.modules.common.widgets
+pragma ComponentBehavior: Bound
+import qs
 import qs.services
-import Qt5Compat.GraphicalEffects
+import qs.modules.common
+import qs.modules.common.widgets.haiiro as H
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
+import Quickshell
 
-Item {
+// NOTIFICATIONS [n] and clear all, then every notification, newest first.
+ColumnLayout {
     id: root
 
-    NotificationListView { // Scrollable window
-        id: listview
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.bottom: statusRow.top
-        anchors.bottomMargin: 5
+    readonly property var items: [...Notifications.list].sort((a, b) => b.time - a.time)
 
-        clip: true
-        layer.enabled: true
-        layer.effect: OpacityMask {
-            maskSource: Rectangle {
-                width: listview.width
-                height: listview.height
-                radius: Appearance.rounding.normal
-            }
+    spacing: 14
+
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: 0
+
+        H.HLabel {
+            text: "notifications"
         }
-
-        popup: false
-    }
-
-    // Placeholder when list is empty
-    Item {
-        anchors {
-            left: parent.left
-            right: parent.right
-            top: parent.top
-            bottom: statusRow.top
-            bottomMargin: 5
+        H.Chip {
+            visible: root.items.length > 0
+            Layout.leftMargin: H.HTokens.space2
+            badge: true
+            text: root.items.length
         }
-
-        PagePlaceholder {
-            shown: Notifications.list.length === 0
-            icon: "notifications_active"
-            description: Translation.tr("Nothing")
-            shape: MaterialShape.Shape.Ghostish
-            descriptionHorizontalAlignment: Text.AlignHCenter
-            minIconHeight: 130
-        }
-    }
-
-    ButtonGroup {
-        id: statusRow
-        anchors {
-            left: parent.left
-            right: parent.right
-            bottom: parent.bottom
-        }
-
-        NotificationStatusButton {
-            Layout.fillWidth: false
-            buttonIcon: "notifications_paused"
-            toggled: Notifications.silent
-            onClicked: () => {
-                Notifications.silent = !Notifications.silent;
-            }
-        }
-        NotificationStatusButton {
-            enabled: false
+        Item {
             Layout.fillWidth: true
-            buttonText: Translation.tr("%1 notifications").arg(Notifications.list.length)
         }
-        NotificationStatusButton {
-            Layout.fillWidth: false
-            buttonIcon: "delete_sweep"
-            onClicked: () => {
-                Notifications.discardAllNotifications()
-            }
+        H.InkButton {
+            visible: root.items.length > 0
+            flat: true
+            text: "clear all"
+            onClicked: Notifications.discardAllNotifications()
+        }
+    }
+
+    ListView {
+        id: list
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        clip: true
+        spacing: 10
+        boundsBehavior: Flickable.StopAtBounds
+        model: ScriptModel {
+            values: root.items
+        }
+        delegate: NotificationCard {
+            required property var modelData
+            width: list.width
+            notif: modelData
+        }
+
+        H.HText {
+            visible: root.items.length === 0
+            width: list.width
+            text: Notifications.silent ? "Do not disturb is on. Whatever arrives waits here." : "Nothing new. The computer hums quietly."
+            ink: "c4"
+            wrapMode: Text.Wrap
         }
     }
 }

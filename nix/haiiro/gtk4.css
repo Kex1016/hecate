@@ -1,0 +1,114 @@
+/*
+ * haiiro for GTK 4: Rosé Pine (main) as libadwaita's named colours, square
+ * corners. Installed by hecate's Home Manager module; nothing here comes from a wallpaper.
+ * Window = surface, views and sidebars = base, cards and popovers = overlay, accent = pine
+ * (foam where it is text), destructive and errors = love, warnings = gold.
+ */
+
+@define-color accent_color #9ccfd8;
+@define-color accent_bg_color #31748f;
+@define-color accent_fg_color #e0def4;
+@define-color destructive_color #eb6f92;
+@define-color destructive_bg_color #eb6f92;
+@define-color destructive_fg_color #191724;
+@define-color success_color #9ccfd8;
+@define-color success_bg_color #9ccfd8;
+@define-color success_fg_color #191724;
+@define-color warning_color #f6c177;
+@define-color warning_bg_color #f6c177;
+@define-color warning_fg_color #191724;
+@define-color error_color #eb6f92;
+@define-color error_bg_color #eb6f92;
+@define-color error_fg_color #191724;
+@define-color window_bg_color #1f1d2e;
+@define-color window_fg_color #e0def4;
+@define-color view_bg_color #191724;
+@define-color view_fg_color #e0def4;
+@define-color headerbar_bg_color #1f1d2e;
+@define-color headerbar_fg_color #e0def4;
+@define-color headerbar_border_color #403d52;
+@define-color headerbar_backdrop_color #1f1d2e;
+@define-color headerbar_shade_color #191724;
+@define-color headerbar_darker_shade_color #191724;
+@define-color sidebar_bg_color #191724;
+@define-color sidebar_fg_color #e0def4;
+@define-color sidebar_backdrop_color #191724;
+@define-color sidebar_border_color #403d52;
+@define-color sidebar_shade_color #191724;
+@define-color secondary_sidebar_bg_color #1f1d2e;
+@define-color secondary_sidebar_fg_color #e0def4;
+@define-color secondary_sidebar_backdrop_color #1f1d2e;
+@define-color secondary_sidebar_border_color #403d52;
+@define-color secondary_sidebar_shade_color #191724;
+@define-color card_bg_color #26233a;
+@define-color card_fg_color #e0def4;
+@define-color card_shade_color #191724;
+@define-color dialog_bg_color #1f1d2e;
+@define-color dialog_fg_color #e0def4;
+@define-color popover_bg_color #26233a;
+@define-color popover_fg_color #e0def4;
+@define-color popover_shade_color #191724;
+@define-color thumbnail_bg_color #26233a;
+@define-color thumbnail_fg_color #e0def4;
+@define-color overview_bg_color #191724;
+@define-color overview_fg_color #e0def4;
+@define-color shade_color #191724;
+@define-color scrollbar_outline_color #191724;
+
+/* libadwaita 1.6 and later read CSS variables. */
+:root {
+    --accent-color: #9ccfd8;
+    --accent-bg-color: #31748f;
+    --accent-fg-color: #e0def4;
+    --destructive-color: #eb6f92;
+    --destructive-bg-color: #eb6f92;
+    --destructive-fg-color: #191724;
+    --success-color: #9ccfd8;
+    --success-bg-color: #9ccfd8;
+    --success-fg-color: #191724;
+    --warning-color: #f6c177;
+    --warning-bg-color: #f6c177;
+    --warning-fg-color: #191724;
+    --error-color: #eb6f92;
+    --error-bg-color: #eb6f92;
+    --error-fg-color: #191724;
+    --window-bg-color: #1f1d2e;
+    --window-fg-color: #e0def4;
+    --view-bg-color: #191724;
+    --view-fg-color: #e0def4;
+    --headerbar-bg-color: #1f1d2e;
+    --headerbar-fg-color: #e0def4;
+    --headerbar-border-color: #403d52;
+    --headerbar-backdrop-color: #1f1d2e;
+    --headerbar-shade-color: #191724;
+    --headerbar-darker-shade-color: #191724;
+    --sidebar-bg-color: #191724;
+    --sidebar-fg-color: #e0def4;
+    --sidebar-backdrop-color: #191724;
+    --sidebar-border-color: #403d52;
+    --sidebar-shade-color: #191724;
+    --secondary-sidebar-bg-color: #1f1d2e;
+    --secondary-sidebar-fg-color: #e0def4;
+    --secondary-sidebar-backdrop-color: #1f1d2e;
+    --secondary-sidebar-border-color: #403d52;
+    --secondary-sidebar-shade-color: #191724;
+    --card-bg-color: #26233a;
+    --card-fg-color: #e0def4;
+    --card-shade-color: #191724;
+    --dialog-bg-color: #1f1d2e;
+    --dialog-fg-color: #e0def4;
+    --popover-bg-color: #26233a;
+    --popover-fg-color: #e0def4;
+    --popover-shade-color: #191724;
+    --thumbnail-bg-color: #26233a;
+    --thumbnail-fg-color: #e0def4;
+    --overview-bg-color: #191724;
+    --overview-fg-color: #e0def4;
+    --shade-color: #191724;
+    --scrollbar-outline-color: #191724;
+    --window-radius: 0;
+}
+
+/* Square: pixels have corners. Radios stay round so they still read as radios. */
+* { border-radius: 0; }
+radio { border-radius: 100%; }

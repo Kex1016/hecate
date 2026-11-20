@@ -13,8 +13,6 @@ LockScreen {
     id: root
 
     property var savedWorkspaces: ({})
-    property string lastProcessedLockWall: ""
-    property bool lastProcessedDarkmode: Appearance.m3colors.darkmode
 
     Timer {
         id: restoreTimer
@@ -39,31 +37,10 @@ LockScreen {
         context: root.context
     }
 
-    Process {
-        id: lockThemeProc
-        command: ["bash", "-c",
-            `${Directories.wallpaperSwitchScriptPath} --mode ${Appearance.m3colors.darkmode ? "dark" : "light"} --colors_lock --image '${Config.options.background.lockWall}'`
-        ]
-        onExited: {
-            MaterialThemeLoader.useLockTheme()
-            root.lastProcessedLockWall = Config.options.background.lockWall
-            root.lastProcessedDarkmode = Appearance.m3colors.darkmode
-        }
-    }
-
     Connections {
         target: GlobalStates
         function onScreenLockedChanged() {
-            var wallChanged = Config.options.background.lockWall !== root.lastProcessedLockWall
-            var modeChanged = Appearance.m3colors.darkmode !== root.lastProcessedDarkmode
-
             if (GlobalStates.screenLocked) {
-                if (Config.options.background.lockWall !== "" && (wallChanged || modeChanged)) {
-                    lockThemeProc.running = true
-                } else if (Config.options.background.lockWall !== "") {
-                    MaterialThemeLoader.useLockTheme()
-                }
-                
                 if (WM.niriLike) {
                     return;
                 }
@@ -83,24 +60,10 @@ LockScreen {
                 root.savedWorkspaces = next
                 Quickshell.execDetached(["bash", "-c", batch])
             } else {
-                if (Config.options.background.lockWall !== "") {
-                    MaterialThemeLoader.useLiveTheme()
-                }
                 if (!WM.niriLike) {
                     restoreTimer.start()
                 }
             }
-        }
-    }
-
-    Variants {
-        model: Quickshell.screens
-        delegate: Scope {
-            required property ShellScreen modelData
-            property bool shouldPush: GlobalStates.screenLocked
-            property string targetMonitorName: modelData.name
-            property int verticalMovementDistance: modelData.height
-            property int horizontalSqueeze: modelData.width * 0.2
         }
     }
 }

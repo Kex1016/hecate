@@ -42,6 +42,9 @@ pub enum Action {
     ToggleAlwaysOnBottom,
     ToggleOmnipresent,
     ToggleBorder,
+    /// Tint the border until cleared or for `ms`: `{ border_tint = "gold" }`,
+    /// `{ border_tint = { color = "love", ms = 3000 } }`, `{ border_tint = "none" }`.
+    BorderTint(hecate_ipc::BorderTint),
     Center,
     CycleWidthPreset,
     CycleHeightPreset,

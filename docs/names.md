@@ -14,7 +14,7 @@ Applied as:
 | `XDG_CURRENT_DESKTOP`  | `hecate`                                |
 | session file           | `share/wayland-sessions/hecate.desktop` |
 | Nix                    | `programs.hecate`, `wayland.windowManager.hecate`, `pkgs.hecate` |
-| repo                   | still `kex1016/wl-hex`; rename to `hecate` on GitHub when convenient (GitHub redirects the old URL) |
+| repo                   | `Kex1016/hecate` (was `kex1016/wl-hex`; GitHub redirects the old URL) |
 
 Known clash: a small hex editor called "hecate" (Go, binary `hecate`).
 It isn't in nixpkgs, so there's no conflict on NixOS. We'll check crates.io

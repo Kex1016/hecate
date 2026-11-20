@@ -1,39 +1,191 @@
-import QtQuick
-import Quickshell
-import qs.modules.common.functions
 pragma Singleton
 pragma ComponentBehavior: Bound
 
+import QtQuick
+import Quickshell
+
+/**
+ * haiiro is the theme. One static set of tokens, named after the design system's tokens.json
+ * (color-highlight-med is haiiro.color.highlightMed, pixelate-duration is
+ * haiiro.transition.pixelateDuration). Nothing here is read from the wallpaper or from a setting.
+ *
+ * New code reads Appearance.haiiro.*. The groups after it (m3colors, colors, rounding, font,
+ * animationCurves, animation, sizes) are the names the modules written for Material You still
+ * read. Each of them resolves to a token, and they go when the last of those modules does.
+ */
 Singleton {
     id: root
-    property QtObject m3colors
-    property QtObject animation
-    property QtObject animationCurves
-    property QtObject colors
-    property QtObject rounding
-    property QtObject font
-    property QtObject sizes
-    property string syntaxHighlightingTheme
 
-    // Transparency. The quadratic functions were derived from analysis of hand-picked transparency values.
-    ColorQuantizer {
-        id: wallColorQuant
-        property string wallpaperPath: Config.options.background.wallpaperPath
-        property bool wallpaperIsVideo: wallpaperPath.endsWith(".mp4") || wallpaperPath.endsWith(".webm") || wallpaperPath.endsWith(".mkv") || wallpaperPath.endsWith(".avi") || wallpaperPath.endsWith(".mov")
-        source: Qt.resolvedUrl(wallpaperIsVideo ? Config.options.background.thumbnailPath : Config.options.background.wallpaperPath)
-        depth: 0 // 2^0 = 1 color
-        rescaleSize: 10
+    // Game Mode. Whoever owns the toggle sets this; with reduced motion it turns every
+    // transition into a cut (haiiro.transition.cut).
+    property bool gameMode: false
+
+    readonly property QtObject haiiro: QtObject {
+        // Rosé Pine (main).
+        readonly property QtObject color: QtObject {
+            id: hc
+            readonly property color base: "#191724"
+            readonly property color surface: "#1f1d2e"
+            readonly property color overlay: "#26233a"
+            readonly property color muted: "#6e6a86"
+            readonly property color subtle: "#908caa"
+            readonly property color text: "#e0def4"
+            readonly property color love: "#eb6f92"
+            readonly property color gold: "#f6c177"
+            readonly property color rose: "#ebbcba"
+            readonly property color pine: "#31748f"
+            readonly property color foam: "#9ccfd8"
+            readonly property color iris: "#c4a7e7"
+            readonly property color highlightLow: "#21202e"
+            readonly property color highlightMed: "#403d52"
+            readonly property color highlightHigh: "#524f67"
+            // color-text at 55%, 25% and 14%.
+            readonly property color inkMuted: Qt.rgba(hc.text.r, hc.text.g, hc.text.b, 0.55)
+            readonly property color inkHairline: Qt.rgba(hc.text.r, hc.text.g, hc.text.b, 0.25)
+            readonly property color inkTrack: Qt.rgba(hc.text.r, hc.text.g, hc.text.b, 0.14)
+            // color-base at 55%, under the dither veil of a full-screen panel.
+            readonly property color veilHeavy: Qt.rgba(hc.base.r, hc.base.g, hc.base.b, 0.55)
+        }
+
+        // The bundled faces (assets/fonts/haiiro). Set font.family to mono or display. Bold is
+        // the 2x VGA face, registered as the mono family's weight 700, so font.bold picks it.
+        // QML takes one family per font; the stacks are the order glyphs fall back in, which
+        // fontconfig applies (assets/fonts/haiiro/45-haiiro.conf).
+        readonly property QtObject font: QtObject {
+            id: hf
+            readonly property string mono: "IBM VGA 8x16"
+            readonly property string display: "Jacquard 24"
+            readonly property string fallback: "Unifont"
+            readonly property string fallbackUpper: "Unifont Upper"
+            readonly property list<string> monoStack: [hf.mono, hf.fallback, hf.fallbackUpper]
+            readonly property list<string> displayStack: [hf.display, hf.mono, hf.fallback]
+            readonly property real lineHeight: 1.15
+        }
+
+        // Type styles, in pixels. body is the VGA face's native size: keep it at exactly 16.
+        // body-bold is body with font.bold.
+        readonly property QtObject fontSize: QtObject {
+            readonly property int displayHuge: 150
+            readonly property int nav: 32
+            readonly property int valueLg: 20
+            readonly property int body: 16
+            readonly property int headingSm: 14
+            readonly property int small: 13
+            readonly property int label: 12
+            readonly property int badge: 11
+        }
+
+        // The uppercase styles' tracking (0.08em, 0.08em, 0.06em), in pixels for font.letterSpacing.
+        readonly property QtObject letterSpacing: QtObject {
+            readonly property real headingSm: 1.12
+            readonly property real label: 0.96
+            readonly property real badge: 0.66
+        }
+
+        // space-1 … space-20.
+        readonly property QtObject space: QtObject {
+            readonly property int s1: 4
+            readonly property int s2: 8
+            readonly property int s3: 12
+            readonly property int s4: 16
+            readonly property int s6: 24
+            readonly property int s8: 32
+            readonly property int s12: 50
+            readonly property int s20: 80
+        }
+
+        readonly property QtObject border: QtObject {
+            readonly property int hairline: 1
+            readonly property int divider: 3
+            // The window frame: always double, in pine.
+            readonly property int window: 5
+        }
+
+        // haiiro is square.
+        readonly property QtObject radius: QtObject {
+            readonly property int none: 0
+        }
+
+        readonly property QtObject shadow: QtObject {
+            // The hard offset under a display title.
+            readonly property QtObject title: QtObject {
+                readonly property int x: 8
+                readonly property int y: 8
+                readonly property color color: hc.base
+            }
+        }
+
+        // Fixed sizes. The shell is on rails: these are not settings.
+        readonly property QtObject size: QtObject {
+            readonly property int barHeight: 40
+            // The overlay line under the bar.
+            readonly property int barSeam: 3
+            readonly property int toastWidth: 420
+            // Between stacked toasts, so their window labels clear each other.
+            readonly property int toastGap: 22
+            readonly property int osdWidth: 360
+            readonly property int panelWidth: 640
+            // The quick panel (Mod+N).
+            readonly property int quickPanelWidth: 480
+            readonly property int transportCell: 48
+            readonly property int transportCellSmall: 36
+            // Play/pause.
+            readonly property int transportMain: 64
+            readonly property int transportMainSmall: 48
+            readonly property int ditherTile: 4
+            readonly property int ditherTileBig: 8
+        }
+
+        // The live background. The compositor draws it; these are the same numbers.
+        readonly property QtObject blob: QtObject {
+            // One simulation cell, in pixels.
+            readonly property int cell: 6
+            // Target count = cells / density, clamped to countMin..countMax.
+            readonly property int density: 700
+            readonly property int countMin: 6
+            readonly property int countMax: 60
+            // In cells.
+            readonly property int radiusMax: 24
+            // In cells per second.
+            readonly property real speedMin: 1.5
+            readonly property real speedMax: 6
+            readonly property int fps: 30
+            readonly property color ground: hc.base
+            readonly property color halo: hc.overlay
+            readonly property color core: hc.highlightMed
+        }
+
+        // Things pixelate in stepped frames; nothing slides or eases.
+        readonly property QtObject transition: QtObject {
+            // Milliseconds.
+            readonly property int pixelateDuration: 500
+            // Frames in a pixelate: cells of pixelateCellStart, halved each step until sharp.
+            readonly property int pixelateSteps: 4
+            readonly property int pixelateCellStart: 16
+            // Milliseconds between items that pixelate in as a group.
+            readonly property int pixelateStagger: 60
+            readonly property int revealSteps: 3
+            readonly property string workspaceSwitch: "cut"
+            readonly property string borderColourChange: "snap"
+            // Game Mode or reduced motion: every transition is a cut.
+            readonly property bool cut: root.gameMode || (Config.options?.motion?.reduced ?? false)
+        }
     }
-    property real wallpaperVibrancy: (wallColorQuant.colors[0]?.hslSaturation + wallColorQuant.colors[0]?.hslLightness) / 2
-    property real autoBackgroundTransparency: { // y = 0.5768x^2 - 0.759x + 0.2896
-        let x = wallpaperVibrancy
-        let y = 0.5768 * (x * x) - 0.759 * (x) + 0.2896
-        return Math.max(0, Math.min(0.22, y)) - 0.12 * (m3colors.darkmode ? 0 : 1)
+
+    Instantiator {
+        model: ["IBMVGA8x16-Regular.ttf", "IBMVGA8x16-Bold.ttf", "Jacquard24-Regular.ttf", "Unifont.otf", "UnifontUpper.otf"]
+        delegate: FontLoader {
+            required property string modelData
+            source: Qt.resolvedUrl(`${Quickshell.shellPath("assets/fonts/haiiro")}/${modelData}`)
+            onStatusChanged: {
+                if (status === FontLoader.Error)
+                    console.warn(`[Appearance] could not load assets/fonts/haiiro/${modelData}`);
+            }
+        }
     }
-    property real autoContentTransparency: 0.9
-    property real backgroundTransparency: Config?.options.appearance.transparency.enable ? Config?.options.appearance.transparency.automatic ? autoBackgroundTransparency : Config?.options.appearance.transparency.backgroundTransparency : 0
-    property real contentTransparency: Config?.options.appearance.transparency.automatic ? autoContentTransparency : Config?.options.appearance.transparency.contentTransparency
-    
+
+    // Everything below is for modules that still read the Material You names.
+
     function getColorFromName(name) {
         switch (name) {
             case "primary":            return colors.colPrimary
@@ -45,236 +197,221 @@ Singleton {
             case "layer0":             return colors.colLayer0
             case "layer1":             return colors.colLayer1
             case "layer0Border":       return colors.colLayer0Border
-            case "black":              return "black"
+            case "black":              return hc.base
             default:                   return colors.colPrimaryContainer
         }
     }
 
-    m3colors: QtObject {
-        property bool darkmode: true
-        property bool transparent: false
-        property color m3background: "#141313"
-        property color m3onBackground: "#e6e1e1"
-        property color m3surface: "#141313"
-        property color m3surfaceDim: "#141313"
-        property color m3surfaceBright: "#3a3939"
-        property color m3surfaceContainerLowest: "#0f0e0e"
-        property color m3surfaceContainerLow: "#1c1b1c"
-        property color m3surfaceContainer: "#201f20"
-        property color m3surfaceContainerHigh: "#2b2a2a"
-        property color m3surfaceContainerHighest: "#363435"
-        property color m3onSurface: "#e6e1e1"
-        property color m3surfaceVariant: "#49464a"
-        property color m3onSurfaceVariant: "#cbc5ca"
-        property color m3inverseSurface: "#e6e1e1"
-        property color m3inverseOnSurface: "#313030"
-        property color m3outline: "#948f94"
-        property color m3outlineVariant: "#49464a"
-        property color m3shadow: "#000000"
-        property color m3scrim: "#000000"
-        property color m3surfaceTint: "#cbc4cb"
-        property color m3primary: "#cbc4cb"
-        property color m3onPrimary: "#322f34"
-        property color m3primaryContainer: "#2d2a2f"
-        property color m3onPrimaryContainer: "#bcb6bc"
-        property color m3inversePrimary: "#615d63"
-        property color m3secondary: "#cac5c8"
-        property color m3onSecondary: "#323032"
-        property color m3secondaryContainer: "#4d4b4d"
-        property color m3onSecondaryContainer: "#ece6e9"
-        property color m3tertiary: "#d1c3c6"
-        property color m3onTertiary: "#372e30"
-        property color m3tertiaryContainer: "#31292b"
-        property color m3onTertiaryContainer: "#c1b4b7"
-        property color m3error: "#ffb4ab"
-        property color m3onError: "#690005"
-        property color m3errorContainer: "#93000a"
-        property color m3onErrorContainer: "#ffdad6"
-        property color m3primaryFixed: "#e7e0e7"
-        property color m3primaryFixedDim: "#cbc4cb"
-        property color m3onPrimaryFixed: "#1d1b1f"
-        property color m3onPrimaryFixedVariant: "#49454b"
-        property color m3secondaryFixed: "#e6e1e4"
-        property color m3secondaryFixedDim: "#cac5c8"
-        property color m3onSecondaryFixed: "#1d1b1d"
-        property color m3onSecondaryFixedVariant: "#484648"
-        property color m3tertiaryFixed: "#eddfe1"
-        property color m3tertiaryFixedDim: "#d1c3c6"
-        property color m3onTertiaryFixed: "#211a1c"
-        property color m3onTertiaryFixedVariant: "#4e4447"
-        property color m3success: "#B5CCBA"
-        property color m3onSuccess: "#213528"
-        property color m3successContainer: "#374B3E"
-        property color m3onSuccessContainer: "#D1E9D6"
-        property color term0: "#EDE4E4"
-        property color term1: "#B52755"
-        property color term2: "#A97363"
-        property color term3: "#AF535D"
-        property color term4: "#A67F7C"
-        property color term5: "#B2416B"
-        property color term6: "#8D76AD"
-        property color term7: "#272022"
-        property color term8: "#0E0D0D"
-        property color term9: "#B52755"
-        property color term10: "#A97363"
-        property color term11: "#AF535D"
-        property color term12: "#A67F7C"
-        property color term13: "#B2416B"
-        property color term14: "#8D76AD"
-        property color term15: "#221A1A"
+    readonly property string syntaxHighlightingTheme: "Monokai"
+
+    readonly property QtObject m3colors: QtObject {
+        readonly property bool darkmode: true
+        readonly property bool transparent: false
+        readonly property color m3background: hc.base
+        readonly property color m3onBackground: hc.text
+        readonly property color m3surface: hc.surface
+        readonly property color m3surfaceDim: hc.base
+        readonly property color m3surfaceBright: hc.highlightHigh
+        readonly property color m3surfaceContainerLowest: hc.base
+        readonly property color m3surfaceContainerLow: hc.surface
+        readonly property color m3surfaceContainer: hc.overlay
+        readonly property color m3surfaceContainerHigh: hc.highlightMed
+        readonly property color m3surfaceContainerHighest: hc.highlightHigh
+        readonly property color m3onSurface: hc.text
+        readonly property color m3surfaceVariant: hc.overlay
+        readonly property color m3onSurfaceVariant: hc.subtle
+        readonly property color m3inverseSurface: hc.text
+        readonly property color m3inverseOnSurface: hc.surface
+        readonly property color m3outline: hc.muted
+        readonly property color m3outlineVariant: hc.highlightMed
+        readonly property color m3shadow: hc.base
+        readonly property color m3scrim: hc.base
+        readonly property color m3surfaceTint: hc.pine
+        readonly property color m3primary: hc.pine
+        readonly property color m3onPrimary: hc.text
+        readonly property color m3primaryContainer: hc.highlightMed
+        readonly property color m3onPrimaryContainer: hc.text
+        readonly property color m3inversePrimary: hc.pine
+        readonly property color m3secondary: hc.foam
+        readonly property color m3onSecondary: hc.surface
+        readonly property color m3secondaryContainer: hc.highlightMed
+        readonly property color m3onSecondaryContainer: hc.text
+        readonly property color m3tertiary: hc.iris
+        readonly property color m3onTertiary: hc.surface
+        readonly property color m3tertiaryContainer: hc.highlightMed
+        readonly property color m3onTertiaryContainer: hc.text
+        readonly property color m3error: hc.love
+        readonly property color m3onError: hc.surface
+        readonly property color m3errorContainer: hc.love
+        readonly property color m3onErrorContainer: hc.surface
+        readonly property color m3primaryFixed: hc.pine
+        readonly property color m3primaryFixedDim: hc.pine
+        readonly property color m3onPrimaryFixed: hc.text
+        readonly property color m3onPrimaryFixedVariant: hc.text
+        readonly property color m3secondaryFixed: hc.foam
+        readonly property color m3secondaryFixedDim: hc.foam
+        readonly property color m3onSecondaryFixed: hc.surface
+        readonly property color m3onSecondaryFixedVariant: hc.surface
+        readonly property color m3tertiaryFixed: hc.iris
+        readonly property color m3tertiaryFixedDim: hc.iris
+        readonly property color m3onTertiaryFixed: hc.surface
+        readonly property color m3onTertiaryFixedVariant: hc.surface
+        readonly property color m3success: hc.foam
+        readonly property color m3onSuccess: hc.surface
+        readonly property color m3successContainer: hc.highlightMed
+        readonly property color m3onSuccessContainer: hc.foam
     }
 
-    colors: QtObject {
-        function softenForOled(color) {
-            return Config?.options.appearance.uiBackground === "oled" ? ColorUtils.transparentize(ColorUtils.mix(color, "#000000", 0.85), 0.2) : color
-        }
-        property color colSubtext: m3colors.m3outline
+    // The window fill is surface; each layer above it is the next tone up.
+    readonly property QtObject colors: QtObject {
+        readonly property color colSubtext: hc.subtle
         // Layer 0
-        property color colLayer0Base: ColorUtils.mix(m3colors.m3background, m3colors.m3primary, Config.options.appearance.extraBackgroundTint ? 0.99 : 1)
-        property color colLayer0: ColorUtils.transparentize(colLayer0Base, root.backgroundTransparency)
-        property color colUiBackground: Config?.options.appearance.uiBackground === "oled" ? ColorUtils.transparentize("#000000", root.backgroundTransparency) : colLayer0
-        property color colUiPopupBackground: Config?.options.appearance.uiBackground === "oled" ? "#000000" : colLayer1Base
-        property color colUiSurfaceContainer: Config?.options.appearance.uiBackground === "oled" ? ColorUtils.transparentize("#000000", root.backgroundTransparency) : colBackgroundSurfaceContainer
-        property color colOnLayer0: m3colors.m3onBackground
-        property color colLayer0Hover: ColorUtils.transparentize(ColorUtils.mix(colLayer0, colOnLayer0, 0.9, root.contentTransparency))
-        property color colLayer0Active: ColorUtils.transparentize(ColorUtils.mix(colLayer0, colOnLayer0, 0.8, root.contentTransparency))
-        property color colLayer0Border: ColorUtils.mix(root.m3colors.m3outlineVariant, colLayer0, 0.4)
+        readonly property color colLayer0Base: hc.surface
+        readonly property color colLayer0: hc.surface
+        readonly property color colUiBackground: hc.surface
+        readonly property color colUiPopupBackground: hc.overlay
+        readonly property color colUiSurfaceContainer: hc.overlay
+        readonly property color colOnLayer0: hc.text
+        readonly property color colLayer0Hover: hc.overlay
+        readonly property color colLayer0Active: hc.highlightMed
+        readonly property color colLayer0Border: hc.pine
         // Layer 1
-        property color colLayer1Base: m3colors.m3surfaceContainerLow
-        property color colLayer1: ColorUtils.solveOverlayColor(colLayer0Base, colLayer1Base, 1 - root.contentTransparency);
-        property color colOnLayer1: m3colors.m3onSurfaceVariant;
-        property color colOnLayer1Inactive: ColorUtils.mix(colOnLayer1, colLayer1, 0.45);
-        property color colLayer1Hover: ColorUtils.transparentize(ColorUtils.mix(colLayer1, colOnLayer1, 0.92), root.contentTransparency)
-        property color colLayer1Active: ColorUtils.transparentize(ColorUtils.mix(colLayer1, colOnLayer1, 0.85), root.contentTransparency);
+        readonly property color colLayer1Base: hc.overlay
+        readonly property color colLayer1: hc.overlay
+        readonly property color colOnLayer1: hc.text
+        readonly property color colOnLayer1Inactive: hc.muted
+        readonly property color colLayer1Hover: hc.highlightMed
+        readonly property color colLayer1Active: hc.highlightHigh
         // Layer 2
-        property color colLayer2Base: m3colors.m3surfaceContainer
-        property color colLayer2: ColorUtils.solveOverlayColor(colLayer1Base, colLayer2Base, 1 - root.contentTransparency)
-        property color colLayer2Hover: ColorUtils.solveOverlayColor(colLayer1Base, ColorUtils.mix(colLayer2Base, colOnLayer2, 0.90), 1 - root.contentTransparency)
-        property color colLayer2Active: ColorUtils.solveOverlayColor(colLayer1Base, ColorUtils.mix(colLayer2Base, colOnLayer2, 0.80), 1 - root.contentTransparency);
-        property color colLayer2Disabled: ColorUtils.solveOverlayColor(colLayer1Base, ColorUtils.mix(colLayer2Base, m3colors.m3background, 0.8), 1 - root.contentTransparency);
-        property color colOnLayer2: m3colors.m3onSurface;
-        property color colOnLayer2Disabled: ColorUtils.mix(colOnLayer2, m3colors.m3background, 0.4);
+        readonly property color colLayer2Base: hc.highlightMed
+        readonly property color colLayer2: hc.highlightMed
+        readonly property color colLayer2Hover: hc.highlightHigh
+        readonly property color colLayer2Active: hc.muted
+        readonly property color colLayer2Disabled: hc.overlay
+        readonly property color colOnLayer2: hc.text
+        readonly property color colOnLayer2Disabled: hc.muted
         // Layer 3
-        property color colLayer3Base: m3colors.m3surfaceContainerHigh
-        property color colLayer3: ColorUtils.solveOverlayColor(colLayer2Base, colLayer3Base, 1 - root.contentTransparency)
-        property color colLayer3Hover: ColorUtils.solveOverlayColor(colLayer2Base, ColorUtils.mix(colLayer3Base, colOnLayer3, 0.90), 1 - root.contentTransparency)
-        property color colLayer3Active: ColorUtils.solveOverlayColor(colLayer2Base, ColorUtils.mix(colLayer3Base, colOnLayer3, 0.80), 1 - root.contentTransparency);
-        property color colOnLayer3: m3colors.m3onSurface;
+        readonly property color colLayer3Base: hc.highlightHigh
+        readonly property color colLayer3: hc.highlightHigh
+        readonly property color colLayer3Hover: hc.muted
+        readonly property color colLayer3Active: hc.muted
+        readonly property color colOnLayer3: hc.text
         // Layer 4
-        property color colLayer4Base: m3colors.m3surfaceContainerHighest
-        property color colLayer4: ColorUtils.solveOverlayColor(colLayer3Base, colLayer4Base, 1 - root.contentTransparency)
-        property color colLayer4Hover: ColorUtils.solveOverlayColor(colLayer3Base, ColorUtils.mix(colLayer4Base, colOnLayer4, 0.90), 1 - root.contentTransparency)
-        property color colLayer4Active: ColorUtils.solveOverlayColor(colLayer3Base, ColorUtils.mix(colLayer4Base, colOnLayer4, 0.80), 1 - root.contentTransparency);
-        property color colOnLayer4: m3colors.m3onSurface;
-        // Primary
-        property color colPrimary: m3colors.m3primary
-        property color colOnPrimary: m3colors.m3onPrimary
-        property color colPrimaryHover: ColorUtils.mix(colors.colPrimary, colLayer1Hover, 0.87)
-        property color colPrimaryActive: ColorUtils.mix(colors.colPrimary, colLayer1Active, 0.7)
-        property color colPrimaryContainer: softenForOled(m3colors.m3primaryContainer)
-        property color colPrimaryContainerHover: ColorUtils.mix(colors.colPrimaryContainer, colors.colOnPrimaryContainer, 0.9)
-        property color colPrimaryContainerActive: ColorUtils.mix(colors.colPrimaryContainer, colors.colOnPrimaryContainer, 0.8)
-        property color colOnPrimaryContainer: m3colors.m3onPrimaryContainer
-        // Secondary
-        property color colSecondary: m3colors.m3secondary
-        property color colSecondaryHover: ColorUtils.mix(m3colors.m3secondary, colLayer1Hover, 0.85)
-        property color colSecondaryActive: ColorUtils.mix(m3colors.m3secondary, colLayer1Active, 0.4)
-        property color colOnSecondary: m3colors.m3onSecondary
-        property color colSecondaryContainer: softenForOled(m3colors.m3secondaryContainer)
-        property color colSecondaryContainerHover: ColorUtils.mix(colors.colSecondaryContainer, m3colors.m3onSecondaryContainer, 0.90)
-        property color colSecondaryContainerActive: ColorUtils.mix(colors.colSecondaryContainer, m3colors.m3onSecondaryContainer, 0.54)
-        property color colOnSecondaryContainer: m3colors.m3onSecondaryContainer
-        // Tertiary
-        property color colTertiary: m3colors.m3tertiary
-        property color colTertiaryHover: ColorUtils.mix(m3colors.m3tertiary, colLayer1Hover, 0.85)
-        property color colTertiaryActive: ColorUtils.mix(m3colors.m3tertiary, colLayer1Active, 0.4)
-        property color colTertiaryContainer: softenForOled(m3colors.m3tertiaryContainer)
-        property color colTertiaryContainerHover: ColorUtils.mix(colors.colTertiaryContainer, m3colors.m3onTertiaryContainer, 0.90)
-        property color colTertiaryContainerActive: ColorUtils.mix(colors.colTertiaryContainer, colLayer1Active, 0.54)
-        property color colOnTertiary: m3colors.m3onTertiary
-        property color colOnTertiaryContainer: m3colors.m3onTertiaryContainer
+        readonly property color colLayer4Base: hc.highlightHigh
+        readonly property color colLayer4: hc.highlightHigh
+        readonly property color colLayer4Hover: hc.muted
+        readonly property color colLayer4Active: hc.muted
+        readonly property color colOnLayer4: hc.text
+        // Primary: pine, the current thing
+        readonly property color colPrimary: hc.pine
+        readonly property color colOnPrimary: hc.text
+        readonly property color colPrimaryHover: hc.pine
+        readonly property color colPrimaryActive: hc.pine
+        readonly property color colPrimaryContainer: hc.highlightMed
+        readonly property color colPrimaryContainerHover: hc.highlightHigh
+        readonly property color colPrimaryContainerActive: hc.highlightHigh
+        readonly property color colOnPrimaryContainer: hc.text
+        // Secondary: foam, values and paths
+        readonly property color colSecondary: hc.foam
+        readonly property color colSecondaryHover: hc.foam
+        readonly property color colSecondaryActive: hc.foam
+        readonly property color colOnSecondary: hc.surface
+        readonly property color colSecondaryContainer: hc.highlightMed
+        readonly property color colSecondaryContainerHover: hc.highlightHigh
+        readonly property color colSecondaryContainerActive: hc.highlightHigh
+        readonly property color colOnSecondaryContainer: hc.text
+        // Tertiary: iris, media and files
+        readonly property color colTertiary: hc.iris
+        readonly property color colTertiaryHover: hc.iris
+        readonly property color colTertiaryActive: hc.iris
+        readonly property color colTertiaryContainer: hc.highlightMed
+        readonly property color colTertiaryContainerHover: hc.highlightHigh
+        readonly property color colTertiaryContainerActive: hc.highlightHigh
+        readonly property color colOnTertiary: hc.surface
+        readonly property color colOnTertiaryContainer: hc.text
         // Surface
-        property color colBackgroundSurfaceContainer: ColorUtils.transparentize(m3colors.m3surfaceContainer, root.backgroundTransparency)
-        property color colSurfaceContainerLow: ColorUtils.solveOverlayColor(m3colors.m3background, m3colors.m3surfaceContainerLow, 1 - root.contentTransparency)
-        property color colSurfaceContainer: ColorUtils.solveOverlayColor(m3colors.m3surfaceContainerLow, m3colors.m3surfaceContainer, 1 - root.contentTransparency)
-        property color colSurfaceContainerHigh: ColorUtils.solveOverlayColor(m3colors.m3surfaceContainer, m3colors.m3surfaceContainerHigh, 1 - root.contentTransparency)
-        property color colSurfaceContainerHighest: ColorUtils.solveOverlayColor(m3colors.m3surfaceContainerHigh, m3colors.m3surfaceContainerHighest, 1 - root.contentTransparency)
-        property color colSurfaceContainerHighestHover: ColorUtils.mix(m3colors.m3surfaceContainerHighest, m3colors.m3onSurface, 0.95)
-        property color colSurfaceContainerHighestActive: ColorUtils.mix(m3colors.m3surfaceContainerHighest, m3colors.m3onSurface, 0.85)
-        property color colOnSurface: m3colors.m3onSurface
-        property color colOnSurfaceVariant: m3colors.m3onSurfaceVariant
+        readonly property color colBackgroundSurfaceContainer: hc.overlay
+        readonly property color colSurfaceContainerLow: hc.surface
+        readonly property color colSurfaceContainer: hc.overlay
+        readonly property color colSurfaceContainerHigh: hc.highlightMed
+        readonly property color colSurfaceContainerHighest: hc.highlightHigh
+        readonly property color colSurfaceContainerHighestHover: hc.muted
+        readonly property color colSurfaceContainerHighestActive: hc.muted
+        readonly property color colSurfaceVariant: hc.overlay
+        readonly property color colOnSurface: hc.text
+        readonly property color colOnSurfaceVariant: hc.subtle
         // Misc
-        property color colTooltip: m3colors.m3inverseSurface
-        property color colOnTooltip: m3colors.m3inverseOnSurface
-        property color colScrim: ColorUtils.transparentize(m3colors.m3scrim, 0.5)
-        property color colShadow: ColorUtils.transparentize(m3colors.m3shadow, 0.7)
-        property color colOutline: m3colors.m3outline
-        property color colOutlineVariant: m3colors.m3outlineVariant
-        property color colError: m3colors.m3error
-        property color colErrorHover: ColorUtils.mix(m3colors.m3error, colLayer1Hover, 0.85)
-        property color colErrorActive: ColorUtils.mix(m3colors.m3error, colLayer1Active, 0.7)
-        property color colOnError: m3colors.m3onError
-        property color colErrorContainer: m3colors.m3errorContainer
-        property color colErrorContainerHover: ColorUtils.mix(m3colors.m3errorContainer, m3colors.m3onErrorContainer, 0.90)
-        property color colErrorContainerActive: ColorUtils.mix(m3colors.m3errorContainer, m3colors.m3onErrorContainer, 0.70)
-        property color colOnErrorContainer: m3colors.m3onErrorContainer
+        readonly property color colTooltip: hc.overlay
+        readonly property color colOnTooltip: hc.text
+        readonly property color colScrim: hc.veilHeavy
+        readonly property color colShadow: hc.base
+        readonly property color colOutline: hc.muted
+        readonly property color colOutlineVariant: hc.highlightMed
+        // Error: love, critical or failed
+        readonly property color colError: hc.love
+        readonly property color colErrorHover: hc.love
+        readonly property color colErrorActive: hc.love
+        readonly property color colOnError: hc.surface
+        readonly property color colErrorContainer: hc.love
+        readonly property color colErrorContainerHover: hc.love
+        readonly property color colErrorContainerActive: hc.love
+        readonly property color colOnErrorContainer: hc.surface
     }
 
-    rounding: QtObject {
-        property int unsharpen: 2
-        property int unsharpenmore: 6
-        property int verysmall: 8
-        property int small: 12
-        property int normal: 17
-        property int large: 23
-        property int verylarge: 30
-        property int full: 9999
-        property int screenRounding: large
-        property int windowRounding: 18
+    // Square.
+    readonly property QtObject rounding: QtObject {
+        readonly property int unsharpen: 0
+        readonly property int unsharpenmore: 0
+        readonly property int verysmall: 0
+        readonly property int small: 0
+        readonly property int normal: 0
+        readonly property int large: 0
+        readonly property int verylarge: 0
+        readonly property int full: 0
+        readonly property int screenRounding: 0
+        readonly property int windowRounding: 0
     }
 
-    font: QtObject {
-        property QtObject family: QtObject {
-            property string main: Config.options.appearance.fonts.main
-            property string numbers: Config.options.appearance.fonts.numbers
-            property string title: Config.options.appearance.fonts.title
-            property string iconMaterial: "Material Symbols Lite"
-            property string iconNerd: Config.options.appearance.fonts.iconNerd
-            property string monospace: Config.options.appearance.fonts.monospace
-            property string reading: Config.options.appearance.fonts.reading
-            property string expressive: Config.options.appearance.fonts.expressive
+    // One face. Icons keep their own fonts.
+    readonly property QtObject font: QtObject {
+        readonly property QtObject family: QtObject {
+            readonly property string main: hf.mono
+            readonly property string numbers: hf.mono
+            readonly property string title: hf.mono
+            readonly property string iconMaterial: "Material Symbols Lite"
+            readonly property string iconNerd: "JetBrains Mono NF"
+            readonly property string monospace: hf.mono
+            readonly property string reading: hf.mono
+            readonly property string expressive: hf.mono
         }
-        property QtObject variableAxes: QtObject {
-            property var main: ({
-                "wght": 450,
-                "wdth": 100,
-            })
-            property var numbers: ({
-                "wght": 450,
-            })
-            property var title: ({ // Slightly bold weight for title
-                "wght": 550, // Weight (Lowered to compensate for increased grade)
-            })
+        // A bitmap face has no axes.
+        readonly property QtObject variableAxes: QtObject {
+            readonly property var main: ({})
+            readonly property var numbers: ({})
+            readonly property var title: ({})
         }
-        property QtObject pixelSize: QtObject {
-            property int smallest: 10
-            property int smaller: 12
-            property int smallie: 13
-            property int small: 15
-            property int normal: 16
-            property int large: 17
-            property int larger: 19
-            property int huge: 22
-            property int hugeass: 23
-            property int title: huge
+        // The old ten sizes, on the type scale: badge, label, small, body and value-lg.
+        readonly property QtObject pixelSize: QtObject {
+            readonly property int smallest: 11
+            readonly property int smaller: 12
+            readonly property int smallie: 13
+            readonly property int small: 16
+            readonly property int normal: 16
+            readonly property int large: 16
+            readonly property int larger: 20
+            readonly property int huge: 20
+            readonly property int hugeass: 20
+            readonly property int title: 20
         }
     }
 
-    animationCurves: QtObject {
-        readonly property list<real> expressiveFastSpatial: [0.42, 1.67, 0.21, 0.90, 1, 1] // Default, 350ms
-        readonly property list<real> expressiveDefaultSpatial: [0.38, 1.21, 0.22, 1.00, 1, 1] // Default, 500ms
-        readonly property list<real> expressiveSlowSpatial: [0.39, 1.29, 0.35, 0.98, 1, 1] // Default, 650ms
-        readonly property list<real> expressiveEffects: [0.34, 0.80, 0.34, 1.00, 1, 1] // Default, 200ms
+    // Nothing eases: every duration is 0, so an animation built from these is a cut. The
+    // curves stay valid for code that names one beside a duration of its own.
+    readonly property QtObject animationCurves: QtObject {
+        readonly property list<real> expressiveFastSpatial: [0.42, 1.67, 0.21, 0.90, 1, 1]
+        readonly property list<real> expressiveDefaultSpatial: [0.38, 1.21, 0.22, 1.00, 1, 1]
+        readonly property list<real> expressiveSlowSpatial: [0.39, 1.29, 0.35, 0.98, 1, 1]
+        readonly property list<real> expressiveEffects: [0.34, 0.80, 0.34, 1.00, 1, 1]
         readonly property list<real> emphasized: [0.05, 0, 2 / 15, 0.06, 1 / 6, 0.4, 5 / 24, 0.82, 0.25, 1, 1, 1]
         readonly property list<real> emphasizedFirstHalf: [0.05, 0, 2 / 15, 0.06, 1 / 6, 0.4, 5 / 24, 0.82]
         readonly property list<real> emphasizedLastHalf: [5 / 24, 0.82, 0.25, 1, 1, 1]
@@ -283,190 +420,68 @@ Singleton {
         readonly property list<real> standard: [0.2, 0, 0, 1, 1, 1]
         readonly property list<real> standardAccel: [0.3, 0, 1, 1, 1, 1]
         readonly property list<real> standardDecel: [0, 0, 0, 1, 1, 1]
-        readonly property real expressiveFastSpatialDuration: 350
-        readonly property real expressiveDefaultSpatialDuration: 500
-        readonly property real expressiveSlowSpatialDuration: 650
-        readonly property real expressiveEffectsDuration: 200
+        readonly property real expressiveFastSpatialDuration: 0
+        readonly property real expressiveDefaultSpatialDuration: 0
+        readonly property real expressiveSlowSpatialDuration: 0
+        readonly property real expressiveEffectsDuration: 0
     }
 
-    animation: QtObject {
-        property QtObject elementMove: QtObject {
-            property int duration: animationCurves.expressiveDefaultSpatialDuration
-            property int type: Easing.BezierSpline
-            property list<real> bezierCurve: animationCurves.expressiveDefaultSpatial
-            property int velocity: 650
-            property Component numberAnimation: Component {
-                NumberAnimation {
-                    duration: root.animation.elementMove.duration
-                    easing.type: root.animation.elementMove.type
-                    easing.bezierCurve: root.animation.elementMove.bezierCurve
-                }
+    component Cut: QtObject {
+        readonly property int duration: 0
+        readonly property int type: Easing.Linear
+        readonly property list<real> bezierCurve: [0, 0, 1, 1, 1, 1]
+        readonly property int velocity: 650
+        readonly property Component numberAnimation: Component {
+            NumberAnimation {
+                duration: 0
             }
         }
-
-        property QtObject elementMoveSmall: QtObject {
-            property int duration: animationCurves.expressiveFastSpatialDuration
-            property int type: Easing.BezierSpline
-            property list<real> bezierCurve: animationCurves.expressiveFastSpatial
-            property int velocity: 650
-            property Component numberAnimation: Component {
-                NumberAnimation {
-                    duration: root.animation.elementMoveSmall.duration
-                    easing.type: root.animation.elementMoveSmall.type
-                    easing.bezierCurve: root.animation.elementMoveSmall.bezierCurve
-                }
-            }
-        }
-
-        property QtObject elementMoveEnter: QtObject {
-            property int duration: 400
-            property int type: Easing.BezierSpline
-            property list<real> bezierCurve: animationCurves.emphasizedDecel
-            property int velocity: 650
-            property Component numberAnimation: Component {
-                NumberAnimation {
-                    alwaysRunToEnd: true
-                    duration: root.animation.elementMoveEnter.duration
-                    easing.type: root.animation.elementMoveEnter.type
-                    easing.bezierCurve: root.animation.elementMoveEnter.bezierCurve
-                }
-            }
-        }
-
-        property QtObject elementMoveExit: QtObject {
-            property int duration: 200
-            property int type: Easing.BezierSpline
-            property list<real> bezierCurve: animationCurves.emphasizedAccel
-            property int velocity: 650
-            property Component numberAnimation: Component {
-                NumberAnimation {
-                    alwaysRunToEnd: true
-                    duration: root.animation.elementMoveExit.duration
-                    easing.type: root.animation.elementMoveExit.type
-                    easing.bezierCurve: root.animation.elementMoveExit.bezierCurve
-                }
-            }
-        }
-
-        property QtObject elementMoveFast: QtObject {
-            property int duration: animationCurves.expressiveEffectsDuration
-            property int type: Easing.BezierSpline
-            property list<real> bezierCurve: animationCurves.expressiveEffects
-            property int velocity: 850
-            property Component colorAnimation: Component { ColorAnimation {
-                duration: root.animation.elementMoveFast.duration
-                easing.type: root.animation.elementMoveFast.type
-                easing.bezierCurve: root.animation.elementMoveFast.bezierCurve
-            }}
-            property Component numberAnimation: Component { NumberAnimation {
-                alwaysRunToEnd: true
-                duration: root.animation.elementMoveFast.duration
-                easing.type: root.animation.elementMoveFast.type
-                easing.bezierCurve: root.animation.elementMoveFast.bezierCurve
-            }}
-        }
-
-        property QtObject elementResize: QtObject {
-            property int duration: 300
-            property int type: Easing.BezierSpline
-            property list<real> bezierCurve: animationCurves.emphasized
-            property int velocity: 650
-            property Component numberAnimation: Component {
-                NumberAnimation {
-                    alwaysRunToEnd: true
-                    duration: root.animation.elementResize.duration
-                    easing.type: root.animation.elementResize.type
-                    easing.bezierCurve: root.animation.elementResize.bezierCurve
-                }
-            }
-        }
-
-        property QtObject clickBounce: QtObject {
-            property int duration: 400
-            property int type: Easing.BezierSpline
-            property list<real> bezierCurve: animationCurves.expressiveDefaultSpatial
-            property int velocity: 850
-            property Component numberAnimation: Component { NumberAnimation {
-                alwaysRunToEnd: true
-                duration: root.animation.clickBounce.duration
-                easing.type: root.animation.clickBounce.type
-                easing.bezierCurve: root.animation.clickBounce.bezierCurve
-            }}
-        }
-        
-        property QtObject scroll: QtObject {
-            property int duration: 200
-            property int type: Easing.BezierSpline
-            property list<real> bezierCurve: root.animationCurves.standardDecel
-        }
-
-        property QtObject menuDecel: QtObject {
-            property int duration: 350
-            property int type: Easing.OutExpo
-        }
-
-        property QtObject sidebarSlideEnter: QtObject {
-            property int duration: 300
-            property int type: Easing.BezierSpline
-            property list<real> bezierCurve: animationCurves.standardDecel
-            property int velocity: 650
-            property Component numberAnimation: Component {
-                NumberAnimation {
-                    alwaysRunToEnd: true
-                    duration: root.animation.sidebarSlideEnter.duration
-                    easing.type: root.animation.sidebarSlideEnter.type
-                    easing.bezierCurve: root.animation.sidebarSlideEnter.bezierCurve
-                }
-            }
-        }
-
-        property QtObject sidebarSlideExit: QtObject {
-            property int duration: 250
-            property int type: Easing.BezierSpline
-            property list<real> bezierCurve: animationCurves.standardAccel
-            property int velocity: 650
-            property Component numberAnimation: Component {
-                NumberAnimation {
-                    alwaysRunToEnd: true
-                    duration: root.animation.sidebarSlideExit.duration
-                    easing.type: root.animation.sidebarSlideExit.type
-                    easing.bezierCurve: root.animation.sidebarSlideExit.bezierCurve
-                }
+        readonly property Component colorAnimation: Component {
+            ColorAnimation {
+                duration: 0
             }
         }
     }
 
-    
-
-    sizes: QtObject {
-        property real baseBarHeight: 40
-        property real barHeight: Config.options.bar.cornerStyle === 1 ? 
-            (baseBarHeight + root.sizes.hyprlandGapsOut * 2) : (Config.options.bar.cornerStyle === 4 || Config.options.bar.cornerStyle === 5 || Config.options.bar.cornerStyle === 6) ? baseBarHeight + 4 : baseBarHeight
-        property real barCenterSideModuleWidth: Config.options?.bar.verbose ? 360 : 140
-        property real barCenterSideModuleWidthShortened: 280
-        property real barCenterSideModuleWidthHellaShortened: 190
-        property real barShortenScreenWidthThreshold: 1200 // Shorten if screen width is at most this value
-        property real barHellaShortenScreenWidthThreshold: 1000 // Shorten even more...
-        property real elevationMargin: 10
-        property real fabShadowRadius: 5
-        property real fabHoveredShadowRadius: 7
-        property real hyprlandGapsOut: 5
-        property real mediaControlsWidth: 440
-        property real mediaControlsHeight: 160
-        property real notificationPopupWidth: 410
-        property real osdWidth: 180
-        property real searchWidthCollapsed: 210
-        property real searchWidth: 360
-        property real sidebarWidth: 460
-        property real sidebarWidthExtended: 750
-        property real baseVerticalBarWidth: 46
-        property real verticalBarWidth: Config.options.bar.cornerStyle === 1 ? 
-            (baseVerticalBarWidth + root.sizes.hyprlandGapsOut * 2) : baseVerticalBarWidth
-        property real wallpaperSelectorWidth: 1200
-        property real wallpaperSelectorHeight: 690
-        property real wallpaperSelectorItemMargins: 8
-        property real wallpaperSelectorItemPadding: 6
+    readonly property QtObject animation: QtObject {
+        readonly property QtObject elementMove: Cut {}
+        readonly property QtObject elementMoveSmall: Cut {}
+        readonly property QtObject elementMoveEnter: Cut {}
+        readonly property QtObject elementMoveExit: Cut {}
+        readonly property QtObject elementMoveFast: Cut {}
+        readonly property QtObject elementResize: Cut {}
+        readonly property QtObject clickBounce: Cut {}
+        readonly property QtObject scroll: Cut {}
+        readonly property QtObject menuDecel: Cut {}
+        readonly property QtObject sidebarSlideEnter: Cut {}
+        readonly property QtObject sidebarSlideExit: Cut {}
     }
 
-    syntaxHighlightingTheme: root.m3colors.darkmode ? "Monokai" : "ayu Light"
+    readonly property QtObject sizes: QtObject {
+        readonly property real baseBarHeight: root.haiiro.size.barHeight
+        readonly property real barHeight: root.haiiro.size.barHeight
+        readonly property real barCenterSideModuleWidth: 360
+        readonly property real barCenterSideModuleWidthShortened: 280
+        readonly property real barCenterSideModuleWidthHellaShortened: 190
+        readonly property real barShortenScreenWidthThreshold: 1200
+        readonly property real barHellaShortenScreenWidthThreshold: 1000
+        readonly property real elevationMargin: 10
+        readonly property real fabShadowRadius: 5
+        readonly property real fabHoveredShadowRadius: 7
+        readonly property real hyprlandGapsOut: 5
+        readonly property real mediaControlsWidth: 440
+        readonly property real mediaControlsHeight: 160
+        readonly property real notificationPopupWidth: root.haiiro.size.toastWidth
+        readonly property real osdWidth: root.haiiro.size.osdWidth
+        readonly property real searchWidthCollapsed: 210
+        readonly property real searchWidth: 360
+        readonly property real sidebarWidth: 460
+        readonly property real sidebarWidthExtended: 750
+        readonly property real baseVerticalBarWidth: 46
+        readonly property real verticalBarWidth: 46
+        readonly property real wallpaperSelectorWidth: 1200
+        readonly property real wallpaperSelectorHeight: 690
+        readonly property real wallpaperSelectorItemMargins: 8
+        readonly property real wallpaperSelectorItemPadding: 6
+    }
 }

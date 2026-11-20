@@ -1,8 +1,8 @@
-//! Animation timing: a clock, cubic-bézier easing and running animations.
+//! Animation timing: a clock, cubic-bézier and stepped easing, and running animations.
 
 use std::time::Duration;
 
-use crate::config::{Anim, AnimStyle, Animations};
+use crate::config::{Anim, AnimStyle, Animations, StepJump, Timing};
 
 /// Time source for animations. Tests freeze it and step it by hand.
 #[derive(Debug, Default)]
@@ -86,6 +86,64 @@ impl Curve {
     }
 }
 
+/// How an animation's linear progress turns into what is shown.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Ease {
+    Curve(Curve),
+    /// `steps` equal holds; `jump_start` makes the first jump at once instead of the last
+    /// one at the end.
+    Steps {
+        steps: u32,
+        jump_start: bool,
+    },
+}
+
+impl Ease {
+    fn new(timing: Timing) -> Ease {
+        match timing {
+            Timing::Bezier([x1, y1, x2, y2]) => {
+                Ease::Curve(Curve([x1.clamp(0., 1.), y1, x2.clamp(0., 1.), y2]))
+            }
+            Timing::Steps(s) => Ease::Steps {
+                steps: s.steps.max(1),
+                jump_start: s.jump == StepJump::Start,
+            },
+        }
+    }
+
+    fn value(&self, x: f64) -> f64 {
+        match *self {
+            Ease::Curve(c) => c.ease(x),
+            Ease::Steps { steps, jump_start } => {
+                let x = x.clamp(0., 1.);
+                if x >= 1. {
+                    return 1.;
+                }
+                let n = steps as f64;
+                // A hair early rather than late: 300 ms of 400 is 0.7499… in floating point,
+                // and the step that starts there should.
+                let step = (x * n + 1e-9).floor().min(n - 1.);
+                (step + if jump_start { 1. } else { 0. }) / n
+            }
+        }
+    }
+
+    /// The same timing run backwards: what a closing element shows is the mirror image of
+    /// an opening one (the steps it holds are the same ones, in reverse order).
+    fn reversed(&self, x: f64) -> f64 {
+        match *self {
+            Ease::Curve(_) => 1. - self.value(x),
+            Ease::Steps { steps, jump_start } => {
+                let mirror = Ease::Steps {
+                    steps,
+                    jump_start: !jump_start,
+                };
+                1. - mirror.value(x)
+            }
+        }
+    }
+}
+
 /// Animation state of a layer surface (in its user data).
 #[derive(Debug, Default)]
 pub struct LayerAnimState {
@@ -100,11 +158,13 @@ pub struct LayerAnimState {
 pub struct Animation {
     start: Duration,
     duration: Duration,
-    curve: Curve,
+    ease: Ease,
     pub style: AnimStyle,
     /// Starting scale for popin.
     pub from: f64,
     pub fade: bool,
+    /// Coarsest block for pixelate, in logical pixels.
+    pub cell: u32,
 }
 
 impl Animation {
@@ -117,18 +177,18 @@ impl Animation {
         if ms <= 0. {
             return None;
         }
-        let curve = config
-            .curves
-            .get(&anim.curve)
-            .map(|&[x1, y1, x2, y2]| Curve([x1.clamp(0., 1.), y1, x2.clamp(0., 1.), y2]))
-            .unwrap_or(Curve::LINEAR);
+        let ease = config
+            .timing(&anim.curve)
+            .map(Ease::new)
+            .unwrap_or(Ease::Curve(Curve::LINEAR));
         Some(Animation {
             start: clock.now(),
             duration: Duration::from_millis(ms as u64),
-            curve,
+            ease,
             style: anim.style,
             from: anim.from,
             fade: anim.fade,
+            cell: anim.cell,
         })
     }
 
@@ -140,7 +200,28 @@ impl Animation {
 
     /// Eased progress.
     pub fn value(&self, now: Duration) -> f64 {
-        self.curve.ease(self.linear(now))
+        self.ease.value(self.linear(now))
+    }
+
+    /// How much of the element is there: 0 → 1 while opening, 1 → 0 while closing.
+    pub fn presence(&self, now: Duration, closing: bool) -> f64 {
+        if closing {
+            self.ease.reversed(self.linear(now))
+        } else {
+            self.value(now)
+        }
+    }
+
+    /// Block size of a pixelate animation right now, in logical pixels: from `cell` down to
+    /// 1 (sharp) while opening, back up while closing. The size falls geometrically, so
+    /// with a stepped timing of n steps and a cell of 2ⁿ it halves at each step. Always 1
+    /// for other styles.
+    pub fn pixelate_cell(&self, now: Duration, closing: bool) -> f64 {
+        if self.style != AnimStyle::Pixelate {
+            return 1.;
+        }
+        let p = self.presence(now, closing).clamp(0., 1.);
+        (self.cell.max(1) as f64).powf(1. - p)
     }
 
     pub fn is_done(&self, now: Duration) -> bool {
@@ -149,9 +230,7 @@ impl Animation {
 
     /// Scale and opacity for an opening (`closing = false`) or closing element.
     pub fn scale_alpha(&self, now: Duration, closing: bool) -> (f64, f32) {
-        let v = self.value(now);
-        // Opening runs 0 → 1, closing 1 → 0.
-        let p = if closing { 1. - v } else { v };
+        let p = self.presence(now, closing);
         let scale = match self.style {
             AnimStyle::Popin => self.from + (1. - self.from) * p,
             _ => 1.,
@@ -207,6 +286,7 @@ mod tests {
             ms: 100,
             curve: "linear".into(),
             fade: true,
+            cell: 16,
         };
         let a = Animation::start(&clock, &cfg, &anim).unwrap();
         assert_eq!(a.scale_alpha(clock.now(), false), (0.5, 0.));
@@ -256,5 +336,90 @@ mod tests {
         assert!(!a.is_done(clock.now()));
         clock.advance(Duration::from_millis(50));
         assert!(a.is_done(clock.now()));
+    }
+
+    #[test]
+    fn stepped_timing_holds_and_jumps() {
+        let end = Ease::Steps {
+            steps: 4,
+            jump_start: false,
+        };
+        let shown: Vec<f64> = [0., 0.1, 0.25, 0.49, 0.5, 0.74, 0.75, 0.99, 1.]
+            .into_iter()
+            .map(|x| end.value(x))
+            .collect();
+        assert_eq!(shown, [0., 0., 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.]);
+        let start = Ease::Steps {
+            steps: 4,
+            jump_start: true,
+        };
+        assert_eq!(start.value(0.), 0.25);
+        assert_eq!(start.value(0.99), 1.);
+        // Backwards it holds the same four levels in the other order, and ends on nothing.
+        let back: Vec<f64> = [0., 0.25, 0.5, 0.75, 1.]
+            .into_iter()
+            .map(|x| end.reversed(x))
+            .collect();
+        assert_eq!(back, [0.75, 0.5, 0.25, 0., 0.]);
+        assert!((Ease::Curve(Curve::LINEAR).reversed(0.25) - 0.75).abs() < 1e-6);
+    }
+
+    #[test]
+    fn pixelate_halves_its_blocks_each_step() {
+        let mut clock = Clock::default();
+        clock.set_manual(Duration::ZERO);
+        let cfg = Animations::default();
+        let anim = Anim {
+            style: AnimStyle::Pixelate,
+            ms: 500,
+            curve: "stepped".into(),
+            fade: false,
+            ..Default::default()
+        };
+        let a = Animation::start(&clock, &cfg, &anim).unwrap();
+        let mut opening = Vec::new();
+        let mut closing = Vec::new();
+        for _ in 0..4 {
+            opening.push(a.pixelate_cell(clock.now(), false).round() as u32);
+            closing.push(a.pixelate_cell(clock.now(), true).round() as u32);
+            // No scaling and, with `fade` off, no fading either.
+            assert_eq!(a.scale_alpha(clock.now(), false), (1., 1.));
+            clock.advance(Duration::from_millis(125));
+        }
+        assert_eq!(opening, [16, 8, 4, 2], "coarse to sharp");
+        assert_eq!(closing, [2, 4, 8, 16], "and back");
+        assert!(a.is_done(clock.now()));
+        assert_eq!(a.pixelate_cell(clock.now(), false), 1.);
+
+        // Other styles never pixelate, and a bézier timing shrinks the blocks smoothly.
+        let popin = Animation::start(&clock, &cfg, &Anim::default()).unwrap();
+        assert_eq!(popin.pixelate_cell(clock.now(), false), 1.);
+        let smooth = Anim {
+            curve: "linear".into(),
+            ..anim
+        };
+        let a = Animation::start(&clock, &cfg, &smooth).unwrap();
+        clock.advance(Duration::from_millis(250));
+        assert!((a.pixelate_cell(clock.now(), false) - 4.).abs() < 1e-9);
+    }
+
+    #[test]
+    fn unknown_curve_names_fall_back_to_built_ins() {
+        let mut clock = Clock::default();
+        clock.set_manual(Duration::ZERO);
+        // A `curves` table of the user's own doesn't hide "stepped".
+        let cfg = Animations {
+            curves: Default::default(),
+            ..Default::default()
+        };
+        let anim = Anim {
+            style: AnimStyle::Pixelate,
+            ms: 400,
+            curve: "stepped".into(),
+            ..Default::default()
+        };
+        let a = Animation::start(&clock, &cfg, &anim).unwrap();
+        clock.advance(Duration::from_millis(150));
+        assert_eq!(a.value(clock.now()), 0.25);
     }
 }

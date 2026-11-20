@@ -12,7 +12,7 @@ use super::fixture::Fixture;
 
 const CONFIG: &str = "[splash]\nenable = true\n[border]\nwidth = 0\n[animations]\nenable = false\n";
 
-fn fixture(background: &str, dir: &std::path::Path) -> Option<Fixture> {
+pub(super) fn fixture(background: &str, dir: &std::path::Path) -> Option<Fixture> {
     let mut f = Fixture::with_toml(&format!(
         "{CONFIG}[general]\nbackground_color = \"{background}\"\n"
     ));
@@ -24,7 +24,7 @@ fn fixture(background: &str, dir: &std::path::Path) -> Option<Fixture> {
     Some(f)
 }
 
-fn layer(f: &mut Fixture, id: ClientId, layer: Layer, anchor: Anchor, rgba: [u8; 4]) {
+pub(super) fn layer(f: &mut Fixture, id: ClientId, layer: Layer, anchor: Anchor, rgba: [u8; 4]) {
     let l = f.client(id).create_layer(None, layer, "shell");
     let surface = l.surface.clone();
     l.set_configure_props(LayerConfigureProps {
@@ -42,14 +42,14 @@ fn layer(f: &mut Fixture, id: ClientId, layer: Layer, anchor: Anchor, rgba: [u8;
     f.double_roundtrip(id);
 }
 
-fn save(f: &mut Fixture) {
+pub(super) fn save(f: &mut Fixture) {
     let crate::state::State { backend, hecate } = f.hecate();
     for handle in backend.with_renderer(|r| hecate.save_snapshots(r)).unwrap() {
         handle.join().unwrap();
     }
 }
 
-fn temp_dir(name: &str) -> std::path::PathBuf {
+pub(super) fn temp_dir(name: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("hecate-splash-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     dir
@@ -238,5 +238,40 @@ fn hold_keeps_the_first_frame_back_until_the_shell_is_ready() {
         "the splash is shown"
     );
     assert!(!off.hecate().hecate.splash_holds(&output), "but never held");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn the_blob_background_needs_no_splash() {
+    let dir = temp_dir("blobs");
+    let Some(mut f) = fixture("#00ff00", &dir) else {
+        return;
+    };
+    save(&mut f);
+    let picture = dir.join("headless-1.png");
+    let before = std::fs::metadata(&picture).unwrap().modified().unwrap();
+
+    // A session with the blobs: the same picture is there, and is neither decoded, shown,
+    // waited behind nor replaced. `hecate msg blobs off` (a shell with a wallpaper) changes
+    // nothing about that.
+    let mut next = Fixture::with_toml(&format!(
+        "[splash]\nenable = true\ndir = \"{}\"\n[background.blobs]\nenable = true\n[border]\nwidth = 0\n",
+        dir.display()
+    ));
+    if !next.enable_rendering() {
+        return;
+    }
+    assert!(next.hecate().hecate.splash_decoding.0.is_empty());
+    let output = next.add_output("headless-1", (400, 300));
+    assert!(!next.hecate().hecate.splash.contains_key(&output));
+    assert!(!next.hecate().hecate.splash_holds(&output));
+    next.hecate().hecate.config.background.blobs.enable = false;
+    assert!(!next.hecate().hecate.splash_holds(&output));
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let crate::state::State { backend, hecate } = next.hecate();
+    let handles = backend.with_renderer(|r| hecate.save_snapshots(r)).unwrap();
+    assert!(handles.is_empty(), "no picture is taken");
+    let after = std::fs::metadata(&picture).unwrap().modified().unwrap();
+    assert_eq!(before, after);
     let _ = std::fs::remove_dir_all(dir);
 }

@@ -1,104 +1,125 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import Quickshell.Widgets
 import qs.services
 import qs.modules.common
-import qs.modules.common.widgets
+import qs.modules.common.widgets.haiiro as H
 
 Item {
     id: root
-    readonly property bool usePasswordChars: !PolkitService.flow?.responseVisible ?? true
+    property bool shown: true
+    signal closed()
 
-    Keys.onPressed: event => { // Esc to close
-        if (event.key === Qt.Key_Escape) {
-            PolkitService.cancel();
-        }
-    }
+    readonly property bool usePasswordChars: !(PolkitService.flow?.responseVisible ?? false)
+    // the last answer was refused, until the next keystroke
+    property bool refused: false
+    // "polkit: authenticate" with what is being asked, and which action it is
+    readonly property string actionId: PolkitService.flow?.actionId ?? ""
+    readonly property string prompt: PolkitService.cleanPrompt.toLowerCase() + ":"
 
     function submit() {
-        PolkitService.submit(inputField.text);
+        if (!PolkitService.interactionAvailable || line.text === "") return;
+        root.refused = false;
+        PolkitService.submit(line.text);
     }
+    function deny() {
+        PolkitService.cancel();
+    }
+
+    Keys.onEscapePressed: root.deny()
+
     Connections {
         target: PolkitService
         function onInteractionAvailableChanged() {
             if (!PolkitService.interactionAvailable) return;
-            inputField.text = "";
-            inputField.forceActiveFocus();
+            line.clear();
+            line.forceInputFocus();
+        }
+    }
+    Connections {
+        target: PolkitService.flow
+        function onAuthenticationFailed() {
+            root.refused = true;
         }
     }
 
-    Rectangle {
-        id: bg
-        anchors.fill: parent
-        color: Appearance.colors.colScrim
-        opacity: 0
-        Component.onCompleted: {
-            opacity = 1
-        }
-        Behavior on opacity {
-            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-        }
-    }
-
-    WindowDialog {
+    H.PixelTransition {
         anchors.centerIn: parent
-        backgroundWidth: 450
-        show: false
-        Component.onCompleted: {
-            show = true
-        }
+        width: win.implicitWidth
+        height: win.implicitHeight
+        shown: root.shown
+        onClosed: root.closed()
 
-        MaterialSymbol {
-            Layout.alignment: Qt.AlignHCenter
-            iconSize: 26
-            text: "security"
-            color: Appearance.colors.colSecondary
-        }
+        H.HWindow {
+            id: win
+            width: 520
+            height: implicitHeight
+            label: "polkit: authenticate"
+            variant: "gold"
+            hints: [
+                { key: "enter", text: "allow" },
+                { key: "esc", text: "deny" }
+            ]
 
-        WindowDialogTitle {
-            id: titleText
-            Layout.fillWidth: true
-            horizontalAlignment: Text.AlignHCenter
-            text: Translation.tr("Authentication")
-        }
-
-        WindowDialogParagraph {
-            Layout.fillWidth: true
-            horizontalAlignment: Text.AlignLeft
-            text: PolkitService.cleanMessage
-        }
-
-        MaterialTextField {
-            id: inputField
-            Layout.fillWidth: true
-            focus: true
-            enabled: PolkitService.interactionAvailable
-            placeholderText: PolkitService.cleanPrompt
-            echoMode: root.usePasswordChars ? TextInput.Password : TextInput.Normal
-            onAccepted: root.submit();
-
-            Keys.onPressed: event => { // Esc to close
-                if (event.key === Qt.Key_Escape) {
-                    PolkitService.cancel();
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 12
+                H.HText {
+                    Layout.fillWidth: true
+                    text: "Something asks for more than you usually give it."
+                    ink: "rose"
+                    wrapMode: Text.Wrap
+                }
+                H.HText {
+                    Layout.fillWidth: true
+                    text: PolkitService.cleanMessage !== "" ? PolkitService.cleanMessage + "." : ""
+                    ink: "iris"
+                    wrapMode: Text.Wrap
+                }
+                H.HText {
+                    Layout.fillWidth: true
+                    visible: root.actionId !== ""
+                    text: root.actionId
+                    role: "label"
+                    ink: "c1"
+                    wrapMode: Text.WrapAnywhere
+                }
+                H.PasswordLine {
+                    id: line
+                    stars: root.usePasswordChars
+                    echoMode: root.usePasswordChars ? TextInput.Password : TextInput.Normal
+                    busy: !PolkitService.interactionAvailable
+                    onAccepted: root.submit()
+                    onCancelled: root.deny()
+                    onTextChanged: root.refused = false
+                    H.HText { text: "@"; ink: "love" }
+                    H.HText { text: Quickshell.env("USER"); ink: "foam" }
+                    H.HText { text: "»"; ink: "rose" }
+                    H.HText { text: root.prompt; ink: "gold" }
+                }
+                H.HText {
+                    Layout.fillWidth: true
+                    visible: root.refused
+                    text: "Wrong password. Try again."
+                    ink: "love"
+                }
+                RowLayout {
+                    spacing: 8
+                    H.InkButton {
+                        text: "allow"
+                        ink: "c3"
+                        enabled: PolkitService.interactionAvailable && line.text !== ""
+                        onClicked: root.submit()
+                    }
+                    H.InkButton {
+                        text: "deny"
+                        ink: "c2"
+                        onClicked: root.deny()
+                    }
                 }
             }
         }
-
-        WindowDialogButtonRow {
-            Layout.bottomMargin: 10 // I honestly don't know why this is necessary
-            Item {
-                Layout.fillWidth: true
-            }
-            DialogButton {
-                buttonText: Translation.tr("Cancel")
-                onClicked: PolkitService.cancel();
-            }
-            DialogButton {
-                enabled: PolkitService.interactionAvailable
-                buttonText: Translation.tr("OK")
-                onClicked: root.submit();
-            }
-        }
     }
+
+    Component.onCompleted: line.forceInputFocus()
 }

@@ -40,6 +40,7 @@ pub struct Config {
     pub snapping: Snapping,
     pub resistance: Resistance,
     pub blur: Blur,
+    pub background: Background,
     pub animations: Animations,
     pub keyboard: Keyboard,
     pub cursor: Cursor,
@@ -82,6 +83,7 @@ impl Default for Config {
             snapping: Snapping::default(),
             resistance: Resistance::default(),
             blur: Blur::default(),
+            background: Background::default(),
             animations: Animations::default(),
             keyboard: Keyboard::default(),
             cursor: Cursor::default(),
@@ -296,26 +298,105 @@ impl Default for BorderColors {
     }
 }
 
+/// How a border's width is drawn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum BorderLine {
+    /// One line of the whole width.
+    #[default]
+    Solid,
+    /// Two lines with a gap between them, like CSS `double`: each line is a third of the
+    /// width (5 is 2, 1, 2). `border.background` shows in the gap.
+    Double,
+}
+
+/// The window's name in a notch on its top border: "app: title" in the IBM VGA 8x16 face
+/// (GNU Unifont for what that lacks; a title neither can draw leaves the app name alone).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct BorderLabel {
+    /// On, the top border grows by a band of `border.background` under its line, so the
+    /// label has room without covering the window.
+    pub enable: bool,
+    /// Text colour. The label's own background is `border.background`.
+    pub color: Color,
+    /// Where the label starts, in logical pixels from the border's inner left edge.
+    pub offset: i32,
+}
+
+impl Default for BorderLabel {
+    fn default() -> Self {
+        BorderLabel {
+            enable: false,
+            color: Color::rgb(0xcd, 0xd6, 0xf4),
+            offset: 15,
+        }
+    }
+}
+
+/// The colours `border_tint` knows by name.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct BorderTints {
+    /// Needs you (a session waiting for an answer).
+    pub gold: Color,
+    /// Critical, failed, urgent.
+    pub love: Color,
+    /// Done.
+    pub foam: Color,
+}
+
+impl Default for BorderTints {
+    fn default() -> Self {
+        BorderTints {
+            gold: Color::rgb(0xf6, 0xc1, 0x77),
+            love: Color::rgb(0xeb, 0x6f, 0x92),
+            foam: Color::rgb(0x9c, 0xcf, 0xd8),
+        }
+    }
+}
+
+impl BorderTints {
+    /// A tint by name, or any `#rrggbb`.
+    pub fn resolve(&self, name: &str) -> Option<Color> {
+        match name {
+            "gold" => Some(self.gold),
+            "love" => Some(self.love),
+            "foam" => Some(self.foam),
+            other => Color::parse(other),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(default, deny_unknown_fields)]
 pub struct Border {
     /// Border width in logical pixels. 0 hides the border (corners can still be clipped).
     pub width: f32,
+    pub style: BorderLine,
     pub radius: Radius,
     pub color: BorderColors,
+    /// What fills a `double` border's gap and the label's band.
+    pub background: Color,
     /// Clip window contents to the rounded shape.
     pub clip_content: bool,
     pub keep_on_maximize: bool,
+    pub label: BorderLabel,
+    pub tint: BorderTints,
 }
 
 impl Default for Border {
     fn default() -> Self {
         Border {
             width: 2.,
+            style: BorderLine::Solid,
             radius: Radius::All(10.),
             color: BorderColors::default(),
+            background: Color::rgb(0x1e, 0x1e, 0x2e),
             clip_content: true,
             keep_on_maximize: false,
+            label: BorderLabel::default(),
+            tint: BorderTints::default(),
         }
     }
 }
@@ -410,6 +491,8 @@ pub struct Splash {
     /// before it): the first flip waits for the shell (`splash_done`), at most 5 s, so the
     /// handover doesn't flip at all until something actually changes.
     pub hold: bool,
+    /// How the splash gives way to the desktop once the shell is ready.
+    pub handover: SplashHandover,
 }
 
 impl Default for Splash {
@@ -419,8 +502,21 @@ impl Default for Splash {
             dir: None,
             save: true,
             hold: true,
+            handover: SplashHandover::Fade,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SplashHandover {
+    /// Fades out over 400 ms.
+    #[default]
+    Fade,
+    /// Gone in one frame.
+    Cut,
+    /// Breaks up into growing blocks over 500 ms, then cuts. A cut when animations are off.
+    Pixelate,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -645,6 +741,72 @@ impl Default for Blur {
     }
 }
 
+/// What the compositor draws under every output's layers.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct Background {
+    pub blobs: Blobs,
+}
+
+/// The blob background: pixelated blobs that drift, bridge and merge, dithered into three
+/// tones. Sizes and speeds are in cells. The defaults are the haiiro look.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct Blobs {
+    /// Draw it in place of `general.background_color`, and of the black behind a lock
+    /// screen. A shell that shows a wallpaper turns it off (`hecate msg blobs off`).
+    pub enable: bool,
+    /// One frame that doesn't move (reduced motion). It doesn't move either while
+    /// `animations.enable` is off (Game Mode) or a window is fullscreen on the output.
+    pub still: bool,
+    /// A cell's side in logical pixels.
+    pub cell: u32,
+    /// Cells per blob: a 1920x1080 output is 320x180 cells of 6, which makes 82 blobs,
+    /// then `count_max` of them.
+    pub density: f32,
+    pub count_min: u32,
+    /// 64 at most.
+    pub count_max: u32,
+    /// Two blobs that would make a bigger one than this pass through each other.
+    pub radius_max: f32,
+    /// Cells per second.
+    pub speed_min: f32,
+    pub speed_max: f32,
+    /// How often it moves, at most.
+    pub fps: u32,
+    /// The three tones: the ground, the dithered halo around a blob and its core.
+    pub ground: Color,
+    pub halo: Color,
+    pub core: Color,
+    /// Write the simulations to this file at exit, for the next compositor to carry on
+    /// from (`resume`): hecate-greetd's login screen hands its blobs to the session.
+    pub save: Option<String>,
+    /// Carry on from the simulations in this file, if it is there at startup.
+    pub resume: Option<String>,
+}
+
+impl Default for Blobs {
+    fn default() -> Self {
+        Blobs {
+            enable: false,
+            still: false,
+            cell: 6,
+            density: 700.,
+            count_min: 6,
+            count_max: 60,
+            radius_max: 24.,
+            speed_min: 1.5,
+            speed_max: 6.,
+            fps: 30,
+            ground: Color::rgb(0x19, 0x17, 0x24),
+            halo: Color::rgb(0x26, 0x23, 0x3a),
+            core: Color::rgb(0x40, 0x3d, 0x52),
+            save: None,
+            resume: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum AnimStyle {
@@ -652,6 +814,9 @@ pub enum AnimStyle {
     Popin,
     Fade,
     Slide,
+    /// Coarse blocks that sharpen (windows, layers, and a workspace switch's new windows).
+    /// With a stepped curve the blocks halve at each step.
+    Pixelate,
     None,
 }
 
@@ -664,6 +829,9 @@ pub struct Anim {
     pub ms: u32,
     pub curve: String,
     pub fade: bool,
+    /// Coarsest block of `pixelate`, in logical pixels: blocks shrink from this to one
+    /// pixel as the animation runs.
+    pub cell: u32,
 }
 
 impl Anim {
@@ -674,8 +842,39 @@ impl Anim {
             ms,
             curve: curve.into(),
             fade: true,
+            cell: 16,
         }
     }
+}
+
+/// An animation's timing: how far along it is shown at each moment.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum Timing {
+    /// Cubic bézier `[x1, y1, x2, y2]`.
+    Bezier([f64; 4]),
+    /// `{ steps = 4 }`: holds, then jumps, like CSS `steps()`.
+    Steps(Steps),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Steps {
+    /// How many equal steps the duration is cut into.
+    pub steps: u32,
+    #[serde(default)]
+    pub jump: StepJump,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum StepJump {
+    /// Starts at the beginning and makes its last jump as it ends (CSS `step-end`). An
+    /// opening `pixelate` shows its coarsest blocks first.
+    #[default]
+    End,
+    /// Makes its first jump right away.
+    Start,
 }
 
 impl Default for Anim {
@@ -697,13 +896,19 @@ pub struct Animations {
     pub layer_open: Anim,
     pub layer_close: Anim,
     pub workspace_switch: Anim,
-    /// Named cubic béziers: `[x1, y1, x2, y2]`.
-    pub curves: BTreeMap<String, [f64; 4]>,
+    /// Named timings: cubic béziers `[x1, y1, x2, y2]`, or `{ steps = 4 }`. The built-in
+    /// names stay known when this table doesn't list them.
+    pub curves: BTreeMap<String, Timing>,
 }
 
-impl Default for Animations {
-    fn default() -> Self {
-        let curves = [
+impl Animations {
+    /// The built-in timings.
+    pub fn builtin_curves() -> BTreeMap<String, Timing> {
+        let stepped = Timing::Steps(Steps {
+            steps: 4,
+            jump: StepJump::End,
+        });
+        [
             ("linear", [0.0, 0.0, 1.0, 1.0]),
             ("emphasized_decel", [0.05, 0.7, 0.1, 1.0]),
             ("emphasized_accel", [0.3, 0.0, 0.8, 0.15]),
@@ -716,8 +921,23 @@ impl Default for Animations {
             ("stall", [1.0, -0.1, 0.7, 0.85]),
         ]
         .into_iter()
-        .map(|(k, v)| (k.to_string(), v))
-        .collect();
+        .map(|(k, v)| (k.to_string(), Timing::Bezier(v)))
+        .chain([("stepped".to_string(), stepped)])
+        .collect()
+    }
+
+    /// A timing by name: `curves` first, then the built-in ones.
+    pub fn timing(&self, name: &str) -> Option<Timing> {
+        self.curves
+            .get(name)
+            .copied()
+            .or_else(|| Self::builtin_curves().get(name).copied())
+    }
+}
+
+impl Default for Animations {
+    fn default() -> Self {
+        let curves = Self::builtin_curves();
         Animations {
             enable: true,
             slowdown: 1.0,
@@ -920,9 +1140,12 @@ impl InputDevice {
 #[serde(default, deny_unknown_fields)]
 pub struct BorderOverride {
     pub width: Option<f32>,
+    pub style: Option<BorderLine>,
     pub radius: Option<Radius>,
     pub color: Option<BorderColorsOverride>,
     pub clip_content: Option<bool>,
+    /// Show or hide the notch label on this window.
+    pub label: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema, Default)]
@@ -980,7 +1203,8 @@ pub struct LayerMatch {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum LayerAnimation {
-    /// `"slide"`, `"slide_left"`, `"slide_right"`, `"slide_top"`, `"slide_bottom"`, `"fade"`, `"popin"`, `"none"`.
+    /// `"slide"`, `"slide_left"`, `"slide_right"`, `"slide_top"`, `"slide_bottom"`, `"fade"`, `"popin"`,
+    /// `"pixelate"`, `"none"`.
     Named(String),
     Popin {
         popin: f64,
@@ -1039,6 +1263,64 @@ mod tests {
         assert_eq!(c.to_hex(), "#89b4fa80");
         assert!(Color::parse("89b4fa").is_none());
         assert!(Color::parse("#89b4f").is_none());
+    }
+
+    #[test]
+    fn timings_and_frame_keys() {
+        let c = load::from_toml_str(
+            r##"
+            [border]
+            width = 5
+            style = "double"
+            background = "#1f1d2e"
+            label = { enable = true, color = "#e0def4" }
+            tint = { gold = "#ffcc00" }
+
+            [animations]
+            window_open = { style = "pixelate", ms = 500, curve = "chunky", cell = 32, fade = false }
+            layer_open = { style = "pixelate", curve = "stepped" }
+            border = { style = "none" }
+
+            [animations.curves]
+            chunky = { steps = 2, jump = "start" }
+            ease = [0.2, 0.0, 0.0, 1.0]
+
+            [splash]
+            handover = "pixelate"
+            "##,
+        )
+        .unwrap();
+        assert_eq!(c.border.style, BorderLine::Double);
+        assert!(c.border.label.enable);
+        assert_eq!(c.border.label.offset, 15);
+        assert_eq!(c.border.tint.resolve("gold"), Color::parse("#ffcc00"));
+        assert_eq!(c.border.tint.resolve("love"), Color::parse("#eb6f92"));
+        assert_eq!(c.border.tint.resolve("#010203"), Some(Color::rgb(1, 2, 3)));
+        assert_eq!(c.border.tint.resolve("teal"), None);
+        assert_eq!(
+            (c.animations.window_open.style, c.animations.window_open.cell),
+            (AnimStyle::Pixelate, 32)
+        );
+        assert_eq!(c.animations.layer_open.cell, 16);
+        let chunky = Timing::Steps(Steps {
+            steps: 2,
+            jump: StepJump::Start,
+        });
+        assert_eq!(c.animations.timing("chunky"), Some(chunky));
+        assert_eq!(
+            c.animations.timing("ease"),
+            Some(Timing::Bezier([0.2, 0.0, 0.0, 1.0]))
+        );
+        // Built-in names survive a `curves` table that doesn't repeat them.
+        assert!(matches!(c.animations.timing("stepped"), Some(Timing::Steps(s)) if s.steps == 4));
+        assert!(c.animations.timing("emphasized_decel").is_some());
+        assert_eq!(c.splash.handover, SplashHandover::Pixelate);
+
+        assert!(load::from_toml_str("[animations.curves]\nbad = { steps = 0 }").is_err());
+        assert!(load::from_toml_str("[animations.curves]\nbad = { step = 2 }").is_err());
+        assert!(load::from_toml_str("[animations]\nwindow_open = { curve = \"nope\" }").is_err());
+        assert!(load::from_toml_str("[animations]\nwindow_open = { cell = 0 }").is_err());
+        assert!(load::from_toml_str("[border]\nstyle = \"dotted\"").is_err());
     }
 
     #[test]

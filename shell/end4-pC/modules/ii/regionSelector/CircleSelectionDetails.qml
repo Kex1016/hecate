@@ -4,17 +4,13 @@ import QtQuick
 import QtQuick.Shapes
 import Quickshell
 
+// The "free" target: a hand-drawn loop around what to take. Square caps, straight joins.
 Item {
     id: root
     required property color color
     required property color overlayColor
     required property list<point> points
     property int strokeWidth: Config.options.regionSelector.circle.strokeWidth
-
-    function updatePoints() {
-        if (!root.dragging) return;
-        root.points.push({ x: root.mouseX, y: root.mouseY });
-    }
 
     Rectangle {
         id: darkenOverlay
@@ -28,7 +24,7 @@ Item {
         z: 2
         anchors.fill: parent
         layer.enabled: true
-        layer.smooth: true
+        layer.smooth: false
         preferredRendererType: Shape.CurveRenderer
 
         ShapePath {
@@ -37,13 +33,12 @@ Item {
             pathHints: ShapePath.PathLinear
             fillColor: "transparent"
             strokeColor: root.color
-            capStyle: ShapePath.RoundCap
-            joinStyle: ShapePath.RoundJoin
+            capStyle: ShapePath.SquareCap
+            joinStyle: ShapePath.MiterJoin
 
             PathPolyline {
                 path: root.points
             }
         }
     }
-
 }

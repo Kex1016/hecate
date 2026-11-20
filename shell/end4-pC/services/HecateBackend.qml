@@ -57,6 +57,9 @@ Scope {
             minimized: w.is_minimized ?? false,
             focusSerial: w.focus_serial ?? 0,
             output: w.output ?? "",
+            // the client's process; the Claude sessions panel finds a session's terminal by it
+            pid: w.pid ?? 0,
+            borderTint: w.border_tint ?? null,
             width: w.layout?.window_size?.[0] ?? 0,
             height: w.layout?.window_size?.[1] ?? 0
         };

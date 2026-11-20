@@ -1,192 +1,57 @@
 pragma ComponentBehavior: Bound
-import qs.modules.common
-import qs.modules.common.widgets
-import qs.services
-import qs
 import QtQuick
 import QtQuick.Layouts
-import Quickshell
-import Quickshell.Io
+import qs.services
+import qs.modules.common.widgets.haiiro
 
-MouseArea {
+// Updates waiting, in gold ("↑3"), shown only when there are some. Hover:
+// `git log` with the commits not installed yet; click: the updater.
+BarSegment {
     id: root
-    property color contentColor: Appearance.colors.colOnLayer1
-    property bool contentColorOverridden: false
-    signal styleEditorRequested()
-    property bool vertical: Config.options.bar.vertical
-    property bool isMaterial: Config.options.bar.cornerStyle === 3 || Config.options.bar.cornerStyle === 4
-    property bool borderless: Config.options.bar.borderless
 
-    implicitWidth: vertical ? Appearance.sizes.verticalBarWidth : (contentLoader.item?.implicitWidth ?? 0) 
-    implicitHeight: vertical ? (contentLoader.item?.implicitHeight ?? 0) : Appearance.sizes.barHeight
+    readonly property var commits: Updates.cakeosStatus?.commits ?? []
 
-    cursorShape: Qt.PointingHandCursor
-    acceptedButtons: Qt.LeftButton | Qt.RightButton
+    visible: Updates.count > 0
+    popupLabel: Updates.cakeos ? "git log" : "updates"
+    popupWidth: 360
+    popupVariant: "gold"
+    onClicked: if (Updates.cakeos) Updates.openUpdater()
 
-    onClicked: (mouse) => {
-        if (mouse.button === Qt.LeftButton) {
-            // CakeOS (hecate): the shell's own updater.
-            if (Updates.cakeos) Updates.openUpdater()
-            else updateProc.running = true
-        } else if (mouse.button === Qt.RightButton) {
-            Updates.refresh()
-            Quickshell.execDetached(["notify-send",
-                Translation.tr("Updates"),
-                Translation.tr("Checking for updates..."),
-                "-a", "Shell"
-            ])
-        }
+    HText {
+        text: "↑" + Updates.count
+        ink: "gold"
     }
 
-    onPressAndHold: (mouse) => {
-        if (mouse.button === Qt.RightButton) root.styleEditorRequested()
-    }
-
-    Process {
-        id: updateProc
-        command: [
-            "kitty", "--hold",
-            "fish", "-i", "-l", "-c",
-            "yay -Syu --combinedupgrade=false"
-        ]
-        onExited: (exitCode, exitStatus) => {
-            Updates.refresh()
-            notifyTimer.restart()
-        }
-    }
-
-    Timer {
-        id: notifyTimer
-        interval: 5000
-        repeat: false
-        onTriggered: {
-            if (Updates.count === 0) {
-                Quickshell.execDetached(["notify-send",
-                    Translation.tr("Updates"),
-                    Translation.tr("System up to date"),
-                    "-a", "Shell"
-                ])
-            } else {
-                Quickshell.execDetached(["notify-send",
-                    Translation.tr("Updates"),
-                    Translation.tr("Update cancelled — %1 updates still pending").arg(Updates.count),
-                    "-a", "Shell", "-u", "normal"
-                ])
-            }
-        }
-    }
-
-    Component {
-        id: textComp
-        StyledText {
-            leftPadding: 5
-            rightPadding: 3
-            font.pixelSize: Appearance.font.pixelSize.small
-            color: root.isMaterial ? Appearance.colors.colPrimary : root.contentColor
-            text: Updates.count
-        }
-    }
-
-    Component {
-        id: spinnerComp
-        MaterialSymbol {
-            leftPadding: 5
-            rightPadding: 3
-            text: "progress_activity"
-            iconSize: Appearance.font.pixelSize.normal
-            color: root.isMaterial ? Appearance.colors.colPrimary : root.contentColor
-            RotationAnimation on rotation {
-                from: 0; to: 360
-                duration: 1000
-                loops: Animation.Infinite
-                running: true
-            }
-        }
-    }
-
-    Loader {
-        id: contentLoader
-        anchors.centerIn: parent
-        sourceComponent: root.vertical ? colContent : rowContent
-    }
-
-    Component {
-        id: rowContent
-        RowLayout {
-            spacing: 4
-
-            // Default
-            MaterialSymbol {
-                visible: !root.isMaterial
-                Layout.alignment: Qt.AlignVCenter
-                text: "deployed_code_update"
-                iconSize: Appearance.font.pixelSize.normal
-                color: Updates.updateStronglyAdvised ? Appearance.m3colors.m3error
-                    : Updates.updateAdvised ? Appearance.colors.colTertiary
-                    : root.contentColor
-            }
-
-            // Material
-            Rectangle {
-                visible: root.isMaterial
-                width: 24
-                height: 24
-                radius: Appearance.rounding.full
-                color: Updates.updateStronglyAdvised ? Appearance.m3colors.m3error
-                    : Updates.updateAdvised ? Appearance.colors.colTertiary
-                    : Appearance.colors.colPrimary
-
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: "deployed_code_update"
-                    iconSize: Appearance.font.pixelSize.normal
-                    color: Appearance.colors.colOnPrimary
-                }
-            }
-
-            Loader {
-                Layout.alignment: Qt.AlignVCenter
-                sourceComponent: Updates.checking ? spinnerComp : textComp
-            }
-        }
-    }
-
-    Component {
-        id: colContent
+    popup: Component {
         ColumnLayout {
-            spacing: 4
+            spacing: 0
 
-            MaterialSymbol {
-                visible: !root.isMaterial
-                Layout.alignment: Qt.AlignHCenter
-                text: "deployed_code_update"
-                iconSize: Appearance.font.pixelSize.normal
-                color: Updates.updateStronglyAdvised ? Appearance.m3colors.m3error
-                    : Updates.updateAdvised ? Appearance.colors.colTertiary
-                    : root.contentColor
-            }
+            Repeater {
+                model: root.commits.slice(0, 6)
 
-            Rectangle {
-                visible: root.isMaterial
-                width: 24
-                height: 24
-                radius: Appearance.rounding.full
-                color: Updates.updateStronglyAdvised ? Appearance.m3colors.m3error
-                    : Updates.updateAdvised ? Appearance.colors.colTertiary
-                    : Appearance.colors.colPrimary
-                Layout.alignment: Qt.AlignHCenter
+                Row {
+                    id: commit
+                    required property var modelData
+                    Layout.fillWidth: true
+                    spacing: HTokens.ch()
 
-                MaterialSymbol {
-                    anchors.centerIn: parent
-                    text: "deployed_code_update"
-                    iconSize: Appearance.font.pixelSize.normal
-                    color: Appearance.colors.colOnPrimary
+                    HText {
+                        text: String(commit.modelData.sha ?? "").slice(0, 7)
+                        ink: "gold"
+                    }
+                    HText {
+                        width: commit.width - x
+                        text: commit.modelData.subject ?? ""
+                        elide: Text.ElideRight
+                    }
                 }
             }
-
-            Loader {
-                Layout.alignment: Qt.AlignHCenter
-                sourceComponent: Updates.checking ? spinnerComp : textComp
+            HText {
+                Layout.fillWidth: true
+                Layout.topMargin: root.commits.length > 0 ? HTokens.space2 : 0
+                text: Updates.count + (Updates.cakeos ? (Updates.count === 1 ? " commit" : " commits") : (Updates.count === 1 ? " package" : " packages")) + " to install"
+                ink: "inkMuted"
+                role: "caption"
             }
         }
     }
