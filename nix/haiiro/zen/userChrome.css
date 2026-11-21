@@ -54,8 +54,8 @@
   --zen-colors-input-bg: var(--color-base) !important;
   --zen-colors-border: var(--color-highlight-med) !important;
   --zen-colors-border-contrast: var(--color-highlight-high) !important;
-  --zen-accent-button-background: var(--color-pine) !important;
-  --zen-accent-button-color: var(--color-text) !important;
+  --zen-accent-button-background: var(--color-foam) !important;
+  --zen-accent-button-color: var(--color-base) !important;
   --zen-dialog-background: var(--color-overlay) !important;
   --zen-in-content-dialog-background: var(--color-overlay) !important;
   --zen-input-border-color: var(--color-highlight-high) !important;
@@ -147,16 +147,16 @@
   --button-background-color: var(--color-highlight-low) !important;
   --button-background-color-hover: var(--color-highlight-med) !important;
   --button-background-color-active: var(--color-highlight-high) !important;
-  --button-background-color-primary: var(--color-pine) !important;
-  --button-background-color-primary-hover: var(--color-foam) !important;
-  --button-background-color-primary-active: var(--color-foam) !important;
-  --button-text-color-primary: var(--color-text) !important;
+  --button-background-color-primary: var(--color-foam) !important;
+  --button-background-color-primary-hover: var(--color-text) !important;
+  --button-background-color-primary-active: var(--color-text) !important;
+  --button-text-color-primary: var(--color-base) !important;
   --button-text-color-primary-hover: var(--color-base) !important;
   --button-text-color-primary-active: var(--color-base) !important;
   --button-font-weight: 400 !important;
-  --color-accent-primary: var(--color-pine) !important;
-  --color-accent-primary-hover: var(--color-foam) !important;
-  --color-accent-primary-active: var(--color-foam) !important;
+  --color-accent-primary: var(--color-foam) !important;
+  --color-accent-primary-hover: var(--color-text) !important;
+  --color-accent-primary-active: var(--color-text) !important;
   --color-accent-primary-selected: var(--color-highlight-med) !important;
   --text-color-accent-primary-selected: var(--color-text) !important;
   --focus-outline-color: var(--color-foam) !important;
@@ -249,6 +249,17 @@ strong {
   border: var(--border-window) double var(--color-pine) !important;
   margin: var(--space-2) var(--space-2) var(--space-2) 0 !important;
   background: var(--color-base) !important;
+}
+
+/* Inactive frame, as hecate draws an unfocused window: while a glance
+   sits on top, or the browser window is not focused */
+#tabbrowser-tabbox:has(.zen-glance-overlay),
+:root:-moz-window-inactive #tabbrowser-tabbox {
+  border-color: var(--color-highlight-med) !important;
+}
+
+:root:-moz-window-inactive :is(.zen-glance-overlay .browserContainer, #urlbar:focus-within .urlbar-background) {
+  border-color: var(--color-highlight-med) !important;
 }
 
 .browserSidebarContainer,
@@ -438,8 +449,8 @@ toolbarbutton:hover,
 
 #urlbar-label-box,
 #urlbar-search-mode-indicator {
-  background: var(--color-pine) !important;
-  color: var(--color-text) !important;
+  background: var(--color-foam) !important;
+  color: var(--color-base) !important;
 }
 
 /* Popups and menus: raised overlay, 1px text hairline */
