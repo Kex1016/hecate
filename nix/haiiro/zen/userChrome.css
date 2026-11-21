@@ -400,8 +400,10 @@ toolbarbutton:hover,
 
 /* Popups and menus: raised overlay, 1px text hairline */
 menupopup,
-panel {
+panel,
+#ctrlTab-panel {
   --panel-background: var(--color-overlay) !important;
+  --panel-background-color: var(--color-overlay) !important;
   --panel-color: var(--color-text) !important;
   --panel-border-color: var(--color-text) !important;
   --panel-border-radius: 0 !important;
@@ -451,9 +453,18 @@ tooltip {
   border: var(--border-hairline) solid var(--color-text) !important;
 }
 
-/* Ctrl-tab panel (Better CtrlTab Panel mod) */
+/* Ctrl-tab panel (Better CtrlTab Panel mod reads these) */
 #ctrlTab-panel {
-  --panel-background: var(--color-overlay) !important;
+  --psu-better_ctrltab-roundness: 0px !important;
+  --psu-better_ctrltab-zoom: 1 !important;
+  --psu-better_ctrltab-background: var(--color-overlay) !important;
+  --psu-better_ctrltab-shadow_size: 0px !important;
+  --psu-better_ctrltab-preview_border_width: 1px !important;
+  --psu-better_ctrltab-preview_border_color: var(--color-highlight-med) !important;
+  --psu-better_ctrltab-preview_focus_background: var(--color-highlight-med) !important;
+  --psu-better_ctrltab-preview_font_size: 16px !important;
+  --psu-better_ctrltab-preview_letter_spacing: 0px !important;
+  --panel-shadow: none !important;
 }
 
 #ctrlTab-panel::part(content) {
@@ -461,14 +472,17 @@ tooltip {
   border: var(--border-hairline) solid var(--color-text) !important;
 }
 
-.ctrlTab-preview-inner {
-  background: var(--color-base) !important;
-  border: var(--border-hairline) solid var(--color-highlight-med) !important;
+#ctrlTab-panel .ctrlTab-preview,
+#ctrlTab-panel .ctrlTab-preview-inner,
+#ctrlTab-panel .ctrlTab-canvas,
+#ctrlTab-panel .ctrlTab-favicon-container {
+  border-radius: 0 !important;
 }
 
-.ctrlTab-preview:focus .ctrlTab-preview-inner,
-.ctrlTab-preview[selected] .ctrlTab-preview-inner {
-  border: var(--border-window) double var(--color-pine) !important;
+.ctrlTab-preview:focus,
+.ctrlTab-preview[selected] {
+  outline: var(--border-hairline) solid var(--color-foam) !important;
+  outline-offset: -1px !important;
 }
 
 .ctrlTab-label {
