@@ -1,7 +1,7 @@
 /* haiiro for Zen Browser internal pages and scrollbars. Tokens from the haiiro design system. */
 
 :root {
-  scrollbar-color: var(--color-foam, #9ccfd8) var(--color-base, #191724);
+  scrollbar-color: var(--color-foam, #9ccfd8) var(--color-muted, #6e6a86);
 }
 
 @-moz-document url-prefix("about:"), url-prefix("chrome://browser/content/"), url-prefix("moz-extension://") {
@@ -222,7 +222,7 @@
   --theme-highlight-green: var(--color-rose) !important;
   --theme-highlight-gray: var(--color-subtle) !important;
 
-  scrollbar-color: var(--color-foam) var(--color-base);
+  scrollbar-color: var(--color-foam) var(--color-muted);
 }
 
 :root.theme-dark:has(#rawdata-tab) :is(*, *::before, *::after) {

@@ -738,6 +738,11 @@ zen-folder[collapsed] .tab-group-label {
   color: var(--color-subtle) !important;
 }
 
+/* Scrollbars: foam thumb on a muted track, as on the web */
+* {
+  scrollbar-color: var(--color-foam) var(--color-muted) !important;
+}
+
 /* Toasts: small haiiro windows, top right */
 .zen-toast {
   background: var(--color-surface) !important;
