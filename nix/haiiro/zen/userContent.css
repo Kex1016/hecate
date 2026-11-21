@@ -27,6 +27,7 @@
     --space-2: 8px;
     --space-4: 16px;
     --space-6: 24px;
+    --space-8: 32px;
     --border-hairline: 1px;
     --border-divider: 3px;
     --border-window: 5px;
@@ -392,7 +393,7 @@
      below is sticky and opaque, so no overlap */
   #full > #content::before {
     content: "add-ons";
-    margin: var(--space-6) 0 0 var(--space-6);
+    margin: var(--space-6) 0 0 var(--space-8);
   }
 }
 
@@ -405,7 +406,7 @@
     width: 264px !important;
     height: fit-content !important;
     align-self: flex-start;
-    margin: var(--space-6) !important;
+    margin: var(--space-6) 0 var(--space-6) var(--space-6) !important;
     padding: 5px !important;
     border: var(--border-window) double var(--color-pine) !important;
     background: var(--color-surface) !important;
@@ -472,17 +473,24 @@
     color: var(--color-rose) !important;
   }
 }
+/* Content column starts --space-8 right of the sidebar window on both pages */
 @-moz-document url-prefix("about:preferences"), url-prefix("about:settings") {
   moz-page-nav::after { content: "~/settings"; }
+  .main-content {
+    padding-inline-start: var(--space-8) !important;
+  }
+  .pane-container {
+    margin-inline: 0 !important;
+  }
 }
 @-moz-document url-prefix("about:addons") {
   moz-page-nav::after { content: "~/add-ons"; }
-  #sidebar {
-    width: auto !important;
-    min-width: 0 !important;
-    overflow: visible !important;
+  #full {
+    grid-template-columns: calc(264px + var(--space-6)) 1fr !important;
   }
-  moz-page-nav {
-    margin-inline-end: 0 !important;
+  #main,
+  addon-page-header .sticky-container,
+  global-warnings {
+    margin-inline-start: var(--space-8) !important;
   }
 }
