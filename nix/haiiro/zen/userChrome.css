@@ -550,8 +550,10 @@ findbar {
   color: var(--color-text) !important;
 }
 
-/* Checkbox and radio items: square boxes, filled when on */
-menuitem:is([type="checkbox"], [type="radio"]) > .menu-icon {
+/* Checkboxes and radios: square boxes, filled when on */
+menuitem:is([type="checkbox"], [type="radio"]) > .menu-icon,
+checkbox > .checkbox-check,
+radio > .radio-check {
   appearance: none !important;
   width: 12px !important;
   height: 12px !important;
@@ -561,7 +563,9 @@ menuitem:is([type="checkbox"], [type="radio"]) > .menu-icon {
   background-clip: content-box !important;
 }
 
-menuitem:is([type="checkbox"], [type="radio"])[checked="true"] > .menu-icon {
+menuitem:is([type="checkbox"], [type="radio"])[checked="true"] > .menu-icon,
+checkbox[checked] > .checkbox-check,
+radio[selected] > .radio-check {
   background-color: var(--color-foam) !important;
   border-color: var(--color-foam) !important;
 }
