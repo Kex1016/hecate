@@ -743,6 +743,12 @@ zen-folder[collapsed] .tab-group-label {
   scrollbar-color: var(--color-foam) var(--color-muted) !important;
 }
 
+/* Scroll boxes (tab lists, long menus) are narrow: a thin bar. They sit
+   in nested shadow roots, which ::part() does not reach */
+scrollbox {
+  scrollbar-width: thin !important;
+}
+
 /* Toasts: small haiiro windows, top right */
 .zen-toast {
   background: var(--color-surface) !important;
