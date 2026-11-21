@@ -251,6 +251,23 @@ strong {
   outline: none !important;
 }
 
+/* Compact mode (Ctrl+S): the page fills the window, no frame */
+:root[zen-compact-mode="true"] #tabbrowser-tabbox {
+  border: none !important;
+  margin: 0 !important;
+}
+
+:root[zen-compact-mode="true"] #zen-appcontent-wrapper,
+:root[zen-compact-mode="true"] #zen-tabbox-wrapper {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+:root[zen-compact-mode="true"] #navigator-toolbox {
+  border: var(--border-window) double var(--color-pine) !important;
+  background: var(--color-base) !important;
+}
+
 /* Sidebar */
 #navigator-toolbox {
   background: var(--color-base) !important;
