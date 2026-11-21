@@ -1,0 +1,1600 @@
+/**
+ * @name haiiro
+ * @author Kex1016
+ * @description haiiro for Vesktop: Rosé Pine, IBM VGA 8x16, square corners, no easing.
+ * @version 0.2.0
+ */
+
+/* The VGA faces, named by file. On CakeOS fontconfig answers every weight of "IBM VGA 8x16" with
+   the regular face (terminals need that); local() still reaches the double width 2x cut that
+   the design system uses as bold. */
+@font-face {
+  font-family: "haiiro VGA";
+  font-weight: 400;
+  src: local("IBM VGA 8x16"), local("IBMVGA8x16-Regular");
+}
+
+@font-face {
+  font-family: "haiiro VGA";
+  font-weight: 700;
+  src: local("IBM VGA 8x16 Bold"), local("IBMVGA8x16-Bold");
+}
+
+/* haiiro tokens, from the design system's tokens.json. Prefixed because Discord owns --space-*, --color-* and --radius-*. */
+:root {
+  --haiiro-color-base: #191724;
+  --haiiro-color-surface: #1f1d2e;
+  --haiiro-color-overlay: #26233a;
+  --haiiro-color-muted: #6e6a86;
+  --haiiro-color-subtle: #908caa;
+  --haiiro-color-text: #e0def4;
+  --haiiro-color-love: #eb6f92;
+  --haiiro-color-gold: #f6c177;
+  --haiiro-color-rose: #ebbcba;
+  --haiiro-color-pine: #31748f;
+  --haiiro-color-foam: #9ccfd8;
+  --haiiro-color-iris: #c4a7e7;
+  --haiiro-color-highlight-low: #21202e;
+  --haiiro-color-highlight-med: #403d52;
+  --haiiro-color-highlight-high: #524f67;
+  --haiiro-ink-muted: rgba(224, 222, 244, 0.55);
+  --haiiro-ink-hairline: rgba(224, 222, 244, 0.25);
+  --haiiro-ink-track: rgba(224, 222, 244, 0.14);
+  --haiiro-veil-heavy: rgba(25, 23, 36, 0.55);
+
+  --haiiro-font-mono: "haiiro VGA", "IBM VGA 8x16", Unifont, "Unifont Upper", ui-monospace, monospace;
+  --haiiro-font-display: "Jacquard 24", "haiiro VGA", "IBM VGA 8x16", Unifont, "Unifont Upper", serif;
+
+  --haiiro-space-1: 4px;
+  --haiiro-space-2: 8px;
+  --haiiro-space-3: 12px;
+  --haiiro-space-4: 16px;
+  --haiiro-space-6: 24px;
+  --haiiro-space-8: 32px;
+  --haiiro-space-12: 50px;
+  --haiiro-space-20: 80px;
+
+  --haiiro-radius-none: 0;
+  --haiiro-border-hairline: 1px;
+  --haiiro-border-divider: 3px;
+  --haiiro-border-window: 5px;
+  --haiiro-shadow-title: 8px 8px 0 #191724;
+
+  --haiiro-pixelate-duration: 500ms;
+  --haiiro-reveal-steps: 3;
+
+  /* The colours again as hsl triplets, for Discord's scales below. */
+  --haiiro-hsl-base: 249.231 22.034% 11.569%;
+  --haiiro-hsl-surface: 247.059 22.667% 14.706%;
+  --haiiro-hsl-overlay: 247.826 24.731% 18.235%;
+  --haiiro-hsl-muted: 248.571 11.667% 47.059%;
+  --haiiro-hsl-subtle: 248 15% 60.784%;
+  --haiiro-hsl-text: 245.455 50% 91.373%;
+  --haiiro-hsl-love: 343.065 75.61% 67.843%;
+  --haiiro-hsl-gold: 34.961 87.586% 71.569%;
+  --haiiro-hsl-rose: 2.449 55.056% 82.549%;
+  --haiiro-hsl-pine: 197.234 48.958% 37.647%;
+  --haiiro-hsl-foam: 189 43.478% 72.941%;
+  --haiiro-hsl-iris: 267.188 57.143% 78.039%;
+  --haiiro-hsl-highlight-med: 248.571 14.685% 28.039%;
+  --haiiro-hsl-highlight-high: 247.5 13.187% 35.686%;
+}
+
+/*
+ * Discord's raw scales. Every colour step is defined once on :root as an hsl triplet and its
+ * tokens are built from those (hsl(var(--blurple-50-hsl) / 1), hsl(var(--opacity-12-hsl) / 0.12)),
+ * so re-basing the triplets reaches every token this file does not name. Only steps that
+ * Discord's stylesheets use are listed. Greys go to the nearest haiiro step by lightness; blurple
+ * and blue are foam when light and pine otherwise; green and teal the same; red is love, yellow
+ * and orange gold, pink iris; the dark tints of every hue are overlay; the opacity scales keep
+ * their alpha on text, base or the hue's ink. Generated from the live values.
+ */
+:root:not(#\#) {
+  --neutral-1-hsl: var(--haiiro-hsl-text); --neutral-2-hsl: var(--haiiro-hsl-text);
+  --neutral-4-hsl: var(--haiiro-hsl-text); --neutral-5-hsl: var(--haiiro-hsl-text);
+  --neutral-6-hsl: var(--haiiro-hsl-text); --neutral-7-hsl: var(--haiiro-hsl-text);
+  --neutral-8-hsl: var(--haiiro-hsl-text); --neutral-9-hsl: var(--haiiro-hsl-text);
+  --neutral-10-hsl: var(--haiiro-hsl-text); --neutral-12-hsl: var(--haiiro-hsl-text);
+  --neutral-13-hsl: var(--haiiro-hsl-text); --neutral-15-hsl: var(--haiiro-hsl-text);
+  --neutral-16-hsl: var(--haiiro-hsl-text);
+  --neutral-66-hsl: var(--haiiro-hsl-overlay); --neutral-67-hsl: var(--haiiro-hsl-overlay);
+  --neutral-68-hsl: var(--haiiro-hsl-overlay); --neutral-69-hsl: var(--haiiro-hsl-overlay);
+  --neutral-71-hsl: var(--haiiro-hsl-overlay); --neutral-72-hsl: var(--haiiro-hsl-overlay);
+  --neutral-73-hsl: var(--haiiro-hsl-overlay); --neutral-74-hsl: var(--haiiro-hsl-overlay);
+  --neutral-75-hsl: var(--haiiro-hsl-overlay); --neutral-76-hsl: var(--haiiro-hsl-overlay);
+  --neutral-83-hsl: var(--haiiro-hsl-base); --neutral-84-hsl: var(--haiiro-hsl-base);
+  --neutral-85-hsl: var(--haiiro-hsl-base); --neutral-86-hsl: var(--haiiro-hsl-base);
+  --neutral-88-hsl: var(--haiiro-hsl-base); --neutral-89-hsl: var(--haiiro-hsl-base);
+  --neutral-91-hsl: var(--haiiro-hsl-base); --neutral-92-hsl: var(--haiiro-hsl-base);
+  --neutral-93-hsl: var(--haiiro-hsl-base); --neutral-94-hsl: var(--haiiro-hsl-base);
+  --neutral-95-hsl: var(--haiiro-hsl-base); --neutral-96-hsl: var(--haiiro-hsl-base);
+  --neutral-97-hsl: var(--haiiro-hsl-base); --neutral-98-hsl: var(--haiiro-hsl-base);
+  --neutral-99-hsl: var(--haiiro-hsl-base); --neutral-100-hsl: var(--haiiro-hsl-base);
+  --neutral-17-hsl: var(--haiiro-hsl-subtle); --neutral-18-hsl: var(--haiiro-hsl-subtle);
+  --neutral-19-hsl: var(--haiiro-hsl-subtle); --neutral-20-hsl: var(--haiiro-hsl-subtle);
+  --neutral-21-hsl: var(--haiiro-hsl-subtle); --neutral-22-hsl: var(--haiiro-hsl-subtle);
+  --neutral-23-hsl: var(--haiiro-hsl-subtle); --neutral-24-hsl: var(--haiiro-hsl-subtle);
+  --neutral-25-hsl: var(--haiiro-hsl-subtle); --neutral-27-hsl: var(--haiiro-hsl-subtle);
+  --neutral-28-hsl: var(--haiiro-hsl-subtle); --neutral-29-hsl: var(--haiiro-hsl-subtle);
+  --neutral-31-hsl: var(--haiiro-hsl-subtle); --neutral-32-hsl: var(--haiiro-hsl-subtle);
+  --neutral-33-hsl: var(--haiiro-hsl-subtle);
+  --neutral-34-hsl: var(--haiiro-hsl-muted); --neutral-35-hsl: var(--haiiro-hsl-muted);
+  --neutral-36-hsl: var(--haiiro-hsl-muted); --neutral-37-hsl: var(--haiiro-hsl-muted);
+  --neutral-38-hsl: var(--haiiro-hsl-muted); --neutral-39-hsl: var(--haiiro-hsl-muted);
+  --neutral-40-hsl: var(--haiiro-hsl-muted); --neutral-41-hsl: var(--haiiro-hsl-muted);
+  --neutral-42-hsl: var(--haiiro-hsl-muted);
+  --neutral-43-hsl: var(--haiiro-hsl-highlight-high); --neutral-44-hsl: var(--haiiro-hsl-highlight-high);
+  --neutral-45-hsl: var(--haiiro-hsl-highlight-high); --neutral-46-hsl: var(--haiiro-hsl-highlight-high);
+  --neutral-47-hsl: var(--haiiro-hsl-highlight-high); --neutral-48-hsl: var(--haiiro-hsl-highlight-high);
+  --neutral-49-hsl: var(--haiiro-hsl-highlight-high); --neutral-50-hsl: var(--haiiro-hsl-highlight-high);
+  --neutral-51-hsl: var(--haiiro-hsl-highlight-high);
+  --neutral-55-hsl: var(--haiiro-hsl-highlight-med); --neutral-56-hsl: var(--haiiro-hsl-highlight-med);
+  --neutral-58-hsl: var(--haiiro-hsl-highlight-med); --neutral-59-hsl: var(--haiiro-hsl-highlight-med);
+  --neutral-60-hsl: var(--haiiro-hsl-highlight-med); --neutral-62-hsl: var(--haiiro-hsl-highlight-med);
+  --neutral-64-hsl: var(--haiiro-hsl-highlight-med); --neutral-65-hsl: var(--haiiro-hsl-highlight-med);
+  --neutral-77-hsl: var(--haiiro-hsl-surface); --neutral-78-hsl: var(--haiiro-hsl-surface);
+  --neutral-79-hsl: var(--haiiro-hsl-surface); --neutral-80-hsl: var(--haiiro-hsl-surface);
+  --neutral-82-hsl: var(--haiiro-hsl-surface);
+  --primary-100-hsl: var(--haiiro-hsl-text); --primary-130-hsl: var(--haiiro-hsl-text);
+  --primary-160-hsl: var(--haiiro-hsl-text); --primary-200-hsl: var(--haiiro-hsl-text);
+  --primary-230-hsl: var(--haiiro-hsl-text); --primary-300-hsl: var(--haiiro-hsl-text);
+  --primary-700-hsl: var(--haiiro-hsl-base); --primary-730-hsl: var(--haiiro-hsl-base);
+  --primary-760-hsl: var(--haiiro-hsl-base); --primary-800-hsl: var(--haiiro-hsl-base);
+  --primary-860-hsl: var(--haiiro-hsl-base); --primary-900-hsl: var(--haiiro-hsl-base);
+  --primary-400-hsl: var(--haiiro-hsl-muted); --primary-430-hsl: var(--haiiro-hsl-muted);
+  --primary-600-hsl: var(--haiiro-hsl-overlay); --primary-630-hsl: var(--haiiro-hsl-overlay);
+  --primary-645-hsl: var(--haiiro-hsl-overlay);
+  --primary-500-hsl: var(--haiiro-hsl-highlight-high);
+  --primary-530-hsl: var(--haiiro-hsl-highlight-med); --primary-560-hsl: var(--haiiro-hsl-highlight-med);
+  --primary-330-hsl: var(--haiiro-hsl-subtle); --primary-360-hsl: var(--haiiro-hsl-subtle);
+  --primary-660-hsl: var(--haiiro-hsl-surface);
+  --plum-18-hsl: var(--haiiro-hsl-surface); --plum-19-hsl: var(--haiiro-hsl-surface);
+  --plum-11-hsl: var(--haiiro-hsl-muted);
+  --plum-16-hsl: var(--haiiro-hsl-overlay); --plum-17-hsl: var(--haiiro-hsl-overlay);
+  --plum-5-hsl: var(--haiiro-hsl-text); --plum-6-hsl: var(--haiiro-hsl-text);
+  --plum-20-hsl: var(--haiiro-hsl-base); --plum-21-hsl: var(--haiiro-hsl-base); --plum-23-hsl: var(--haiiro-hsl-base);
+  --plum-25-hsl: var(--haiiro-hsl-base); --plum-26-hsl: var(--haiiro-hsl-base);
+  --plum-9-hsl: var(--haiiro-hsl-subtle);
+  --plum-15-hsl: var(--haiiro-hsl-highlight-med);
+  --plum-13-hsl: var(--haiiro-hsl-highlight-high);
+  --blurple-41-hsl: var(--haiiro-hsl-pine); --blurple-44-hsl: var(--haiiro-hsl-pine);
+  --blurple-45-hsl: var(--haiiro-hsl-pine); --blurple-49-hsl: var(--haiiro-hsl-pine);
+  --blurple-50-hsl: var(--haiiro-hsl-pine); --blurple-53-hsl: var(--haiiro-hsl-pine);
+  --blurple-54-hsl: var(--haiiro-hsl-pine); --blurple-59-hsl: var(--haiiro-hsl-pine);
+  --blurple-60-hsl: var(--haiiro-hsl-pine); --blurple-61-hsl: var(--haiiro-hsl-pine);
+  --blurple-62-hsl: var(--haiiro-hsl-pine); --blurple-63-hsl: var(--haiiro-hsl-pine);
+  --blurple-65-hsl: var(--haiiro-hsl-pine); --blurple-70-hsl: var(--haiiro-hsl-pine);
+  --blurple-71-hsl: var(--haiiro-hsl-pine); --blurple-74-hsl: var(--haiiro-hsl-pine);
+  --blurple-75-hsl: var(--haiiro-hsl-pine); --blurple-80-hsl: var(--haiiro-hsl-pine);
+  --blurple-81-hsl: var(--haiiro-hsl-pine); --blurple-82-hsl: var(--haiiro-hsl-pine);
+  --blurple-1-hsl: var(--haiiro-hsl-foam); --blurple-3-hsl: var(--haiiro-hsl-foam);
+  --blurple-4-hsl: var(--haiiro-hsl-foam); --blurple-5-hsl: var(--haiiro-hsl-foam);
+  --blurple-7-hsl: var(--haiiro-hsl-foam); --blurple-8-hsl: var(--haiiro-hsl-foam);
+  --blurple-10-hsl: var(--haiiro-hsl-foam); --blurple-12-hsl: var(--haiiro-hsl-foam);
+  --blurple-13-hsl: var(--haiiro-hsl-foam); --blurple-14-hsl: var(--haiiro-hsl-foam);
+  --blurple-15-hsl: var(--haiiro-hsl-foam); --blurple-19-hsl: var(--haiiro-hsl-foam);
+  --blurple-20-hsl: var(--haiiro-hsl-foam); --blurple-21-hsl: var(--haiiro-hsl-foam);
+  --blurple-23-hsl: var(--haiiro-hsl-foam); --blurple-24-hsl: var(--haiiro-hsl-foam);
+  --blurple-25-hsl: var(--haiiro-hsl-foam); --blurple-26-hsl: var(--haiiro-hsl-foam);
+  --blurple-28-hsl: var(--haiiro-hsl-foam); --blurple-29-hsl: var(--haiiro-hsl-foam);
+  --blurple-30-hsl: var(--haiiro-hsl-foam); --blurple-33-hsl: var(--haiiro-hsl-foam);
+  --blurple-36-hsl: var(--haiiro-hsl-foam); --blurple-38-hsl: var(--haiiro-hsl-foam);
+  --blurple-83-hsl: var(--haiiro-hsl-overlay); --blurple-84-hsl: var(--haiiro-hsl-overlay);
+  --blurple-85-hsl: var(--haiiro-hsl-overlay); --blurple-86-hsl: var(--haiiro-hsl-overlay);
+  --blurple-91-hsl: var(--haiiro-hsl-overlay); --blurple-95-hsl: var(--haiiro-hsl-overlay);
+  --blurple-96-hsl: var(--haiiro-hsl-overlay); --blurple-99-hsl: var(--haiiro-hsl-overlay);
+  --brand-430-hsl: var(--haiiro-hsl-pine); --brand-460-hsl: var(--haiiro-hsl-pine);
+  --brand-500-hsl: var(--haiiro-hsl-pine); --brand-530-hsl: var(--haiiro-hsl-pine);
+  --brand-560-hsl: var(--haiiro-hsl-pine); --brand-600-hsl: var(--haiiro-hsl-pine);
+  --brand-630-hsl: var(--haiiro-hsl-pine); --brand-700-hsl: var(--haiiro-hsl-pine);
+  --brand-160-hsl: var(--haiiro-hsl-foam); --brand-200-hsl: var(--haiiro-hsl-foam);
+  --brand-230-hsl: var(--haiiro-hsl-foam); --brand-260-hsl: var(--haiiro-hsl-foam);
+  --brand-300-hsl: var(--haiiro-hsl-foam); --brand-330-hsl: var(--haiiro-hsl-foam);
+  --brand-360-hsl: var(--haiiro-hsl-foam); --brand-400-hsl: var(--haiiro-hsl-foam);
+  --blue-345-hsl: var(--haiiro-hsl-pine); --blue-500-hsl: var(--haiiro-hsl-pine);
+  --blue-530-hsl: var(--haiiro-hsl-pine);
+  --blue-new-30-hsl: var(--haiiro-hsl-pine); --blue-new-31-hsl: var(--haiiro-hsl-pine);
+  --blue-new-33-hsl: var(--haiiro-hsl-pine); --blue-new-36-hsl: var(--haiiro-hsl-pine);
+  --blue-new-37-hsl: var(--haiiro-hsl-pine); --blue-new-39-hsl: var(--haiiro-hsl-pine);
+  --blue-new-40-hsl: var(--haiiro-hsl-pine); --blue-new-42-hsl: var(--haiiro-hsl-pine);
+  --blue-new-45-hsl: var(--haiiro-hsl-pine); --blue-new-46-hsl: var(--haiiro-hsl-pine);
+  --blue-new-47-hsl: var(--haiiro-hsl-pine); --blue-new-49-hsl: var(--haiiro-hsl-pine);
+  --blue-new-50-hsl: var(--haiiro-hsl-pine); --blue-new-52-hsl: var(--haiiro-hsl-pine);
+  --blue-new-53-hsl: var(--haiiro-hsl-pine); --blue-new-55-hsl: var(--haiiro-hsl-pine);
+  --blue-new-57-hsl: var(--haiiro-hsl-pine); --blue-new-58-hsl: var(--haiiro-hsl-pine);
+  --blue-new-62-hsl: var(--haiiro-hsl-pine); --blue-new-65-hsl: var(--haiiro-hsl-pine);
+  --blue-new-66-hsl: var(--haiiro-hsl-pine); --blue-new-67-hsl: var(--haiiro-hsl-pine);
+  --blue-new-68-hsl: var(--haiiro-hsl-pine); --blue-new-70-hsl: var(--haiiro-hsl-pine);
+  --blue-new-71-hsl: var(--haiiro-hsl-pine); --blue-new-74-hsl: var(--haiiro-hsl-pine);
+  --blue-new-75-hsl: var(--haiiro-hsl-pine); --blue-new-76-hsl: var(--haiiro-hsl-pine);
+  --blue-new-1-hsl: var(--haiiro-hsl-foam); --blue-new-5-hsl: var(--haiiro-hsl-foam);
+  --blue-new-8-hsl: var(--haiiro-hsl-foam); --blue-new-10-hsl: var(--haiiro-hsl-foam);
+  --blue-new-11-hsl: var(--haiiro-hsl-foam); --blue-new-13-hsl: var(--haiiro-hsl-foam);
+  --blue-new-14-hsl: var(--haiiro-hsl-foam); --blue-new-16-hsl: var(--haiiro-hsl-foam);
+  --blue-new-19-hsl: var(--haiiro-hsl-foam); --blue-new-21-hsl: var(--haiiro-hsl-foam);
+  --blue-new-22-hsl: var(--haiiro-hsl-foam); --blue-new-24-hsl: var(--haiiro-hsl-foam);
+  --blue-new-26-hsl: var(--haiiro-hsl-foam); --blue-new-27-hsl: var(--haiiro-hsl-foam);
+  --blue-new-28-hsl: var(--haiiro-hsl-foam);
+  --blue-new-78-hsl: var(--haiiro-hsl-overlay); --blue-new-80-hsl: var(--haiiro-hsl-overlay);
+  --blue-new-81-hsl: var(--haiiro-hsl-overlay); --blue-new-82-hsl: var(--haiiro-hsl-overlay);
+  --blue-new-84-hsl: var(--haiiro-hsl-overlay); --blue-new-86-hsl: var(--haiiro-hsl-overlay);
+  --blue-new-87-hsl: var(--haiiro-hsl-overlay); --blue-new-90-hsl: var(--haiiro-hsl-overlay);
+  --blue-new-92-hsl: var(--haiiro-hsl-overlay); --blue-new-94-hsl: var(--haiiro-hsl-overlay);
+  --blue-new-95-hsl: var(--haiiro-hsl-overlay); --blue-new-96-hsl: var(--haiiro-hsl-overlay);
+  --blue-new-97-hsl: var(--haiiro-hsl-overlay);
+  --green-230-hsl: var(--haiiro-hsl-foam); --green-300-hsl: var(--haiiro-hsl-foam);
+  --green-330-hsl: var(--haiiro-hsl-foam);
+  --green-360-hsl: var(--haiiro-hsl-pine); --green-400-hsl: var(--haiiro-hsl-pine);
+  --green-430-hsl: var(--haiiro-hsl-pine);
+  --green-560-hsl: var(--haiiro-hsl-overlay); --green-900-hsl: var(--haiiro-hsl-overlay);
+  --green-new-60-hsl: var(--haiiro-hsl-overlay); --green-new-61-hsl: var(--haiiro-hsl-overlay);
+  --green-new-62-hsl: var(--haiiro-hsl-overlay); --green-new-63-hsl: var(--haiiro-hsl-overlay);
+  --green-new-65-hsl: var(--haiiro-hsl-overlay); --green-new-68-hsl: var(--haiiro-hsl-overlay);
+  --green-new-69-hsl: var(--haiiro-hsl-overlay); --green-new-70-hsl: var(--haiiro-hsl-overlay);
+  --green-new-73-hsl: var(--haiiro-hsl-overlay); --green-new-76-hsl: var(--haiiro-hsl-overlay);
+  --green-new-77-hsl: var(--haiiro-hsl-overlay); --green-new-79-hsl: var(--haiiro-hsl-overlay);
+  --green-new-80-hsl: var(--haiiro-hsl-overlay); --green-new-83-hsl: var(--haiiro-hsl-overlay);
+  --green-new-86-hsl: var(--haiiro-hsl-overlay); --green-new-88-hsl: var(--haiiro-hsl-overlay);
+  --green-new-89-hsl: var(--haiiro-hsl-overlay); --green-new-91-hsl: var(--haiiro-hsl-overlay);
+  --green-new-94-hsl: var(--haiiro-hsl-overlay); --green-new-95-hsl: var(--haiiro-hsl-overlay);
+  --green-new-96-hsl: var(--haiiro-hsl-overlay); --green-new-98-hsl: var(--haiiro-hsl-overlay);
+  --green-new-99-hsl: var(--haiiro-hsl-overlay); --green-new-100-hsl: var(--haiiro-hsl-overlay);
+  --green-new-1-hsl: var(--haiiro-hsl-foam); --green-new-2-hsl: var(--haiiro-hsl-foam);
+  --green-new-3-hsl: var(--haiiro-hsl-foam); --green-new-9-hsl: var(--haiiro-hsl-foam);
+  --green-new-10-hsl: var(--haiiro-hsl-foam); --green-new-14-hsl: var(--haiiro-hsl-foam);
+  --green-new-15-hsl: var(--haiiro-hsl-foam); --green-new-16-hsl: var(--haiiro-hsl-foam);
+  --green-new-20-hsl: var(--haiiro-hsl-foam); --green-new-21-hsl: var(--haiiro-hsl-foam);
+  --green-new-22-hsl: var(--haiiro-hsl-foam); --green-new-23-hsl: var(--haiiro-hsl-foam);
+  --green-new-25-hsl: var(--haiiro-hsl-foam); --green-new-29-hsl: var(--haiiro-hsl-foam);
+  --green-new-30-hsl: var(--haiiro-hsl-foam);
+  --green-new-31-hsl: var(--haiiro-hsl-pine); --green-new-32-hsl: var(--haiiro-hsl-pine);
+  --green-new-33-hsl: var(--haiiro-hsl-pine); --green-new-34-hsl: var(--haiiro-hsl-pine);
+  --green-new-38-hsl: var(--haiiro-hsl-pine); --green-new-39-hsl: var(--haiiro-hsl-pine);
+  --green-new-40-hsl: var(--haiiro-hsl-pine); --green-new-41-hsl: var(--haiiro-hsl-pine);
+  --green-new-42-hsl: var(--haiiro-hsl-pine); --green-new-45-hsl: var(--haiiro-hsl-pine);
+  --green-new-47-hsl: var(--haiiro-hsl-pine); --green-new-48-hsl: var(--haiiro-hsl-pine);
+  --green-new-50-hsl: var(--haiiro-hsl-pine); --green-new-52-hsl: var(--haiiro-hsl-pine);
+  --green-new-54-hsl: var(--haiiro-hsl-pine); --green-new-55-hsl: var(--haiiro-hsl-pine);
+  --green-new-58-hsl: var(--haiiro-hsl-pine);
+  --teal-100-hsl: var(--haiiro-hsl-foam); --teal-130-hsl: var(--haiiro-hsl-foam);
+  --teal-230-hsl: var(--haiiro-hsl-foam);
+  --teal-345-hsl: var(--haiiro-hsl-pine); --teal-360-hsl: var(--haiiro-hsl-pine);
+  --teal-400-hsl: var(--haiiro-hsl-pine); --teal-430-hsl: var(--haiiro-hsl-pine);
+  --teal-460-hsl: var(--haiiro-hsl-pine);
+  --teal-530-hsl: var(--haiiro-hsl-overlay); --teal-630-hsl: var(--haiiro-hsl-overlay);
+  --teal-900-hsl: var(--haiiro-hsl-overlay);
+  --teal-new-62-hsl: var(--haiiro-hsl-overlay); --teal-new-63-hsl: var(--haiiro-hsl-overlay);
+  --teal-new-65-hsl: var(--haiiro-hsl-overlay); --teal-new-70-hsl: var(--haiiro-hsl-overlay);
+  --teal-new-74-hsl: var(--haiiro-hsl-overlay); --teal-new-76-hsl: var(--haiiro-hsl-overlay);
+  --teal-new-78-hsl: var(--haiiro-hsl-overlay); --teal-new-81-hsl: var(--haiiro-hsl-overlay);
+  --teal-new-84-hsl: var(--haiiro-hsl-overlay); --teal-new-86-hsl: var(--haiiro-hsl-overlay);
+  --teal-new-89-hsl: var(--haiiro-hsl-overlay); --teal-new-92-hsl: var(--haiiro-hsl-overlay);
+  --teal-new-94-hsl: var(--haiiro-hsl-overlay); --teal-new-96-hsl: var(--haiiro-hsl-overlay);
+  --teal-new-98-hsl: var(--haiiro-hsl-overlay); --teal-new-99-hsl: var(--haiiro-hsl-overlay);
+  --teal-new-1-hsl: var(--haiiro-hsl-foam); --teal-new-3-hsl: var(--haiiro-hsl-foam);
+  --teal-new-7-hsl: var(--haiiro-hsl-foam); --teal-new-13-hsl: var(--haiiro-hsl-foam);
+  --teal-new-15-hsl: var(--haiiro-hsl-foam); --teal-new-19-hsl: var(--haiiro-hsl-foam);
+  --teal-new-20-hsl: var(--haiiro-hsl-foam); --teal-new-23-hsl: var(--haiiro-hsl-foam);
+  --teal-new-24-hsl: var(--haiiro-hsl-foam); --teal-new-25-hsl: var(--haiiro-hsl-foam);
+  --teal-new-26-hsl: var(--haiiro-hsl-foam);
+  --teal-new-30-hsl: var(--haiiro-hsl-pine); --teal-new-31-hsl: var(--haiiro-hsl-pine);
+  --teal-new-32-hsl: var(--haiiro-hsl-pine); --teal-new-33-hsl: var(--haiiro-hsl-pine);
+  --teal-new-34-hsl: var(--haiiro-hsl-pine); --teal-new-35-hsl: var(--haiiro-hsl-pine);
+  --teal-new-36-hsl: var(--haiiro-hsl-pine); --teal-new-38-hsl: var(--haiiro-hsl-pine);
+  --teal-new-39-hsl: var(--haiiro-hsl-pine); --teal-new-42-hsl: var(--haiiro-hsl-pine);
+  --teal-new-43-hsl: var(--haiiro-hsl-pine); --teal-new-45-hsl: var(--haiiro-hsl-pine);
+  --teal-new-48-hsl: var(--haiiro-hsl-pine); --teal-new-49-hsl: var(--haiiro-hsl-pine);
+  --teal-new-52-hsl: var(--haiiro-hsl-pine); --teal-new-53-hsl: var(--haiiro-hsl-pine);
+  --teal-new-55-hsl: var(--haiiro-hsl-pine); --teal-new-56-hsl: var(--haiiro-hsl-pine);
+  --teal-new-59-hsl: var(--haiiro-hsl-pine); --teal-new-60-hsl: var(--haiiro-hsl-pine);
+  --red-345-hsl: var(--haiiro-hsl-love); --red-360-hsl: var(--haiiro-hsl-love); --red-400-hsl: var(--haiiro-hsl-love);
+  --red-430-hsl: var(--haiiro-hsl-love);
+  --red-new-80-hsl: var(--haiiro-hsl-overlay); --red-new-81-hsl: var(--haiiro-hsl-overlay);
+  --red-new-84-hsl: var(--haiiro-hsl-overlay); --red-new-85-hsl: var(--haiiro-hsl-overlay);
+  --red-new-86-hsl: var(--haiiro-hsl-overlay); --red-new-89-hsl: var(--haiiro-hsl-overlay);
+  --red-new-90-hsl: var(--haiiro-hsl-overlay); --red-new-92-hsl: var(--haiiro-hsl-overlay);
+  --red-new-95-hsl: var(--haiiro-hsl-overlay); --red-new-96-hsl: var(--haiiro-hsl-overlay);
+  --red-new-98-hsl: var(--haiiro-hsl-overlay); --red-new-99-hsl: var(--haiiro-hsl-overlay);
+  --red-new-1-hsl: var(--haiiro-hsl-love); --red-new-5-hsl: var(--haiiro-hsl-love);
+  --red-new-9-hsl: var(--haiiro-hsl-love); --red-new-10-hsl: var(--haiiro-hsl-love);
+  --red-new-15-hsl: var(--haiiro-hsl-love); --red-new-16-hsl: var(--haiiro-hsl-love);
+  --red-new-18-hsl: var(--haiiro-hsl-love); --red-new-19-hsl: var(--haiiro-hsl-love);
+  --red-new-20-hsl: var(--haiiro-hsl-love); --red-new-21-hsl: var(--haiiro-hsl-love);
+  --red-new-22-hsl: var(--haiiro-hsl-love); --red-new-24-hsl: var(--haiiro-hsl-love);
+  --red-new-25-hsl: var(--haiiro-hsl-love); --red-new-26-hsl: var(--haiiro-hsl-love);
+  --red-new-28-hsl: var(--haiiro-hsl-love); --red-new-29-hsl: var(--haiiro-hsl-love);
+  --red-new-30-hsl: var(--haiiro-hsl-love); --red-new-31-hsl: var(--haiiro-hsl-love);
+  --red-new-34-hsl: var(--haiiro-hsl-love); --red-new-36-hsl: var(--haiiro-hsl-love);
+  --red-new-37-hsl: var(--haiiro-hsl-love); --red-new-38-hsl: var(--haiiro-hsl-love);
+  --red-new-39-hsl: var(--haiiro-hsl-love); --red-new-40-hsl: var(--haiiro-hsl-love);
+  --red-new-42-hsl: var(--haiiro-hsl-love); --red-new-44-hsl: var(--haiiro-hsl-love);
+  --red-new-45-hsl: var(--haiiro-hsl-love); --red-new-46-hsl: var(--haiiro-hsl-love);
+  --red-new-47-hsl: var(--haiiro-hsl-love); --red-new-48-hsl: var(--haiiro-hsl-love);
+  --red-new-50-hsl: var(--haiiro-hsl-love); --red-new-52-hsl: var(--haiiro-hsl-love);
+  --red-new-55-hsl: var(--haiiro-hsl-love); --red-new-56-hsl: var(--haiiro-hsl-love);
+  --red-new-59-hsl: var(--haiiro-hsl-love); --red-new-60-hsl: var(--haiiro-hsl-love);
+  --red-new-62-hsl: var(--haiiro-hsl-love); --red-new-63-hsl: var(--haiiro-hsl-love);
+  --red-new-65-hsl: var(--haiiro-hsl-love); --red-new-66-hsl: var(--haiiro-hsl-love);
+  --red-new-67-hsl: var(--haiiro-hsl-love); --red-new-70-hsl: var(--haiiro-hsl-love);
+  --red-new-71-hsl: var(--haiiro-hsl-love); --red-new-73-hsl: var(--haiiro-hsl-love);
+  --red-new-75-hsl: var(--haiiro-hsl-love); --red-new-77-hsl: var(--haiiro-hsl-love);
+  --red-new-78-hsl: var(--haiiro-hsl-love);
+  --yellow-160-hsl: var(--haiiro-hsl-gold); --yellow-260-hsl: var(--haiiro-hsl-gold);
+  --yellow-300-hsl: var(--haiiro-hsl-gold); --yellow-360-hsl: var(--haiiro-hsl-gold);
+  --yellow-400-hsl: var(--haiiro-hsl-gold); --yellow-530-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-1-hsl: var(--haiiro-hsl-gold); --yellow-new-6-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-7-hsl: var(--haiiro-hsl-gold); --yellow-new-15-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-20-hsl: var(--haiiro-hsl-gold); --yellow-new-22-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-28-hsl: var(--haiiro-hsl-gold); --yellow-new-29-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-30-hsl: var(--haiiro-hsl-gold); --yellow-new-31-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-32-hsl: var(--haiiro-hsl-gold); --yellow-new-33-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-36-hsl: var(--haiiro-hsl-gold); --yellow-new-38-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-39-hsl: var(--haiiro-hsl-gold); --yellow-new-41-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-45-hsl: var(--haiiro-hsl-gold); --yellow-new-47-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-51-hsl: var(--haiiro-hsl-gold); --yellow-new-52-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-53-hsl: var(--haiiro-hsl-gold); --yellow-new-55-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-56-hsl: var(--haiiro-hsl-gold); --yellow-new-57-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-59-hsl: var(--haiiro-hsl-gold); --yellow-new-60-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-62-hsl: var(--haiiro-hsl-gold); --yellow-new-63-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-65-hsl: var(--haiiro-hsl-gold); --yellow-new-66-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-68-hsl: var(--haiiro-hsl-gold); --yellow-new-69-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-70-hsl: var(--haiiro-hsl-gold); --yellow-new-72-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-75-hsl: var(--haiiro-hsl-gold); --yellow-new-76-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-78-hsl: var(--haiiro-hsl-gold); --yellow-new-79-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-80-hsl: var(--haiiro-hsl-gold);
+  --yellow-new-82-hsl: var(--haiiro-hsl-overlay); --yellow-new-83-hsl: var(--haiiro-hsl-overlay);
+  --yellow-new-84-hsl: var(--haiiro-hsl-overlay); --yellow-new-85-hsl: var(--haiiro-hsl-overlay);
+  --yellow-new-86-hsl: var(--haiiro-hsl-overlay); --yellow-new-87-hsl: var(--haiiro-hsl-overlay);
+  --yellow-new-88-hsl: var(--haiiro-hsl-overlay); --yellow-new-90-hsl: var(--haiiro-hsl-overlay);
+  --yellow-new-92-hsl: var(--haiiro-hsl-overlay); --yellow-new-93-hsl: var(--haiiro-hsl-overlay);
+  --yellow-new-96-hsl: var(--haiiro-hsl-overlay); --yellow-new-99-hsl: var(--haiiro-hsl-overlay);
+  --yellow-new-100-hsl: var(--haiiro-hsl-overlay);
+  --orange-360-hsl: var(--haiiro-hsl-gold);
+  --orange-new-1-hsl: var(--haiiro-hsl-gold); --orange-new-3-hsl: var(--haiiro-hsl-gold);
+  --orange-new-8-hsl: var(--haiiro-hsl-gold); --orange-new-10-hsl: var(--haiiro-hsl-gold);
+  --orange-new-12-hsl: var(--haiiro-hsl-gold); --orange-new-14-hsl: var(--haiiro-hsl-gold);
+  --orange-new-20-hsl: var(--haiiro-hsl-gold); --orange-new-21-hsl: var(--haiiro-hsl-gold);
+  --orange-new-22-hsl: var(--haiiro-hsl-gold); --orange-new-24-hsl: var(--haiiro-hsl-gold);
+  --orange-new-27-hsl: var(--haiiro-hsl-gold); --orange-new-30-hsl: var(--haiiro-hsl-gold);
+  --orange-new-31-hsl: var(--haiiro-hsl-gold); --orange-new-35-hsl: var(--haiiro-hsl-gold);
+  --orange-new-39-hsl: var(--haiiro-hsl-gold); --orange-new-40-hsl: var(--haiiro-hsl-gold);
+  --orange-new-42-hsl: var(--haiiro-hsl-gold); --orange-new-44-hsl: var(--haiiro-hsl-gold);
+  --orange-new-45-hsl: var(--haiiro-hsl-gold); --orange-new-48-hsl: var(--haiiro-hsl-gold);
+  --orange-new-57-hsl: var(--haiiro-hsl-gold); --orange-new-61-hsl: var(--haiiro-hsl-gold);
+  --orange-new-62-hsl: var(--haiiro-hsl-gold); --orange-new-67-hsl: var(--haiiro-hsl-gold);
+  --orange-new-69-hsl: var(--haiiro-hsl-gold);
+  --orange-new-73-hsl: var(--haiiro-hsl-overlay); --orange-new-74-hsl: var(--haiiro-hsl-overlay);
+  --orange-new-75-hsl: var(--haiiro-hsl-overlay); --orange-new-80-hsl: var(--haiiro-hsl-overlay);
+  --orange-new-81-hsl: var(--haiiro-hsl-overlay); --orange-new-82-hsl: var(--haiiro-hsl-overlay);
+  --orange-new-87-hsl: var(--haiiro-hsl-overlay); --orange-new-89-hsl: var(--haiiro-hsl-overlay);
+  --orange-new-92-hsl: var(--haiiro-hsl-overlay); --orange-new-93-hsl: var(--haiiro-hsl-overlay);
+  --orange-new-99-hsl: var(--haiiro-hsl-overlay); --orange-new-100-hsl: var(--haiiro-hsl-overlay);
+  --pink-1-hsl: var(--haiiro-hsl-iris); --pink-13-hsl: var(--haiiro-hsl-iris); --pink-20-hsl: var(--haiiro-hsl-iris);
+  --pink-26-hsl: var(--haiiro-hsl-iris); --pink-29-hsl: var(--haiiro-hsl-iris); --pink-34-hsl: var(--haiiro-hsl-iris);
+  --pink-42-hsl: var(--haiiro-hsl-iris); --pink-46-hsl: var(--haiiro-hsl-iris); --pink-49-hsl: var(--haiiro-hsl-iris);
+  --pink-51-hsl: var(--haiiro-hsl-iris); --pink-52-hsl: var(--haiiro-hsl-iris); --pink-55-hsl: var(--haiiro-hsl-iris);
+  --pink-57-hsl: var(--haiiro-hsl-iris); --pink-58-hsl: var(--haiiro-hsl-iris); --pink-60-hsl: var(--haiiro-hsl-iris);
+  --pink-61-hsl: var(--haiiro-hsl-iris); --pink-62-hsl: var(--haiiro-hsl-iris); --pink-64-hsl: var(--haiiro-hsl-iris);
+  --pink-70-hsl: var(--haiiro-hsl-iris); --pink-75-hsl: var(--haiiro-hsl-iris); --pink-80-hsl: var(--haiiro-hsl-iris);
+  --opacity-1-hsl: var(--haiiro-hsl-text); --opacity-4-hsl: var(--haiiro-hsl-text);
+  --opacity-8-hsl: var(--haiiro-hsl-text); --opacity-12-hsl: var(--haiiro-hsl-text);
+  --opacity-16-hsl: var(--haiiro-hsl-text); --opacity-20-hsl: var(--haiiro-hsl-text);
+  --opacity-24-hsl: var(--haiiro-hsl-text); --opacity-28-hsl: var(--haiiro-hsl-text);
+  --opacity-32-hsl: var(--haiiro-hsl-text); --opacity-40-hsl: var(--haiiro-hsl-text);
+  --opacity-44-hsl: var(--haiiro-hsl-text); --opacity-52-hsl: var(--haiiro-hsl-text);
+  --opacity-64-hsl: var(--haiiro-hsl-text); --opacity-80-hsl: var(--haiiro-hsl-text);
+  --opacity-white-4-hsl: var(--haiiro-hsl-text); --opacity-white-8-hsl: var(--haiiro-hsl-text);
+  --opacity-white-12-hsl: var(--haiiro-hsl-text); --opacity-white-16-hsl: var(--haiiro-hsl-text);
+  --opacity-white-20-hsl: var(--haiiro-hsl-text); --opacity-white-24-hsl: var(--haiiro-hsl-text);
+  --opacity-white-28-hsl: var(--haiiro-hsl-text); --opacity-white-32-hsl: var(--haiiro-hsl-text);
+  --opacity-white-36-hsl: var(--haiiro-hsl-text); --opacity-white-40-hsl: var(--haiiro-hsl-text);
+  --opacity-white-44-hsl: var(--haiiro-hsl-text); --opacity-white-48-hsl: var(--haiiro-hsl-text);
+  --opacity-white-52-hsl: var(--haiiro-hsl-text); --opacity-white-56-hsl: var(--haiiro-hsl-text);
+  --opacity-white-60-hsl: var(--haiiro-hsl-text); --opacity-white-64-hsl: var(--haiiro-hsl-text);
+  --opacity-white-68-hsl: var(--haiiro-hsl-text); --opacity-white-72-hsl: var(--haiiro-hsl-text);
+  --opacity-white-76-hsl: var(--haiiro-hsl-text); --opacity-white-80-hsl: var(--haiiro-hsl-text);
+  --opacity-white-84-hsl: var(--haiiro-hsl-text); --opacity-white-88-hsl: var(--haiiro-hsl-text);
+  --opacity-white-92-hsl: var(--haiiro-hsl-text); --opacity-white-96-hsl: var(--haiiro-hsl-text);
+  --opacity-black-1-hsl: var(--haiiro-hsl-base); --opacity-black-4-hsl: var(--haiiro-hsl-base);
+  --opacity-black-8-hsl: var(--haiiro-hsl-base); --opacity-black-12-hsl: var(--haiiro-hsl-base);
+  --opacity-black-16-hsl: var(--haiiro-hsl-base); --opacity-black-20-hsl: var(--haiiro-hsl-base);
+  --opacity-black-24-hsl: var(--haiiro-hsl-base); --opacity-black-28-hsl: var(--haiiro-hsl-base);
+  --opacity-black-32-hsl: var(--haiiro-hsl-base); --opacity-black-40-hsl: var(--haiiro-hsl-base);
+  --opacity-black-44-hsl: var(--haiiro-hsl-base); --opacity-black-48-hsl: var(--haiiro-hsl-base);
+  --opacity-black-52-hsl: var(--haiiro-hsl-base); --opacity-black-56-hsl: var(--haiiro-hsl-base);
+  --opacity-black-60-hsl: var(--haiiro-hsl-base); --opacity-black-64-hsl: var(--haiiro-hsl-base);
+  --opacity-black-68-hsl: var(--haiiro-hsl-base); --opacity-black-72-hsl: var(--haiiro-hsl-base);
+  --opacity-black-76-hsl: var(--haiiro-hsl-base); --opacity-black-80-hsl: var(--haiiro-hsl-base);
+  --opacity-black-84-hsl: var(--haiiro-hsl-base); --opacity-black-88-hsl: var(--haiiro-hsl-base);
+  --opacity-black-92-hsl: var(--haiiro-hsl-base); --opacity-black-96-hsl: var(--haiiro-hsl-base);
+  --opacity-blurple-4-hsl: var(--haiiro-hsl-pine); --opacity-blurple-8-hsl: var(--haiiro-hsl-pine);
+  --opacity-blurple-12-hsl: var(--haiiro-hsl-pine); --opacity-blurple-16-hsl: var(--haiiro-hsl-pine);
+  --opacity-blurple-20-hsl: var(--haiiro-hsl-pine); --opacity-blurple-24-hsl: var(--haiiro-hsl-pine);
+  --opacity-blurple-28-hsl: var(--haiiro-hsl-pine); --opacity-blurple-32-hsl: var(--haiiro-hsl-pine);
+  --opacity-blurple-40-hsl: var(--haiiro-hsl-pine); --opacity-blurple-48-hsl: var(--haiiro-hsl-pine);
+  --opacity-blurple-60-hsl: var(--haiiro-hsl-pine); --opacity-blurple-64-hsl: var(--haiiro-hsl-pine);
+  --opacity-blurple-80-hsl: var(--haiiro-hsl-pine); --opacity-blurple-84-hsl: var(--haiiro-hsl-pine);
+  --opacity-blue-8-hsl: var(--haiiro-hsl-foam); --opacity-blue-12-hsl: var(--haiiro-hsl-foam);
+  --opacity-blue-52-hsl: var(--haiiro-hsl-foam); --opacity-blue-60-hsl: var(--haiiro-hsl-foam);
+  --opacity-green-8-hsl: var(--haiiro-hsl-foam); --opacity-green-12-hsl: var(--haiiro-hsl-foam);
+  --opacity-green-20-hsl: var(--haiiro-hsl-foam); --opacity-green-24-hsl: var(--haiiro-hsl-foam);
+  --opacity-green-28-hsl: var(--haiiro-hsl-foam); --opacity-green-36-hsl: var(--haiiro-hsl-foam);
+  --opacity-green-52-hsl: var(--haiiro-hsl-foam); --opacity-green-60-hsl: var(--haiiro-hsl-foam);
+  --opacity-teal-16-hsl: var(--haiiro-hsl-foam); --opacity-teal-24-hsl: var(--haiiro-hsl-foam);
+  --opacity-teal-32-hsl: var(--haiiro-hsl-foam); --opacity-teal-48-hsl: var(--haiiro-hsl-foam);
+  --opacity-teal-80-hsl: var(--haiiro-hsl-foam);
+  --opacity-red-4-hsl: var(--haiiro-hsl-love); --opacity-red-8-hsl: var(--haiiro-hsl-love);
+  --opacity-red-12-hsl: var(--haiiro-hsl-love); --opacity-red-16-hsl: var(--haiiro-hsl-love);
+  --opacity-red-20-hsl: var(--haiiro-hsl-love); --opacity-red-24-hsl: var(--haiiro-hsl-love);
+  --opacity-red-28-hsl: var(--haiiro-hsl-love); --opacity-red-32-hsl: var(--haiiro-hsl-love);
+  --opacity-red-52-hsl: var(--haiiro-hsl-love); --opacity-red-60-hsl: var(--haiiro-hsl-love);
+  --opacity-yellow-4-hsl: var(--haiiro-hsl-gold); --opacity-yellow-8-hsl: var(--haiiro-hsl-gold);
+  --opacity-yellow-12-hsl: var(--haiiro-hsl-gold); --opacity-yellow-16-hsl: var(--haiiro-hsl-gold);
+  --opacity-yellow-20-hsl: var(--haiiro-hsl-gold); --opacity-yellow-24-hsl: var(--haiiro-hsl-gold);
+  --opacity-yellow-28-hsl: var(--haiiro-hsl-gold); --opacity-yellow-32-hsl: var(--haiiro-hsl-gold);
+  --opacity-yellow-36-hsl: var(--haiiro-hsl-gold); --opacity-yellow-60-hsl: var(--haiiro-hsl-gold);
+  --opacity-yellow-72-hsl: var(--haiiro-hsl-gold);
+  --opacity-pink-16-hsl: var(--haiiro-hsl-iris); --opacity-pink-24-hsl: var(--haiiro-hsl-iris);
+  --opacity-pink-32-hsl: var(--haiiro-hsl-iris); --opacity-pink-48-hsl: var(--haiiro-hsl-iris);
+  --opacity-pink-60-hsl: var(--haiiro-hsl-iris); --opacity-pink-80-hsl: var(--haiiro-hsl-iris);
+  --white-hsl: var(--haiiro-hsl-text); --white-500-hsl: var(--haiiro-hsl-text);
+  --black-hsl: var(--haiiro-hsl-base); --black-500-hsl: var(--haiiro-hsl-base);
+}
+
+/*
+ * Discord's variables, mapped onto haiiro. Discord redeclares them on every themed subtree
+ * (.theme-dark, .theme-darker, ...) with up to two classes of specificity; :not(#\#) adds an
+ * id's worth so these win without !important.
+ */
+:is(:root, .theme-dark, .theme-darker, .theme-midnight, .theme-light):not(#\#) {
+  /*
+   * Ground: the side columns are the sky, the chat is the window, floating things are raised.
+   * Discord paints with var(--background-gradient-*, fallback) and sets the gradients only for
+   * Nitro themes, so they stay unset here and the fallbacks below decide.
+   * lowest: app frame, server rail, channel list. lower: the chat. low: user panel, cards.
+   */
+  --background-base-lowest: var(--haiiro-color-base);
+  --background-base-lower: var(--haiiro-color-surface);
+  --background-base-low: var(--haiiro-color-surface);
+  --custom-channel-members-bg: var(--haiiro-color-base);
+  --background-surface-high: var(--haiiro-color-overlay);
+  --background-surface-higher: var(--haiiro-color-overlay);
+  --background-surface-highest: var(--haiiro-color-overlay);
+  --background-accent: var(--haiiro-color-overlay);
+  --background-secondary-alt: var(--haiiro-color-overlay);
+  --background-brand: var(--haiiro-color-pine);
+  --background-code: var(--haiiro-color-base);
+  --background-scrim: var(--haiiro-veil-heavy);
+  --background-scrim-lightbox: var(--haiiro-veil-heavy);
+  --bg-surface-raised: var(--haiiro-color-overlay);
+  --app-frame-background: var(--haiiro-color-base);
+  --app-frame-border: var(--haiiro-color-overlay);
+  --home-background: var(--haiiro-color-surface);
+  --chat-background: var(--haiiro-color-surface);
+  --chat-background-default: var(--haiiro-color-base); /* the composer, an input on the window */
+  --chat-border: var(--haiiro-ink-hairline);
+  --channel-background-default: var(--haiiro-color-surface);
+  --channeltextarea-background: var(--haiiro-color-base);
+  --modal-background: var(--haiiro-color-surface);
+  --modal-footer-background: var(--haiiro-color-surface);
+  --panel-bg: var(--haiiro-color-base);
+  --card-background-default: var(--haiiro-color-base);
+  --card-border-default: var(--haiiro-ink-hairline);
+  --card-secondary-bg: var(--haiiro-color-overlay);
+  --user-profile-background: var(--haiiro-color-overlay);
+  --user-profile-border: var(--haiiro-color-text);
+  --user-profile-overlay-background: var(--haiiro-color-base);
+  --user-profile-toolbar-background: var(--haiiro-color-base);
+  --user-profile-toolbar-border: var(--haiiro-ink-hairline);
+
+  /* Hover, selection, mod layers. A selected row is an overlay band (ListRow, Fishnet); hover is a step below. */
+  --background-mod-muted: var(--haiiro-color-highlight-low);
+  --background-mod-subtle: var(--haiiro-color-highlight-low);
+  --background-mod-normal: var(--haiiro-color-overlay);
+  --background-mod-strong: var(--haiiro-color-highlight-med);
+  --interactive-background-default: transparent;
+  --interactive-background-hover: var(--haiiro-color-highlight-low);
+  --interactive-background-active: var(--haiiro-color-overlay);
+  --interactive-background-selected: var(--haiiro-color-overlay);
+  --message-background-hover: var(--haiiro-color-overlay); /* highlight-low vanishes on surface */
+  --message-highlight-background-default: var(--haiiro-color-overlay);
+  --message-highlight-background-hover: var(--haiiro-color-highlight-med);
+  --message-mentioned-background-default: color-mix(in srgb, var(--haiiro-color-gold) 8%, transparent);
+  --message-mentioned-background-hover: color-mix(in srgb, var(--haiiro-color-gold) 12%, transparent);
+  --mention-background: var(--haiiro-color-highlight-med);
+  --mention-foreground: var(--haiiro-color-foam);
+
+  /* Text */
+  --text-default: var(--haiiro-color-text);
+  --text-strong: var(--haiiro-color-text);
+  --text-subtle: var(--haiiro-color-subtle);
+  --text-muted: var(--haiiro-ink-muted); /* captions and timestamps: the label ink, 4.7:1 */
+  --text-link: var(--haiiro-color-foam);
+  --text-brand: var(--haiiro-color-foam);
+  --text-invert: var(--haiiro-color-surface);
+  --text-code: var(--haiiro-color-text);
+  --text-feedback-critical: var(--haiiro-color-love);
+  --text-feedback-warning: var(--haiiro-color-gold);
+  --text-feedback-positive: var(--haiiro-color-foam);
+  --text-feedback-info: var(--haiiro-color-foam);
+  --chat-text-muted: var(--haiiro-ink-muted);
+  --channels-default: var(--haiiro-color-subtle);
+  --channel-icon: var(--haiiro-color-muted);
+  --guild-header-text: var(--haiiro-color-text);
+  --input-text-default: var(--haiiro-color-text);
+  --input-placeholder-text: var(--haiiro-color-muted);
+  --textbox-markdown-syntax: var(--haiiro-color-muted);
+
+  /* Interactive text and icons: subtle at rest, text on hover. */
+  --interactive-text-default: var(--haiiro-color-subtle);
+  --interactive-text-hover: var(--haiiro-color-text);
+  --interactive-text-active: var(--haiiro-color-text);
+  --interactive-icon-default: var(--haiiro-color-subtle);
+  --interactive-icon-hover: var(--haiiro-color-text);
+  --interactive-icon-active: var(--haiiro-color-text);
+  --interactive-muted: var(--haiiro-color-muted);
+  --icon-default: var(--haiiro-color-subtle);
+  --icon-strong: var(--haiiro-color-text);
+  --icon-subtle: var(--haiiro-color-subtle);
+  --icon-muted: var(--haiiro-color-muted);
+  --icon-brand: var(--haiiro-color-foam);
+  --icon-link: var(--haiiro-color-foam);
+  --icon-feedback-critical: var(--haiiro-color-love);
+  --icon-feedback-warning: var(--haiiro-color-gold);
+  --icon-feedback-positive: var(--haiiro-color-foam);
+  --icon-feedback-info: var(--haiiro-color-foam);
+  --chat-input-icon: var(--haiiro-color-subtle);
+
+  /* Status: foam done or online, gold needs you or idle, love critical or busy. */
+  --status-online: var(--haiiro-color-foam);
+  --status-positive: var(--haiiro-color-foam);
+  --status-warning: var(--haiiro-color-gold);
+  --status-danger: var(--haiiro-color-love);
+  --status-speaking: var(--haiiro-color-foam);
+  --status-positive-background: var(--haiiro-color-pine);
+  --status-positive-text: var(--haiiro-color-foam);
+  /* Badges (mention counts, tags): the notification count is love, like the DS shell's alerts */
+  --badge-notification-background: var(--haiiro-color-love);
+  --badge-notification-border: var(--haiiro-color-love);
+  --badge-notification-text: var(--haiiro-color-surface);
+  --badge-critical-background: var(--haiiro-color-love);
+  --badge-critical-border: var(--haiiro-color-love);
+  --badge-critical-text: var(--haiiro-color-surface);
+  --badge-warning-background: var(--haiiro-color-gold);
+  --badge-warning-border: var(--haiiro-color-gold);
+  --badge-warning-text: var(--haiiro-color-surface);
+  --badge-success-background: var(--haiiro-color-foam);
+  --badge-success-border: var(--haiiro-color-foam);
+  --badge-success-text: var(--haiiro-color-surface);
+  --badge-primary-background: var(--haiiro-color-pine);
+  --badge-primary-border: var(--haiiro-color-pine);
+  --badge-primary-text: var(--haiiro-color-text);
+  --badge-secondary-background: var(--haiiro-color-muted);
+  --badge-secondary-border: var(--haiiro-color-muted);
+  --badge-secondary-text: var(--haiiro-color-text);
+  --badge-common-background: var(--haiiro-color-overlay);
+  --badge-common-border: var(--haiiro-color-overlay);
+  --badge-common-text: var(--haiiro-color-text);
+  --badge-inverted-background: var(--haiiro-color-text);
+  --badge-inverted-border: var(--haiiro-color-text);
+  --badge-inverted-text: var(--haiiro-color-surface);
+  --badge-expressive-background: var(--haiiro-color-iris);
+  --badge-expressive-border: var(--haiiro-color-iris);
+  --badge-expressive-text: var(--haiiro-color-surface);
+  --badge-premium-background-gradient-start: var(--haiiro-color-iris);
+  --badge-premium-background-gradient-mid: var(--haiiro-color-iris);
+  --badge-premium-background-gradient-end: var(--haiiro-color-iris);
+  --badge-premium-text: var(--haiiro-color-surface);
+  --icon-status-online: var(--haiiro-color-foam);
+  --icon-status-idle: var(--haiiro-color-gold);
+  --icon-status-dnd: var(--haiiro-color-love);
+  --icon-status-offline: var(--haiiro-color-muted);
+  --text-status-online: var(--haiiro-color-foam);
+  --text-status-idle: var(--haiiro-color-gold);
+  --text-status-dnd: var(--haiiro-color-love);
+  --text-status-offline: var(--haiiro-color-muted);
+  --background-feedback-critical: color-mix(in srgb, var(--haiiro-color-love) 12%, transparent);
+  --background-feedback-warning: color-mix(in srgb, var(--haiiro-color-gold) 12%, transparent);
+  --background-feedback-positive: color-mix(in srgb, var(--haiiro-color-foam) 12%, transparent);
+  --background-feedback-info: color-mix(in srgb, var(--haiiro-color-foam) 12%, transparent);
+  --background-feedback-notification: var(--haiiro-color-love);
+  --border-feedback-critical: var(--haiiro-color-love);
+  --border-feedback-warning: var(--haiiro-color-gold);
+  --border-feedback-positive: var(--haiiro-color-foam);
+  --border-feedback-info: var(--haiiro-color-foam);
+
+  /* Borders: hairlines in ink, focus in foam. */
+  --border-subtle: var(--haiiro-ink-hairline);
+  --border-muted: var(--haiiro-ink-hairline);
+  --border-normal: var(--haiiro-ink-hairline);
+  --border-strong: var(--haiiro-color-text);
+  --border-focus: var(--haiiro-color-foam);
+  --input-background-default: var(--haiiro-color-base);
+  --input-border-default: var(--haiiro-color-text);
+  --input-border-hover: var(--haiiro-color-subtle);
+  --input-border-active: var(--haiiro-color-foam);
+  --input-border-error: var(--haiiro-color-love);
+
+  /* Buttons as InkButtons: pine is the lasting choice, muted dismisses, love refuses. */
+  --control-primary-background-default: var(--haiiro-color-pine);
+  --control-primary-background-hover: var(--haiiro-color-foam);
+  --control-primary-background-active: var(--haiiro-color-foam);
+  --control-primary-border-default: transparent;
+  --control-primary-border-hover: transparent;
+  --control-primary-border-active: transparent;
+  --control-primary-text-default: var(--haiiro-color-text);
+  --control-primary-text-hover: var(--haiiro-color-surface);
+  --control-primary-text-active: var(--haiiro-color-surface);
+  --control-primary-icon-default: var(--haiiro-color-text);
+  --control-primary-icon-hover: var(--haiiro-color-surface);
+  --control-primary-icon-active: var(--haiiro-color-surface);
+  --control-secondary-background-default: var(--haiiro-color-muted);
+  --control-secondary-background-hover: var(--haiiro-color-subtle);
+  --control-secondary-background-active: var(--haiiro-color-subtle);
+  --control-secondary-border-default: transparent;
+  --control-secondary-border-hover: transparent;
+  --control-secondary-border-active: transparent;
+  --control-secondary-text-default: var(--haiiro-color-text);
+  --control-secondary-text-hover: var(--haiiro-color-surface);
+  --control-secondary-text-active: var(--haiiro-color-surface);
+  --control-secondary-icon-default: var(--haiiro-color-text);
+  --control-secondary-icon-hover: var(--haiiro-color-surface);
+  --control-secondary-icon-active: var(--haiiro-color-surface);
+  --control-critical-primary-background-default: var(--haiiro-color-love);
+  --control-critical-primary-background-hover: var(--haiiro-color-rose);
+  --control-critical-primary-background-active: var(--haiiro-color-rose);
+  --control-critical-primary-border-default: transparent;
+  --control-critical-primary-border-hover: transparent;
+  --control-critical-primary-border-active: transparent;
+  --control-critical-primary-text-default: var(--haiiro-color-surface);
+  --control-critical-primary-text-hover: var(--haiiro-color-surface);
+  --control-critical-primary-text-active: var(--haiiro-color-surface);
+  --control-critical-primary-icon-default: var(--haiiro-color-surface);
+  --control-critical-primary-icon-hover: var(--haiiro-color-surface);
+  --control-critical-primary-icon-active: var(--haiiro-color-surface);
+  --control-connected-background-default: var(--haiiro-color-foam);
+  --control-connected-background-hover: var(--haiiro-color-text);
+  --control-connected-background-active: var(--haiiro-color-text);
+  --control-connected-text-default: var(--haiiro-color-surface);
+  --control-connected-icon-default: var(--haiiro-color-surface);
+  --control-brand-foreground: var(--haiiro-color-foam);
+  --control-brand-foreground-new: var(--haiiro-color-foam);
+  --interactive-accent-background-default: var(--haiiro-color-overlay);
+  --interactive-accent-background-hover: var(--haiiro-color-pine);
+  --interactive-accent-background-active: var(--haiiro-color-pine);
+  --interactive-accent-background-selected: var(--haiiro-color-pine);
+
+  /* Slider (DS): a text fill on an ink track. */
+  --slider-indicator-background: var(--haiiro-color-text);
+  --slider-track-background: var(--haiiro-ink-track);
+
+  /* Scrollbars: foam thumb on a muted track, as in Window and Zen. */
+  --scrollbar-thin-thumb: var(--haiiro-color-foam);
+  --scrollbar-thin-track: transparent;
+  --scrollbar-auto-thumb: var(--haiiro-color-foam);
+  --scrollbar-auto-track: var(--haiiro-color-muted);
+  --scrollbar-auto-scrollbar-color-thumb: var(--haiiro-color-foam);
+  --scrollbar-auto-scrollbar-color-track: var(--haiiro-color-muted);
+
+  /* Shape: square, flat. Borders carry structure, not shadows. */
+  --radius-xs: 0;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-xxl: 0;
+  --radius-round: 0;
+  --button-border-radius: 0;
+  --button-border-radius-lg: 0;
+  --shadow-low: none;
+  --shadow-medium: none;
+  --shadow-high: none;
+  --shadow-border: none;
+  --shadow-ledge: none;
+  --elevation-low: none;
+  --elevation-medium: none;
+  --elevation-high: none;
+  --elevation-stroke: none;
+
+  /* Type: the VGA face for everything, code included. */
+  --font-primary: var(--haiiro-font-mono);
+  --font-display: var(--haiiro-font-mono);
+  --font-headline: var(--haiiro-font-mono);
+  --font-code: var(--haiiro-font-mono);
+  --font-display-marketing: var(--haiiro-font-mono);
+  --font-display-marketing-header: var(--haiiro-font-mono);
+  --font-nitro: var(--haiiro-font-mono);
+  --font-clan-body: var(--haiiro-font-mono);
+  --font-weight-light: 400;
+  --font-weight-normal: 400;
+  --font-weight-medium: 400;
+  --font-weight-semibold: 400;
+  --font-weight-bold: 400;
+  --font-weight-extrabold: 400;
+  --font-weight-extra-bold: 400;
+  --font-weight-black: 400;
+}
+
+/* Type: weight 400 everywhere, emphasis is colour. Message markdown bold is the one exception
+   and takes the double width 2x face. Never let Chromium fake a bold. */
+html, body {
+  font-synthesis: none;
+}
+
+* {
+  font-weight: 400 !important;
+}
+
+:is([class^="markup_"], [class*=" markup_"]) strong {
+  font-weight: 700 !important;
+}
+
+/*
+ * Selectors. Discord classes are name_HASH; match the name with
+ * :is([class^="name_"], [class*=" name_"]) so "name_" never hits "username_".
+ */
+
+/* Shape and motion: square, flat, cuts, no blur. Every CSS animation jumps to its end state, loops included. */
+*,
+*::before,
+*::after {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  transition: none !important;
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+}
+
+/* Discord springs these from JavaScript through inline transform and opacity. Pin them so
+   they cut in; on close they stay put until Discord unmounts them. Never pin a tooltip or
+   popout layer itself: those are placed with transform: translate(). The full screen layers
+   of server and channel settings only scale, so they can be pinned. */
+:is([class^="outerContainer_"], [class*=" outerContainer_"]) > :is([class^="container_"], [class*=" container_"]),
+:is([class^="tooltipLayer_"], [class*=" tooltipLayer_"]) > div,
+:is([class^="layers_"], [class*=" layers_"]) > :is([class^="layer_"], [class*=" layer_"]) {
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+/* The pin above would hold a spring at full opacity through its fade out, so it lingers until
+   Discord unmounts it. Read the spring from the inline style instead: entering, opacity passes
+   0.5 within a frame or two and never falls back (its overshoot dips to 0.98 at most); leaving,
+   it drops below 0.5 on the third frame and only wobbles around 0 after. Below 0.5 the element
+   is hidden, so both ends become cuts of about 30ms. Tiny values serialise as 1.2e-07. */
+:is(
+  :is([class^="outerContainer_"], [class*=" outerContainer_"]) > :is([class^="container_"], [class*=" container_"]),
+  :is([class^="tooltipLayer_"], [class*=" tooltipLayer_"]) > div,
+  :is([class^="layers_"], [class*=" layers_"]) > :is([class^="layer_"], [class*=" layer_"])
+):is([style*="opacity: 0;"], [style*="opacity: 0.0"], [style*="opacity: 0.1"], [style*="opacity: 0.2"],
+  [style*="opacity: 0.3"], [style*="opacity: 0.4"], [style*="opacity: -"], [style*="e-0"], [style*="e-1"]) {
+  visibility: hidden !important;
+}
+
+/* Opacity only: these may be positioned by transform. */
+:is([class^="carouselModal_"], [class*=" carouselModal_"]),
+:is([class^="subnavContainer_"], [class*=" subnavContainer_"]),
+:is([class^="standardSidebarView_"], [class*=" standardSidebarView_"]) {
+  opacity: 1 !important;
+}
+
+/* The scrim behind modals is the dither veil: a 2x2 checker of base over veil-heavy, no fade.
+   The file drop area behind its window is the same veil. */
+:is([class^="scrim_"], [class*=" scrim_"]),
+:is([class^="uploadArea_"], [class*=" uploadArea_"]) {
+  opacity: 1 !important;
+  background-color: var(--haiiro-veil-heavy) !important;
+  background-image: conic-gradient(var(--haiiro-color-base) 25%, transparent 0 50%, var(--haiiro-color-base) 0 75%, transparent 0) !important;
+  background-size: 4px 4px !important;
+}
+
+/* Focus: 2px foam outline, as InkButton, only while Discord is in keyboard mode (its rings were
+   box-shadows). Drawn inside the element: outside it, scrollers and avatar masks clip it away. */
+html.keyboard-mode :focus-visible {
+  outline: 2px solid var(--haiiro-color-foam) !important;
+  outline-offset: -2px !important;
+}
+
+/* Type sizes on the 16px grid: body-sm (14px) snaps up, the small labels sit at 12px, big headings at 32px. */
+:is([data-text-variant^="body-sm"], [data-text-variant^="text-sm"], [data-text-variant^="body-md"],
+    [data-text-variant^="text-md"], [data-text-variant^="body-lg"], [data-text-variant^="text-lg"],
+    [data-text-variant^="heading-sm"], [data-text-variant^="heading-md"], [data-text-variant^="heading-lg"]) {
+  font-size: 16px !important;
+}
+
+:is([data-text-variant^="body-xs"], [data-text-variant^="text-xs"], [data-text-variant^="text-xxs"],
+    [data-text-variant^="body-xxs"], [data-text-variant^="eyebrow"]) {
+  font-size: 12px !important;
+}
+
+:is([data-text-variant^="heading-xl"], [data-text-variant^="heading-xxl"], [data-text-variant^="display"]) {
+  font-size: 32px !important;
+}
+
+/* Avatars and server icons: no squircle or circle masks. Status dots become squares. */
+foreignObject[mask],
+rect[mask*="svg-mask-status"] {
+  mask: none !important;
+}
+
+/* Status dots and a few icons carry Discord's colours as attributes, past the variables:
+   online foam, idle gold, do not disturb love, offline muted, streaming iris. */
+rect[mask*="svg-mask-status-online"] { fill: var(--haiiro-color-foam) !important; }
+rect[mask*="svg-mask-status-idle"] { fill: var(--haiiro-color-gold) !important; }
+rect[mask*="svg-mask-status-dnd"] { fill: var(--haiiro-color-love) !important; }
+rect[mask*="svg-mask-status-offline"] { fill: var(--haiiro-color-muted) !important; }
+rect[mask*="svg-mask-status-streaming"] { fill: var(--haiiro-color-iris) !important; }
+
+:is(path, rect, circle)[fill="#45a366" i] { fill: var(--haiiro-color-foam) !important; }
+:is(path, rect, circle)[fill="#ffc04e" i] { fill: var(--haiiro-color-gold) !important; }
+:is(path, rect, circle):is([fill="#da3e44" i], [fill="rgb(218,62,68)"]) { fill: var(--haiiro-color-love) !important; }
+:is(path, rect, circle)[stroke="rgb(218,62,68)"] { stroke: var(--haiiro-color-love) !important; }
+:is(path, rect, circle)[fill="#84858d" i] { fill: var(--haiiro-color-muted) !important; }
+
+:is([class^="status_"], [class*=" status_"])[style*="rgb(69, 163, 102)"] { background-color: var(--haiiro-color-foam) !important; }
+:is([class^="status_"], [class*=" status_"])[style*="rgb(255, 192, 78)"] { background-color: var(--haiiro-color-gold) !important; }
+:is([class^="status_"], [class*=" status_"])[style*="rgb(218, 62, 68)"] { background-color: var(--haiiro-color-love) !important; }
+:is([class^="status_"], [class*=" status_"])[style*="rgb(132, 133, 141)"] { background-color: var(--haiiro-color-muted) !important; }
+
+/* The chat and the friends list are the haiiro window: 5px double pine, inset from the sky. */
+:is([class^="chatContent_"], [class*=" chatContent_"], [class^="peopleColumn_"], [class*=" peopleColumn_"],
+  :is([class^="chat_"], [class*=" chat_"]) > :is([class^="content_"], [class*=" content_"]) > :is([class^="container_"], [class*=" container_"]):has([class*="mainCardContainer_"], [class*="tagsContainer_"])) {
+  background: var(--haiiro-color-surface);
+  margin: 0 var(--haiiro-space-2) var(--haiiro-space-2);
+  border: var(--haiiro-border-window) double var(--haiiro-color-pine);
+}
+
+/* Unfocused app: the frame dims, as hecate draws an unfocused window. */
+html:not(.app-focused) :is([class^="chatContent_"], [class*=" chatContent_"], [class^="peopleColumn_"], [class*=" peopleColumn_"],
+  :is([class^="chat_"], [class*=" chat_"]) > :is([class^="content_"], [class*=" content_"]) > :is([class^="container_"], [class*=" container_"]):has([class*="mainCardContainer_"], [class*="tagsContainer_"])) {
+  border-color: var(--haiiro-color-highlight-med);
+}
+
+/* Fades at the edges of scrollers are gradients; the sky has none. */
+:is([class^="chatGradient_"], [class*=" chatGradient_"]),
+:is([class^="headerEllipseBackdrop_"], [class*=" headerEllipseBackdrop_"], [class^="headerEllipseForeground_"],
+    [class*=" headerEllipseForeground_"], [class^="headerGlass_"], [class*=" headerGlass_"]) {
+  display: none !important;
+}
+
+/* Section labels: channel categories and member groups are uppercase, muted, tracked. */
+#channels :is([class^="mainContent_"], [class*=" mainContent_"]) h3,
+:is([class^="membersGroup_"], [class*=" membersGroup_"]) {
+  font-size: 12px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--haiiro-ink-muted) !important;
+}
+
+/* Date dividers: a hairline with the date in muted ink. */
+:is([class^="divider_"], [class*=" divider_"])[role="separator"] {
+  border-top-color: var(--haiiro-ink-hairline) !important;
+}
+
+/* Menus and tooltips: raised overlay, 1px text hairline. */
+[role="menu"],
+:is([class^="tooltip_"], [class*=" tooltip_"]) {
+  background: var(--haiiro-color-overlay) !important;
+  border: var(--haiiro-border-hairline) solid var(--haiiro-color-text) !important;
+  color: var(--haiiro-color-text) !important;
+}
+
+:is([class^="tooltipPointer_"], [class*=" tooltipPointer_"], [class^="tooltipPointerBg_"], [class*=" tooltipPointerBg_"]),
+:is([class^="caret_"], [class*=" caret_"])[class*="caret--"] {
+  display: none !important;
+}
+
+[role="menu"] [role="menuitem"]:is(:hover, [class*="focused_"]) {
+  background: var(--haiiro-color-highlight-med) !important;
+  color: var(--haiiro-color-text) !important;
+}
+
+[role="menu"] [role="separator"] {
+  border-color: var(--haiiro-color-highlight-med) !important;
+}
+
+/* Modals and settings are haiiro windows: surface in a pine double frame. [role="dialog"] itself is a full screen wrapper. */
+:is([class^="outerContainer_"], [class*=" outerContainer_"]) > :is([class^="container_"], [class*=" container_"]) {
+  background: var(--haiiro-color-surface) !important;
+  border: var(--haiiro-border-window) double var(--haiiro-color-pine) !important;
+}
+
+/* Composer: an input on the window, 1px text border on base (Fishnet search). */
+:is([class^="channelTextArea_"], [class*=" channelTextArea_"]):not(:is([class^="channelTextArea_"], [class*=" channelTextArea_"]) *) {
+  border: var(--haiiro-border-hairline) solid var(--haiiro-color-text);
+}
+
+/* Menus take focus when they open; their ring is noise. */
+[role="menu"]:focus-visible {
+  outline: none !important;
+}
+
+/* Profile popouts and modals are windows. Nitro profile themes do not recolour haiiro
+   (the shell's rule: nothing recolours the theme); banners, avatars and effects stay. */
+.custom-user-profile-theme {
+  --profile-gradient-primary-color: var(--haiiro-color-surface) !important;
+  --profile-gradient-secondary-color: var(--haiiro-color-surface) !important;
+  --profile-gradient-overlay-color: transparent !important;
+  --profile-gradient-button-color: var(--haiiro-color-pine) !important;
+  --profile-gradient-modal-background-color: var(--haiiro-color-surface) !important;
+  --profile-body-background-color: var(--haiiro-color-surface) !important;
+  --profile-body-background-hover: var(--haiiro-color-overlay) !important;
+  --profile-body-divider-color: var(--haiiro-ink-hairline) !important;
+  --profile-body-border-color: var(--haiiro-ink-hairline) !important;
+  --profile-role-pill-background-color: var(--haiiro-color-base) !important;
+  --profile-role-pill-border-color: var(--haiiro-ink-hairline) !important;
+}
+
+.user-profile-popout {
+  background: var(--haiiro-color-surface) !important;
+  border: var(--haiiro-border-window) double var(--haiiro-color-pine) !important;
+}
+
+/* Expression picker (GIFs, stickers, emoji) is the shell's emoji panel: a window,
+   its tabs a Segmented choice with the active one on a pine band. */
+:is([class^="drawerSizingWrapper_"], [class*=" drawerSizingWrapper_"]) {
+  background: var(--haiiro-color-surface) !important;
+  border: var(--haiiro-border-window) double var(--haiiro-color-pine) !important;
+}
+
+:is([class^="navButton_"], [class*=" navButton_"]) {
+  font-size: 16px !important;
+  padding: 0 1ch !important;
+  background: transparent !important;
+  color: var(--haiiro-color-subtle) !important;
+}
+
+:is([class^="navButtonActive_"], [class*=" navButtonActive_"]) {
+  background: var(--haiiro-color-pine) !important;
+  color: var(--haiiro-color-text) !important;
+}
+
+/* Server rail pills: the current server is pine (the current thing, as the bar's active
+   workspace); an unread server keeps a short text-coloured pill. */
+nav:is([class^="guilds_"], [class*=" guilds_"]) :is([class^="item_"], [class*=" item_"]):is([class^="selected_"], [class*=" selected_"]) {
+  background: var(--haiiro-color-pine) !important;
+}
+
+/* Header tab bars (friends: Online, All, Pending) are a Segmented choice: plain subtle words,
+   the selected one on a pine band. Add Friend is the one button that acts, so it is gold.
+   Server settings list their pages as vertical tabs of the same class; those are list rows. */
+[role="tab"]:is([class^="item_"], [class*=" item_"]):is([class^="themed_"], [class*=" themed_"]):not(:is([class^="side_"], [class*=" side_"]) > *) {
+  padding: 0 1ch !important;
+  background: transparent !important;
+  color: var(--haiiro-color-subtle) !important;
+}
+
+[role="tab"]:is([class^="item_"], [class*=" item_"]):is([class^="themed_"], [class*=" themed_"]):not(:is([class^="side_"], [class*=" side_"]) > *):hover {
+  color: var(--haiiro-color-text) !important;
+}
+
+[role="tab"]:is([class^="item_"], [class*=" item_"]):is([class^="themed_"], [class*=" themed_"]):not(:is([class^="side_"], [class*=" side_"]) > *)[aria-selected="true"] {
+  background: var(--haiiro-color-pine) !important;
+  color: var(--haiiro-color-text) !important;
+}
+
+[role="tab"]:is([class^="item_"], [class*=" item_"]):is([class^="themed_"], [class*=" themed_"]):not(:is([class^="side_"], [class*=" side_"]) > *):is([class^="addFriend_"], [class*=" addFriend_"]) {
+  background: var(--haiiro-color-gold) !important;
+  color: var(--haiiro-color-surface) !important;
+}
+
+/* The DM list's "Find or start a conversation" opens the quick switcher: draw it as the
+   search field it stands for (Fishnet search: text hairline on base, muted placeholder). */
+:is([class^="privateChannels_"], [class*=" privateChannels_"]) > :is([class^="searchBar_"], [class*=" searchBar_"]) > button {
+  background: var(--haiiro-color-base) !important;
+  border: var(--haiiro-border-hairline) solid var(--haiiro-color-text) !important;
+  color: var(--haiiro-color-muted) !important;
+  justify-content: flex-start !important;
+}
+
+/* Code blocks (ShikiCodeblocks, Rosé Pine theme set in the plugin): DS CodeBlock, on base
+   with a hairline, VGA at 16px like the rest of the type. */
+.vc-shiki-root {
+  background: var(--haiiro-color-base) !important;
+  border: var(--haiiro-border-hairline) solid var(--haiiro-ink-hairline) !important;
+}
+
+.vc-shiki-root,
+.vc-shiki-root :is(code, .vc-shiki-table, .vc-shiki-lang, .vc-shiki-btn) {
+  font-family: var(--haiiro-font-mono) !important;
+  font-size: 16px !important;
+}
+
+.vc-shiki-lang {
+  color: var(--haiiro-color-muted) !important;
+}
+
+.vc-shiki-btn {
+  background: var(--haiiro-color-muted) !important;
+  color: var(--haiiro-color-text) !important;
+}
+
+/* Popouts (pins, threads, inbox, search) are windows too. Unlike modals, a popout's dialog is
+   sized to its content inside a layer; a modal dialog (`data-dialog="modal"`) fills the window
+   and is left alone. The profile popout and the expression picker frame their
+   own inner box, so they are left out here. */
+:is([class^="layer_"], [class*=" layer_"]) > [role="dialog"]:not([data-dialog="modal"]):not(:has(.user-profile-popout, [class*="drawerSizingWrapper_"])) {
+  background: var(--haiiro-color-surface) !important;
+  border: var(--haiiro-border-window) double var(--haiiro-color-pine) !important;
+}
+
+:is([class^="layer_"], [class*=" layer_"]) > [role="dialog"] :is([class^="messagesPopoutWrap_"], [class*=" messagesPopoutWrap_"], [class^="header_"], [class*=" header_"]) {
+  background: var(--haiiro-color-surface) !important;
+}
+
+/* Notice bars across the top are Fishnet's notice: base ground, a 1px dashed rule and text in
+   the notice's ink. Gold needs you (default, warning), love is critical, foam is information
+   or done, pine is Discord's own promotions. The action is a gold InkButton. */
+:is([class^="notice_"], [class*=" notice_"]):has(> button, > [class*="button_"]),
+:is([class^="notice_"], [class*=" notice_"])[class*="color"] {
+  --haiiro-notice-ink: var(--haiiro-color-gold);
+  background: var(--haiiro-color-base) !important;
+  border-bottom: var(--haiiro-border-hairline) dashed var(--haiiro-notice-ink) !important;
+  color: var(--haiiro-notice-ink) !important;
+  font-size: 16px !important;
+}
+
+:is([class^="notice_"], [class*=" notice_"]):is([class*="colorDanger_"]) {
+  --haiiro-notice-ink: var(--haiiro-color-love);
+}
+
+:is([class^="notice_"], [class*=" notice_"]):is([class*="colorInfo_"], [class*="colorSuccess_"], [class*="colorNeutral_"], [class*="colorStreamerMode_"]) {
+  --haiiro-notice-ink: var(--haiiro-color-foam);
+}
+
+:is([class^="notice_"], [class*=" notice_"]):is([class*="colorBrand_"], [class*="colorPremium_"], [class*="colorSpotify_"], [class*="colorCustom_"]) {
+  --haiiro-notice-ink: var(--haiiro-color-pine);
+  color: var(--haiiro-color-text) !important;
+}
+
+:is([class^="notice_"], [class*=" notice_"]) :is(button, [class*="button_"]) {
+  background: var(--haiiro-color-gold) !important;
+  border: 0 !important;
+  color: var(--haiiro-color-surface) !important;
+  padding: 0 1ch !important;
+  font-size: 16px !important;
+}
+
+/* Call view is a window like the chat: surface in the pine frame, not Discord black. Tiles are
+   raised cards (overlay, hairline); a member's own profile colour behind the avatar stays. */
+:is([class^="callContainer_"], [class*=" callContainer_"]) {
+  background: var(--haiiro-color-surface) !important;
+  margin: 0 var(--haiiro-space-2) var(--haiiro-space-2);
+  border: var(--haiiro-border-window) double var(--haiiro-color-pine);
+}
+
+html:not(.app-focused) :is([class^="callContainer_"], [class*=" callContainer_"]) {
+  border-color: var(--haiiro-color-highlight-med);
+}
+
+:is([class^="callContainer_"], [class*=" callContainer_"]) :is([class^="root_"], [class*=" root_"]) {
+  background: transparent !important;
+}
+
+:is([class^="callContainer_"], [class*=" callContainer_"]) :is([class^="tile_"], [class*=" tile_"]),
+:is([class^="callContainer_"], [class*=" callContainer_"]) [class*="singleUserRoot_"] {
+  background: var(--haiiro-color-overlay) !important;
+  background-image: none !important;
+  outline: var(--haiiro-border-hairline) solid var(--haiiro-ink-hairline);
+}
+
+/* The call scrims behind the top and bottom controls: no fades in haiiro. */
+:is([class^="callContainer_"], [class*=" callContainer_"]) :is([class^="gradientContainer_"], [class*=" gradientContainer_"]) {
+  display: none !important;
+}
+
+/* Vesktop screen share picker: resolution, frame rate and content type are Segmented
+   (plain subtle words, the chosen one on a pine band), like the header tabs. */
+.vcd-screen-picker-option-radios {
+  background: transparent !important;
+  border: var(--haiiro-border-hairline) solid var(--haiiro-ink-hairline) !important;
+}
+
+.vcd-screen-picker-option-radio {
+  background: transparent !important;
+  color: var(--haiiro-color-subtle) !important;
+}
+
+.vcd-screen-picker-option-radio:hover {
+  color: var(--haiiro-color-text) !important;
+}
+
+.vcd-screen-picker-option-radio[data-checked="true"] {
+  background: var(--haiiro-color-pine) !important;
+  color: var(--haiiro-color-text) !important;
+}
+
+.vcd-screen-picker-option-radio .vc-text-bold {
+  color: inherit !important;
+  font-weight: 400 !important;
+}
+
+/* Server folders spring their list open and shut through an inline height. Open is full height
+   at once; once the folder drops isExpanded_ the list goes, instead of shrinking away. */
+:is([class^="folderGuildsList_"], [class*=" folderGuildsList_"]) {
+  height: auto !important;
+}
+
+:is([class^="folderGroup_"], [class*=" folderGroup_"]):not([class*="isExpanded_"]) :is([class^="folderGuildsList_"], [class*=" folderGuildsList_"]) {
+  display: none !important;
+}
+
+/* Display title, as on haiiro.moe and Zen's about:preferences: the settings page name in the
+   header is Jacquard 24, lowercase, at 72px (three times its 24px pixel grid). The page under it
+   hangs from the left edge of the title instead of floating centred in the column. */
+:is([class^="contentHeader_"], [class*=" contentHeader_"]) {
+  height: auto !important;
+  min-height: 0 !important;
+  padding: var(--haiiro-space-4) var(--haiiro-space-2) 0 var(--haiiro-space-8) !important;
+  align-items: flex-start !important;
+  border-bottom: 0 !important;
+  background: transparent !important;
+}
+
+:is([class^="contentHeader_"], [class*=" contentHeader_"]) :is([class^="breadcrumbText_"], [class*=" breadcrumbText_"]),
+:is([class^="contentHeader_"], [class*=" contentHeader_"]) :is([class^="breadcrumb_"], [class*=" breadcrumb_"]) {
+  font-family: var(--haiiro-font-display) !important;
+  font-size: 72px !important;
+  line-height: 72px !important;
+  font-weight: 400 !important;
+  text-transform: lowercase;
+  color: var(--haiiro-color-text) !important;
+  text-shadow: var(--haiiro-shadow-title);
+}
+
+:is([class^="contentHeader_"], [class*=" contentHeader_"]) :is([class^="breadcrumbs_"], [class*=" breadcrumbs_"]) {
+  align-items: baseline !important;
+}
+
+/* On a sub page only the page itself is named; the path to it is not shown. */
+:is([class^="contentHeader_"], [class*=" contentHeader_"]) :is([class^="breadcrumb_"], [class*=" breadcrumb_"]):not(:last-child) {
+  display: none !important;
+}
+
+:is([class^="contentBody_"], [class*=" contentBody_"]) :is([class^="scroller_"], [class*=" scroller_"]) > :is([class^="panel_"], [class*=" panel_"]) {
+  /* the scroller already insets 16px; this lands the page on the title's left edge */
+  margin: var(--haiiro-space-6) 0 var(--haiiro-space-12) var(--haiiro-space-4) !important;
+  padding: 0 !important;
+}
+
+/* Discord's switches spring their colour inline as raw rgb(), past the variables: pine when on,
+   muted when off (DS InkButton inks), thumb in text ink, no rim. The input sits in the next
+   sibling, so the state is read there. */
+:is([class^="switchIndicator_"], [class*=" switchIndicator_"]) {
+  --haiiro-thumb-left: 1px;
+  --haiiro-thumb-right: auto;
+  background-color: var(--haiiro-color-muted) !important;
+  border: 0 !important;
+  opacity: 1 !important;
+}
+
+:is([class^="switchIndicator_"], [class*=" switchIndicator_"]):has(+ * input:checked) {
+  --haiiro-thumb-left: auto;
+  --haiiro-thumb-right: 1px;
+  background-color: var(--haiiro-color-pine) !important;
+}
+
+/* The thumb springs inline too (left, and its rect squashes); it cuts to its side instead. */
+:is([class^="switchIndicator_"], [class*=" switchIndicator_"]) :is([class^="thumb_"], [class*=" thumb_"]) {
+  left: var(--haiiro-thumb-left) !important;
+  right: var(--haiiro-thumb-right) !important;
+}
+
+:is([class^="switchIndicator_"], [class*=" switchIndicator_"]) rect {
+  x: 4px !important;
+  width: 16px !important;
+  fill: var(--haiiro-color-text) !important;
+}
+
+/* Settings read like a Fishnet page: the column is the sky (base) under the display title, and
+   each section is a Window on it, its name sitting on the top border (DS .window .section-header).
+   Windows part the sections themselves, so Discord's dividers go. */
+:is([class^="content_"], [class*=" content_"]):has(> :is([class^="contentHeader_"], [class*=" contentHeader_"])) {
+  background: var(--haiiro-color-base) !important;
+}
+
+:is([class^="contentBody_"], [class*=" contentBody_"]) :is([class^="categories_"], [class*=" categories_"]) {
+  gap: var(--haiiro-space-8) !important;
+}
+
+:is([class^="contentBody_"], [class*=" contentBody_"]) :is([class^="categories_"], [class*=" categories_"]) > :is([class^="container_"], [class*=" container_"]) {
+  position: relative;
+  margin-top: var(--haiiro-space-3) !important;
+  padding: var(--haiiro-space-6) var(--haiiro-space-4) var(--haiiro-space-4) !important;
+  background: var(--haiiro-color-surface) !important;
+  border: var(--haiiro-border-window) double var(--haiiro-color-pine) !important;
+}
+
+:is([class^="contentBody_"], [class*=" contentBody_"]) :is([class^="categories_"], [class*=" categories_"]) > :is([class^="container_"], [class*=" container_"]) > :first-child h2 {
+  position: absolute;
+  top: 0;
+  left: 15px;
+  transform: translateY(-50%);
+  margin: 0 !important;
+  padding: 0 1ch !important;
+  background: var(--haiiro-color-surface);
+  font-size: 16px !important;
+  line-height: 16px !important;
+}
+
+:is([class^="contentBody_"], [class*=" contentBody_"]) :is([class^="categories_"], [class*=" categories_"]) > :is([class^="divider_"], [class*=" divider_"]) {
+  display: none !important;
+}
+
+/* Headings inside windows are foam (the design system's job for foam; Zen does the same). */
+:is([class^="outerContainer_"], [class*=" outerContainer_"]) > :is([class^="container_"], [class*=" container_"]) :is(h1, h2, h3),
+:is([class^="contentRegion_"], [class*=" contentRegion_"]) :is(h1, h2, h3) {
+  color: var(--haiiro-color-foam) !important;
+}
+
+/* The settings page list is a list of ListRows, as in Zen's settings and Fishnet's side rail:
+   subtle at rest, text on hover, the current page an overlay band with a rose » in the marker
+   column. Its group names are labels. */
+:is([class^="sidebar_"], [class*=" sidebar_"]) nav :is([class^="itemContainer_"], [class*=" itemContainer_"]) > :is([class^="item_"], [class*=" item_"]) {
+  position: relative;
+  padding-left: calc(var(--haiiro-space-2) + 2ch) !important;
+  color: var(--haiiro-color-subtle) !important;
+}
+
+:is([class^="sidebar_"], [class*=" sidebar_"]) nav :is([class^="itemContainer_"], [class*=" itemContainer_"]) > :is([class^="item_"], [class*=" item_"]):is(:hover, [aria-current]) {
+  color: var(--haiiro-color-text) !important;
+}
+
+:is([class^="sidebar_"], [class*=" sidebar_"]) nav :is([class^="itemContainer_"], [class*=" itemContainer_"]) > :is([class^="item_"], [class*=" item_"])::before {
+  content: "»";
+  position: absolute;
+  left: var(--haiiro-space-2);
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--haiiro-font-mono);
+  font-size: 16px;
+  line-height: 16px;
+  color: transparent;
+}
+
+:is([class^="sidebar_"], [class*=" sidebar_"]) nav :is([class^="itemContainer_"], [class*=" itemContainer_"]) > :is([class^="item_"], [class*=" item_"])[aria-current]::before {
+  color: var(--haiiro-color-rose);
+}
+
+:is([class^="outerContainer_"], [class*=" outerContainer_"]) :is([class^="sidebar_"], [class*=" sidebar_"]) nav h3:is(h3),
+:is([class^="side_"], [class*=" side_"]) > :is([class^="header_"], [class*=" header_"]),
+:is([class^="quickswitcher_"], [class*=" quickswitcher_"]) :is([class^="header_"], [class*=" header_"]) {
+  font-size: 12px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--haiiro-ink-muted) !important;
+}
+
+/* A page's sections are listed under it. Discord springs that list open and shut (height and
+   opacity) and slides a thumb along it; the thumb's transform is its position, so it cannot be
+   pinned. The list of the current page shows at once, the others are gone at once, and the
+   current section carries the rose » instead of the thumb. */
+:is([class^="itemContainer_"], [class*=" itemContainer_"]) > :is([class^="subnavContainer_"], [class*=" subnavContainer_"]) {
+  display: none !important;
+}
+
+:is([class^="itemContainer_"], [class*=" itemContainer_"]) > :is([class^="item_"], [class*=" item_"])[aria-current="page"] ~ :is([class^="subnavContainer_"], [class*=" subnavContainer_"]) {
+  display: block !important;
+  height: auto !important;
+  opacity: 1 !important;
+}
+
+:is([class^="subnavContainer_"], [class*=" subnavContainer_"]) :is([class^="thumb_"], [class*=" thumb_"]) {
+  display: none !important;
+}
+
+:is([class^="subnavContainer_"], [class*=" subnavContainer_"]) :is([class^="item_"], [class*=" item_"]) {
+  position: relative;
+}
+
+:is([class^="subnavContainer_"], [class*=" subnavContainer_"]) :is([class^="item_"], [class*=" item_"])[aria-current]::before {
+  content: "»";
+  position: absolute;
+  left: -2ch;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--haiiro-font-mono);
+  font-size: 16px;
+  line-height: 16px;
+  color: var(--haiiro-color-rose);
+}
+
+/* Server and channel settings are Discord's older full screen view: the page list sits on the
+   sky, the page is a window, and the list is the same ListRows. */
+:is([class^="standardSidebarView_"], [class*=" standardSidebarView_"]) :is([class^="sidebarRegion_"], [class*=" sidebarRegion_"], [class^="sidebarRegionScroller_"], [class*=" sidebarRegionScroller_"]) {
+  background: var(--haiiro-color-base) !important;
+}
+
+:is([class^="standardSidebarView_"], [class*=" standardSidebarView_"]) :is([class^="contentRegion_"], [class*=" contentRegion_"]) {
+  margin: var(--haiiro-space-2);
+  background: var(--haiiro-color-surface) !important;
+  border: var(--haiiro-border-window) double var(--haiiro-color-pine);
+}
+
+html:not(.app-focused) :is([class^="standardSidebarView_"], [class*=" standardSidebarView_"]) :is([class^="contentRegion_"], [class*=" contentRegion_"]) {
+  border-color: var(--haiiro-color-highlight-med);
+}
+
+:is([class^="contentRegion_"], [class*=" contentRegion_"]) :is([class^="contentRegionScroller_"], [class*=" contentRegionScroller_"]) {
+  background: transparent !important;
+}
+
+/* Its page name is the display title, as in user settings. */
+:is([class^="contentRegion_"], [class*=" contentRegion_"]) h2:first-child[class*="heading-lg/semibold"] {
+  margin-bottom: var(--haiiro-space-4) !important;
+  font-family: var(--haiiro-font-display) !important;
+  font-size: 72px !important;
+  line-height: 72px !important;
+  text-transform: lowercase;
+  color: var(--haiiro-color-text) !important;
+  text-shadow: var(--haiiro-shadow-title);
+}
+
+:is([class^="side_"], [class*=" side_"]) > :is([class^="item_"], [class*=" item_"]):is([class^="themed_"], [class*=" themed_"]) {
+  position: relative;
+  padding-left: calc(var(--haiiro-space-2) + 2ch) !important;
+  background: transparent !important;
+  color: var(--haiiro-color-subtle) !important;
+}
+
+:is([class^="side_"], [class*=" side_"]) > :is([class^="item_"], [class*=" item_"]):is([class^="destructive_"], [class*=" destructive_"]) {
+  color: var(--haiiro-color-love) !important;
+}
+
+:is([class^="side_"], [class*=" side_"]) > :is([class^="item_"], [class*=" item_"]):is([class^="themed_"], [class*=" themed_"]):hover {
+  color: var(--haiiro-color-text) !important;
+}
+
+:is([class^="side_"], [class*=" side_"]) > :is([class^="item_"], [class*=" item_"])[aria-selected="true"] {
+  background: var(--haiiro-color-overlay) !important;
+  color: var(--haiiro-color-text) !important;
+}
+
+:is([class^="side_"], [class*=" side_"]) > :is([class^="item_"], [class*=" item_"])::before {
+  content: "»";
+  position: absolute;
+  left: var(--haiiro-space-2);
+  top: 50%;
+  transform: translateY(-50%);
+  color: transparent;
+}
+
+:is([class^="side_"], [class*=" side_"]) > :is([class^="item_"], [class*=" item_"])[aria-selected="true"]::before {
+  color: var(--haiiro-color-rose);
+}
+
+/* Quick switcher rows are DS ListRows: a 1ch marker column, a rose » in it on the selected row.
+   Its field is body size. */
+:is([class^="quickswitcher_"], [class*=" quickswitcher_"]) :is([class^="result_"], [class*=" result_"]) {
+  position: relative;
+  padding-left: calc(var(--haiiro-space-2) + 2ch) !important;
+}
+
+:is([class^="quickswitcher_"], [class*=" quickswitcher_"]) :is([class^="result_"], [class*=" result_"])::before {
+  content: "»";
+  position: absolute;
+  left: var(--haiiro-space-2);
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--haiiro-font-mono);
+  font-size: 16px;
+  line-height: 16px;
+  color: transparent;
+}
+
+:is([class^="quickswitcher_"], [class*=" quickswitcher_"]) :is([class^="result_"], [class*=" result_"])[aria-selected="true"]::before {
+  color: var(--haiiro-color-rose);
+}
+
+:is([class^="quickswitcher_"], [class*=" quickswitcher_"]) input {
+  font-size: 16px !important;
+}
+
+/* Raised lists share the menus' edge and step: a text hairline, and highlight-med for the hovered
+   or chosen row (on overlay the generic hover and selected steps vanish). */
+[role="listbox"],
+:is([class^="buttonsInner_"], [class*=" buttonsInner_"]) {
+  border: var(--haiiro-border-hairline) solid var(--haiiro-color-text) !important;
+}
+
+[role="listbox"] [role="option"]:is(:hover, [aria-selected="true"]) {
+  background: var(--haiiro-color-highlight-med) !important;
+  color: var(--haiiro-color-text) !important;
+}
+
+/* Tabs inside popouts (inbox) are Segmented like the header tabs. */
+:is([class^="layer_"], [class*=" layer_"]) > [role="dialog"] [role="tab"] {
+  padding: 0 1ch !important;
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--haiiro-color-subtle) !important;
+}
+
+:is([class^="layer_"], [class*=" layer_"]) > [role="dialog"] [role="tab"]:hover {
+  color: var(--haiiro-color-text) !important;
+}
+
+:is([class^="layer_"], [class*=" layer_"]) > [role="dialog"] [role="tab"][aria-selected="true"] {
+  background: var(--haiiro-color-pine) !important;
+  color: var(--haiiro-color-text) !important;
+}
+
+/* Slider (DS): a square text thumb with a surface outline; the fill and track come from the
+   variables. */
+:is([class^="slider_"], [class*=" slider_"]) :is([class^="grabber_"], [class*=" grabber_"]) {
+  background: var(--haiiro-color-text) !important;
+  border: 0 !important;
+  outline: 2px solid var(--haiiro-color-surface);
+}
+
+:is([class^="slider_"], [class*=" slider_"]) :is([class^="barFill_"], [class*=" barFill_"]) {
+  border: 0 !important;
+}
+
+/* Empty states are Fishnet's fx-empty: a dashed text box, the line that matters in text ink,
+   the rest in the caption ink, no illustration. */
+:is([class^="emptyPlaceholder_"], [class*=" emptyPlaceholder_"]),
+:is([class^="container_"], [class*=" container_"]):has(> :is([class^="illustration_"], [class*=" illustration_"])) {
+  --text-default: var(--haiiro-ink-muted);
+  --text-strong: var(--haiiro-ink-muted);
+  --text-subtle: var(--haiiro-ink-muted);
+  margin: var(--haiiro-space-4) !important;
+  padding: var(--haiiro-space-4) !important;
+  height: auto !important;
+  border: var(--haiiro-border-hairline) dashed var(--haiiro-color-text) !important;
+  background: transparent !important;
+  color: var(--haiiro-ink-muted) !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  flex: none !important;
+  min-height: 0 !important;
+  text-align: left !important;
+}
+
+:is([class^="emptyPlaceholder_"], [class*=" emptyPlaceholder_"]) > :is([class^="image_"], [class*=" image_"]),
+:is([class^="container_"], [class*=" container_"]) > :is([class^="illustration_"], [class*=" illustration_"]) {
+  display: none !important;
+}
+
+:is([class^="emptyPlaceholder_"], [class*=" emptyPlaceholder_"]) > :is([class^="body_"], [class*=" body_"]) {
+  text-align: left !important;
+}
+
+:is([class^="container_"], [class*=" container_"]):has(> :is([class^="illustration_"], [class*=" illustration_"])) > h2 {
+  margin-bottom: var(--haiiro-space-1) !important;
+  font-size: 16px !important;
+  line-height: 1.15 !important;
+  color: var(--haiiro-color-text) !important;
+  text-align: left !important;
+}
+
+/* Server rail: icon badges (events, stages) on base in text ink instead of black; mention
+   counts in surface ink on love; an open folder's band is surface. Folder colours are the
+   user's own choice and stay. */
+nav :is([class^="iconBadge_"], [class*=" iconBadge_"]) {
+  background: var(--haiiro-color-base) !important;
+  color: var(--haiiro-color-text) !important;
+}
+
+nav :is([class^="numberBadge_"], [class*=" numberBadge_"]),
+#channels :is([class^="numberBadge_"], [class*=" numberBadge_"]) {
+  color: var(--haiiro-color-surface) !important;
+}
+
+:is([class^="folderGroupBackground_"], [class*=" folderGroupBackground_"]) {
+  background: var(--haiiro-color-surface) !important;
+}
+
+/* File drop: a window (surface, pine frame) over the veil, a dashed text line inside like
+   Fishnet's fx-empty, no file illustrations, no glow. */
+:is([class^="uploadArea_"], [class*=" uploadArea_"])::before,
+:is([class^="uploadArea_"], [class*=" uploadArea_"])::after {
+  display: none !important;
+}
+
+:is([class^="uploadDropModal_"], [class*=" uploadDropModal_"]) :is([class^="bgScale_"], [class*=" bgScale_"]) {
+  background: var(--haiiro-color-surface) !important;
+  border: var(--haiiro-border-window) double var(--haiiro-color-pine) !important;
+}
+
+:is([class^="uploadDropModal_"], [class*=" uploadDropModal_"]) :is([class^="inner_"], [class*=" inner_"]) {
+  border: var(--haiiro-border-hairline) dashed var(--haiiro-color-text) !important;
+  justify-content: center !important;
+}
+
+:is([class^="uploadDropModal_"], [class*=" uploadDropModal_"]) :is([class^="icons_"], [class*=" icons_"]) {
+  display: none !important;
+}
+
+:is([class^="uploadDropModal_"], [class*=" uploadDropModal_"]) :is([class^="title_"], [class*=" title_"]),
+:is([class^="uploadDropModal_"], [class*=" uploadDropModal_"]) :is([class^="title_"], [class*=" title_"]) strong {
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  color: var(--haiiro-color-text) !important;
+}
+
+:is([class^="uploadDropModal_"], [class*=" uploadDropModal_"]) :is([class^="instructions_"], [class*=" instructions_"]) pre {
+  color: var(--haiiro-color-subtle) !important;
+  font-family: var(--haiiro-font-mono) !important;
+}
+
+/* Toasts are windows too (DS shell): surface, a double frame in the toast's ink (pine by
+   default, foam for done, gold for warnings, love for errors), no tinted base layer. */
+:is([class^="toast_"], [class*=" toast_"]) :is([class^="wrapper_"], [class*=" wrapper_"]) {
+  --haiiro-toast-ink: var(--haiiro-color-pine);
+  background: var(--haiiro-color-surface) !important;
+  border: var(--haiiro-border-window) double var(--haiiro-toast-ink) !important;
+}
+
+:is([class^="toast_"], [class*=" toast_"]) :is([class^="wrapper_"], [class*=" wrapper_"]):is([class^="success_"], [class*=" success_"]) {
+  --haiiro-toast-ink: var(--haiiro-color-foam);
+}
+
+:is([class^="toast_"], [class*=" toast_"]) :is([class^="wrapper_"], [class*=" wrapper_"]):is([class^="warning_"], [class*=" warning_"], [class^="warn_"], [class*=" warn_"]) {
+  --haiiro-toast-ink: var(--haiiro-color-gold);
+}
+
+:is([class^="toast_"], [class*=" toast_"]) :is([class^="wrapper_"], [class*=" wrapper_"]):is([class^="critical_"], [class*=" critical_"], [class^="danger_"], [class*=" danger_"], [class^="error_"], [class*=" error_"]) {
+  --haiiro-toast-ink: var(--haiiro-color-love);
+}
+
+:is([class^="toast_"], [class*=" toast_"]) :is([class^="wrapper_"], [class*=" wrapper_"]) > :is([class^="baselayer_"], [class*=" baselayer_"]) {
+  display: none !important;
+}
+
+:is([class^="toast_"], [class*=" toast_"]) :is([class^="wrapper_"], [class*=" wrapper_"]) svg {
+  color: var(--haiiro-toast-ink) !important;
+}
+
+/* The composer's emoji button pops its sprite with a scale spring on hover. */
+:is([class^="spriteContainer_"], [class*=" spriteContainer_"]) {
+  transform: none !important;
+}
+
+/* "New messages" and unread mention bars slide in from 180% away. They sit in place instead and
+   are hidden only at that resting value. */
+:is([class^="unreadBar_"], [class*=" unreadBar_"], [class^="unreadMentionsBar_"], [class*=" unreadMentionsBar_"]) {
+  transform: none !important;
+}
+
+:is([class^="unreadBar_"], [class*=" unreadBar_"], [class^="unreadMentionsBar_"], [class*=" unreadMentionsBar_"]):is([style*="translateY(-180%)"], [style*="translateY(180%)"]) {
+  visibility: hidden !important;
+}
+
+/* Vencord and Vesktop draw a few controls of their own: the switch when off, its thumb, the
+   notice cards, the member count. Their small text sizes snap to the grid like Discord's. */
+.vc-switch-container:not(.vc-switch-checked) {
+  background: var(--haiiro-color-muted) !important;
+}
+
+.vc-switch-slider :is(rect, circle, path) {
+  fill: var(--haiiro-color-text) !important;
+}
+
+.vc-card-warning {
+  background: transparent !important;
+  border: var(--haiiro-border-hairline) dashed var(--haiiro-color-gold) !important;
+}
+
+.vc-card-info {
+  background: transparent !important;
+  border: var(--haiiro-border-hairline) dashed var(--haiiro-color-foam) !important;
+}
+
+:is(.vc-card-danger, .vc-error-card) {
+  background: transparent !important;
+  border: var(--haiiro-border-hairline) dashed var(--haiiro-color-love) !important;
+}
+
+.vc-membercount-total {
+  color: var(--haiiro-ink-muted) !important;
+}
+
+:is(.vc-text-sm, .vc-text-md) {
+  font-size: 16px !important;
+}
+
+.vc-text-xs {
+  font-size: 12px !important;
+}
