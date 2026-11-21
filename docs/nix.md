@@ -173,6 +173,23 @@ square corners):
   settings change its icons and fonts, never its colours.
 - **Icons** (`theming.folderIcons`): Papirus-Dark, installed and named in the seeded
   `kdeglobals`.
+- **Zen Browser** (not installed by the module): `nix/haiiro/zen/` has `userChrome.css`,
+  `userContent.css`, `prefs.nix` (the prefs both stylesheets rely on) and `motion.cfg.js`.
+  Wire them yourself, e.g. with the Zen flake's Home Manager module:
+
+  ```nix
+  programs.zen-browser = {
+    extraPrefsFiles = [ "${hecate}/nix/haiiro/zen/motion.cfg.js" ];
+    profiles.default = {
+      userChrome = builtins.readFile "${hecate}/nix/haiiro/zen/userChrome.css";
+      userContent = builtins.readFile "${hecate}/nix/haiiro/zen/userContent.css";
+      settings = import "${hecate}/nix/haiiro/zen/prefs.nix";
+    };
+  };
+  ```
+
+  `motion.cfg.js` cuts Zen's own animations (workspace, glance, folder and Motion springs)
+  without `ui.prefersReducedMotion`, so web pages keep their real setting.
 
 On the NixOS side, `programs.hecate.shell.enable = true` turns on what the shell needs from
 the system (see below).

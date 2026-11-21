@@ -16,5 +16,10 @@ The Home Manager module installs them with `shell.theming.apps` (on by default),
 | `kdeglobals` | `~/.config/kdeglobals`, seeded once (writable) | Qt's KDE platform theme |
 | `50-haiiro-mono.conf` | `~/.config/fontconfig/conf.d/` | puts the haiiro mono stack first for `monospace` |
 
+`zen/` holds the Zen Browser theme, which the module does not install: `userChrome.css` and
+`userContent.css` for a profile's `chrome/`, `prefs.nix` for its `settings`, and `motion.cfg.js`, an
+autoconfig script for the wrapper's `extraPrefsFiles` that cuts Zen's scripted motion. The consumer
+wires them (see `docs/nix.md`).
+
 Terminal colours follow Rosé Pine's own mapping: black overlay, red love, green pine, yellow
 gold, blue foam, magenta iris, cyan rose, white text, bright black muted.
