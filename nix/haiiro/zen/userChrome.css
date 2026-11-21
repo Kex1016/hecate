@@ -249,6 +249,7 @@ strong {
 #tabbrowser-tabbox {
   border: var(--border-window) double var(--color-pine) !important;
   margin: var(--space-2) !important;
+  padding: var(--space-2) !important;
   background: var(--color-base) !important;
 }
 
@@ -274,6 +275,7 @@ strong {
 :root[zen-compact-mode="true"] #tabbrowser-tabbox {
   border: none !important;
   margin: 0 !important;
+  padding: 0 !important;
 }
 
 :root[zen-compact-mode="true"] #zen-appcontent-wrapper,

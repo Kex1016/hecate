@@ -159,7 +159,6 @@
   --color-highlight-med: #403d52;
   --color-highlight-high: #524f67;
   --font-mono: "IBM VGA 8x16", Unifont, "Unifont Upper", monospace;
-  --space-2: 8px;
 
   --theme-body-background: var(--color-base) !important;
   --theme-body-color: var(--color-text) !important;
@@ -216,11 +215,6 @@
 }
 
 :root.theme-dark:has(#rawdata-tab) {
-  #content {
-    box-sizing: border-box;
-    padding: var(--space-2);
-  }
-
   .treeTable .treeRow {
     line-height: 1.15;
   }
