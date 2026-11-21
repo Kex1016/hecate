@@ -1,0 +1,511 @@
+/* haiiro for Zen Browser. Tokens from the haiiro design system (tokens.json). */
+
+/* Tokens */
+:root {
+  --color-base: #191724;
+  --color-surface: #1f1d2e;
+  --color-overlay: #26233a;
+  --color-muted: #6e6a86;
+  --color-subtle: #908caa;
+  --color-text: #e0def4;
+  --color-love: #eb6f92;
+  --color-gold: #f6c177;
+  --color-rose: #ebbcba;
+  --color-pine: #31748f;
+  --color-foam: #9ccfd8;
+  --color-iris: #c4a7e7;
+  --color-highlight-low: #21202e;
+  --color-highlight-med: #403d52;
+  --color-highlight-high: #524f67;
+  --ink-muted: rgba(224, 222, 244, 0.55);
+  --ink-hairline: rgba(224, 222, 244, 0.25);
+  --ink-track: rgba(224, 222, 244, 0.14);
+  --veil-heavy: rgba(25, 23, 36, 0.55);
+
+  --font-mono: "IBM VGA 8x16", Unifont, "Unifont Upper", monospace;
+  --font-display: "Jacquard 24", "IBM VGA 8x16", Unifont, serif;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+
+  --radius-none: 0;
+  --border-hairline: 1px;
+  --border-divider: 3px;
+  --border-window: 5px;
+}
+
+/* Zen and Firefox variables */
+:root {
+  color-scheme: dark !important;
+
+  --zen-primary-color: var(--color-pine) !important;
+  --zen-branding-bg: var(--color-base) !important;
+  --zen-branding-bg-reverse: var(--color-text) !important;
+  --zen-branding-dark: var(--color-base) !important;
+  --zen-branding-paper: var(--color-text) !important;
+  --zen-colors-primary: var(--color-highlight-med) !important;
+  --zen-colors-primary-foreground: var(--color-text) !important;
+  --zen-colors-secondary: var(--color-highlight-med) !important;
+  --zen-colors-tertiary: var(--color-surface) !important;
+  --zen-colors-hover-bg: var(--color-highlight-low) !important;
+  --zen-colors-input-bg: var(--color-base) !important;
+  --zen-colors-border: var(--color-highlight-med) !important;
+  --zen-colors-border-contrast: var(--color-highlight-high) !important;
+  --zen-accent-button-background: var(--color-pine) !important;
+  --zen-accent-button-color: var(--color-text) !important;
+  --zen-dialog-background: var(--color-overlay) !important;
+  --zen-in-content-dialog-background: var(--color-overlay) !important;
+  --zen-input-border-color: var(--color-highlight-high) !important;
+  --zen-urlbar-background: var(--color-overlay) !important;
+  --zen-toolbar-element-bg: var(--color-highlight-low) !important;
+  --zen-toolbar-element-bg-hover: var(--color-highlight-med) !important;
+  --zen-themed-toolbar-bg-transparent: var(--color-base) !important;
+  --zen-sidebar-themed-icon-fill: var(--color-subtle) !important;
+  --zen-big-shadow: none !important;
+  --zen-sidebar-notification-shadow: none !important;
+  --zen-sidebar-notification-bg: var(--color-overlay) !important;
+  --zen-sidebar-notification-outline: var(--border-hairline) solid var(--color-text) !important;
+  --zen-border-radius: 0px !important;
+  --zen-native-inner-radius: 0px !important;
+  --zen-active-tab-scale: 1 !important;
+  --zen-folder-behind-bgcolor: var(--color-highlight-med) !important;
+  --zen-folder-front-bgcolor: var(--color-overlay) !important;
+  --zen-folder-stroke: var(--color-subtle) !important;
+  --zen-loading-progress-bar-color: var(--color-foam) !important;
+
+  --toolbar-bgcolor: var(--color-base) !important;
+  --toolbar-color: var(--color-text) !important;
+  --toolbar-text-color: var(--color-text) !important;
+  --toolbox-textcolor: var(--color-text) !important;
+  --toolbox-textcolor-inactive: var(--color-subtle) !important;
+  --toolbar-field-background-color: var(--color-highlight-low) !important;
+  --toolbar-field-background-color-focus: var(--color-overlay) !important;
+  --toolbar-field-focus-background-color: var(--color-overlay) !important;
+  --toolbar-field-color: var(--color-text) !important;
+  --toolbar-field-text-color: var(--color-text) !important;
+  --toolbar-field-text-color-focus: var(--color-text) !important;
+  --toolbar-field-border-color: transparent !important;
+  --toolbar-field-border-color-focus: var(--color-foam) !important;
+  --toolbarbutton-border-radius: 0 !important;
+  --toolbarbutton-background-color-hover: var(--color-highlight-med) !important;
+  --toolbarbutton-background-color-active: var(--color-highlight-high) !important;
+  --toolbarbutton-icon-fill: var(--color-subtle) !important;
+  --toolbarbutton-icon-fill-hover: var(--color-text) !important;
+  --toolbarbutton-icon-fill-active: var(--color-text) !important;
+  --toolbarbutton-icon-fill-attention: var(--color-foam) !important;
+  --toolbarbutton-badge-background-color: var(--color-love) !important;
+  --toolbarseparator-color: var(--color-highlight-med) !important;
+
+  --tab-border-radius: 0 !important;
+  --tab-background-color-hover: var(--color-highlight-low) !important;
+  --tab-background-color-selected: var(--color-highlight-med) !important;
+  --tab-box-shadow-selected: none !important;
+  --tab-text-color-selected: var(--color-text) !important;
+  --tab-attention-dot-color: var(--color-gold) !important;
+  --tab-dragover-outline-color: var(--color-foam) !important;
+  --tab-icon-fill-loading: var(--color-foam) !important;
+
+  --urlbar-border-radius: 0 !important;
+  --urlbar-inner-border-radius: 0 !important;
+  --urlbar-icon-border-radius: 0 !important;
+  --urlbar-background-color: var(--color-highlight-low) !important;
+  --urlbar-background-color-focus: var(--color-overlay) !important;
+  --urlbar-box-background-color: var(--color-highlight-low) !important;
+  --urlbar-box-hover-bgcolor: var(--color-highlight-med) !important;
+  --urlbar-box-active-bgcolor: var(--color-highlight-high) !important;
+  --urlbarview-border-radius: 0 !important;
+  --urlbarview-background-color-hover: var(--color-highlight-low) !important;
+  --urlbarview-background-color-selected: var(--color-highlight-med) !important;
+  --urlbarview-text-color-selected: var(--color-text) !important;
+  --urlbarview-text-color-secondary: var(--color-subtle) !important;
+  --urlbarview-text-color-action: var(--color-foam) !important;
+  --urlbarview-separator-color: var(--color-highlight-med) !important;
+  --urlbarview-separator-char: "»" !important;
+
+  --arrowpanel-background: var(--color-overlay) !important;
+  --arrowpanel-color: var(--color-text) !important;
+  --arrowpanel-border-color: var(--color-text) !important;
+  --arrowpanel-border-radius: 0 !important;
+  --arrowpanel-menuitem-border-radius: 0 !important;
+  --panel-background-color: var(--color-overlay) !important;
+  --panel-text-color: var(--color-text) !important;
+  --panel-border-color: var(--color-text) !important;
+  --panel-border-radius: 0 !important;
+  --panel-menuitem-border-radius: 0 !important;
+  --panel-box-shadow: none !important;
+  --panel-separator-color: var(--color-highlight-med) !important;
+  --panel-icon-fill: var(--color-subtle) !important;
+  --panel-footer-background-color: var(--color-highlight-low) !important;
+  --panel-banner-item-background-color: var(--color-highlight-low) !important;
+  --panel-banner-item-hover-bgcolor: var(--color-highlight-med) !important;
+  --panel-banner-item-active-bgcolor: var(--color-highlight-high) !important;
+
+  --button-border-radius: 0 !important;
+  --button-background-color: var(--color-highlight-low) !important;
+  --button-background-color-hover: var(--color-highlight-med) !important;
+  --button-background-color-active: var(--color-highlight-high) !important;
+  --button-background-color-primary: var(--color-pine) !important;
+  --button-background-color-primary-hover: var(--color-foam) !important;
+  --button-background-color-primary-active: var(--color-foam) !important;
+  --button-text-color-primary: var(--color-text) !important;
+  --button-text-color-primary-hover: var(--color-base) !important;
+  --button-text-color-primary-active: var(--color-base) !important;
+  --button-font-weight: 400 !important;
+  --color-accent-primary: var(--color-pine) !important;
+  --color-accent-primary-hover: var(--color-foam) !important;
+  --color-accent-primary-active: var(--color-foam) !important;
+  --color-accent-primary-selected: var(--color-highlight-med) !important;
+  --text-color-accent-primary-selected: var(--color-text) !important;
+  --focus-outline-color: var(--color-foam) !important;
+  --focus-outline: var(--border-hairline) solid var(--color-foam) !important;
+  --focus-outline-offset: 0 !important;
+  --link-color: var(--color-foam) !important;
+  --link-color-hover: var(--color-text) !important;
+  --text-color-deemphasized: var(--color-subtle) !important;
+  --text-color-error: var(--color-love) !important;
+  --input-border-radius: 0 !important;
+  --input-search-border-radius: 0 !important;
+  --input-border-color: var(--color-highlight-high) !important;
+  --input-background-color: var(--color-base) !important;
+  --input-text-color: var(--color-text) !important;
+  --border-radius-xsmall: 0 !important;
+  --border-radius-small: 0 !important;
+  --border-radius-medium: 0 !important;
+  --border-radius-large: 0 !important;
+  --border-radius-circle: 0 !important;
+  --link-border-radius-focus: 0 !important;
+  --font-weight-bold: 700 !important;
+  --font-weight-semibold: 400 !important;
+  --font-weight-heading: 400 !important;
+  --chrome-content-separator-color: var(--color-overlay) !important;
+  --sidebar-background-color: var(--color-base) !important;
+  --sidebar-text-color: var(--color-text) !important;
+  --sidebar-border-color: var(--color-overlay) !important;
+  --background-color-box: var(--color-overlay) !important;
+  --background-color-canvas: var(--color-base) !important;
+  --background-color-list-item-hover: var(--color-highlight-low) !important;
+}
+
+/* Workspace backgrounds are set inline by Zen; the haiiro ground wins. */
+#zen-browser-background,
+#zen-toolbar-background,
+#navigator-toolbox,
+#zen-main-app-wrapper {
+  --zen-main-browser-background: var(--color-base) !important;
+  --zen-main-browser-background-old: var(--color-base) !important;
+  --zen-main-browser-background-toolbar: var(--color-base) !important;
+  --zen-main-browser-background-toolbar-old: var(--color-base) !important;
+  --zen-grainy-background-opacity: 0 !important;
+  --zen-grainy-background-opacity-old: 0 !important;
+}
+
+/* Type */
+:root,
+#main-window,
+menupopup,
+panel,
+tooltip,
+menuitem,
+menu,
+label,
+description,
+input,
+button,
+toolbarbutton {
+  font-family: var(--font-mono) !important;
+  font-size: 16px !important;
+  line-height: 1.15;
+  font-synthesis: none !important;
+  font-weight: 400;
+}
+
+b,
+strong {
+  font-weight: 700 !important;
+}
+
+/* Shape */
+* {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Content: the haiiro window, a 5px double pine frame */
+#zen-appcontent-wrapper {
+  background: var(--color-base) !important;
+}
+
+#tabbrowser-tabbox {
+  border: var(--border-window) double var(--color-pine) !important;
+  margin: var(--space-2) var(--space-2) var(--space-2) 0 !important;
+  background: var(--color-base) !important;
+}
+
+.browserSidebarContainer,
+.browserContainer,
+.browserStack {
+  border-radius: 0 !important;
+  outline: none !important;
+}
+
+/* Sidebar */
+#navigator-toolbox {
+  background: var(--color-base) !important;
+  color: var(--color-text) !important;
+  border-inline-end: var(--border-divider) solid var(--color-overlay) !important;
+}
+
+#zen-sidebar-splitter {
+  background: transparent !important;
+}
+
+.tabbrowser-tab {
+  color: var(--color-subtle) !important;
+}
+
+.tabbrowser-tab:hover,
+.tabbrowser-tab[selected],
+.tabbrowser-tab[visuallyselected] {
+  color: var(--color-text) !important;
+}
+
+.tabbrowser-tab .tab-background {
+  border: none !important;
+  outline: none !important;
+}
+
+.tabbrowser-tab[selected] .tab-background,
+.tabbrowser-tab[visuallyselected] .tab-background {
+  background: var(--color-highlight-med) !important;
+}
+
+.tabbrowser-tab[multiselected] .tab-background {
+  outline: var(--border-hairline) dashed var(--color-foam) !important;
+  outline-offset: -1px !important;
+}
+
+.zen-tab-sublabel {
+  color: var(--color-muted) !important;
+  font-size: 16px !important;
+}
+
+.tabbrowser-tab[pending] .tab-label {
+  color: var(--color-muted) !important;
+}
+
+.tab-close-button,
+.tab-reset-button {
+  fill: var(--color-subtle) !important;
+}
+
+.tab-close-button:hover,
+.tab-reset-button:hover {
+  fill: var(--color-love) !important;
+  background: transparent !important;
+}
+
+/* Essentials */
+.zen-essentials-container .tabbrowser-tab .tab-background {
+  background: var(--color-highlight-low) !important;
+  border: var(--border-hairline) solid var(--color-highlight-med) !important;
+}
+
+.zen-essentials-container .tabbrowser-tab[selected] .tab-background {
+  background: var(--color-highlight-med) !important;
+  border-color: var(--color-pine) !important;
+}
+
+/* Workspace label: a section heading */
+.zen-current-workspace-indicator-name {
+  color: var(--color-muted) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.zen-current-workspace-indicator {
+  color: var(--color-muted) !important;
+}
+
+/* Buttons */
+toolbarbutton,
+.toolbarbutton-1 {
+  fill: var(--color-subtle) !important;
+}
+
+toolbarbutton:hover,
+.toolbarbutton-1:hover {
+  fill: var(--color-text) !important;
+}
+
+/* URL bar */
+#urlbar .urlbar-background {
+  background: var(--color-highlight-low) !important;
+  border: var(--border-hairline) solid var(--color-highlight-med) !important;
+  outline: none !important;
+  backdrop-filter: none !important;
+}
+
+#urlbar:focus-within .urlbar-background {
+  background: var(--color-overlay) !important;
+  border: var(--border-window) double var(--color-pine) !important;
+}
+
+#urlbar,
+#urlbar-input,
+.urlbar-input {
+  color: var(--color-text) !important;
+}
+
+.urlbarView-row[selected] {
+  background: var(--color-highlight-med) !important;
+}
+
+.urlbarView-url {
+  color: var(--color-foam) !important;
+}
+
+/* Emphasis is colour here: the 2x bold face is double width. */
+.urlbarView strong,
+.urlbarView-action,
+.urlbarView-prettyName,
+.urlbarView-shortcutContent,
+.urlbarView-dynamic-zen-actions-titleStrong,
+.urlbarView-dynamic-zen-actions-prettyNameTitle {
+  font-weight: 400 !important;
+}
+
+.urlbarView strong,
+.urlbarView-dynamic-zen-actions-titleStrong {
+  color: var(--color-foam) !important;
+}
+
+.urlbarView-action {
+  color: var(--color-subtle) !important;
+}
+
+.urlbarView-prettyName,
+.urlbarView-shortcutContent {
+  background: var(--color-highlight-low) !important;
+  color: var(--color-subtle) !important;
+}
+
+#urlbar-label-box,
+#urlbar-search-mode-indicator {
+  background: var(--color-pine) !important;
+  color: var(--color-text) !important;
+}
+
+/* Popups and menus: raised overlay, 1px text hairline */
+menupopup,
+panel {
+  --panel-background: var(--color-overlay) !important;
+  --panel-color: var(--color-text) !important;
+  --panel-border-color: var(--color-text) !important;
+  --panel-border-radius: 0 !important;
+  --panel-shadow: none !important;
+  --panel-shadow-margin: 0px !important;
+  --menuitem-hover-background-color: var(--color-highlight-med) !important;
+  --menu-background-color: var(--color-overlay) !important;
+  --menu-color: var(--color-text) !important;
+  --menu-border-color: var(--color-text) !important;
+  --menuitem-border-radius: 0 !important;
+}
+
+menupopup::part(content),
+panel::part(content) {
+  background: var(--color-overlay) !important;
+  border: var(--border-hairline) solid var(--color-text) !important;
+  color: var(--color-text) !important;
+}
+
+menuitem[_moz-menuactive],
+menu[_moz-menuactive],
+menuitem:hover,
+menu:hover {
+  background: var(--color-highlight-med) !important;
+  color: var(--color-text) !important;
+}
+
+menuitem[disabled],
+menu[disabled] {
+  color: var(--color-muted) !important;
+}
+
+menuseparator,
+toolbarseparator {
+  border-color: var(--color-highlight-med) !important;
+}
+
+.subviewbutton:hover,
+.subviewbutton[open] {
+  background: var(--color-highlight-med) !important;
+}
+
+tooltip {
+  appearance: none !important;
+  background: var(--color-overlay) !important;
+  color: var(--color-text) !important;
+  border: var(--border-hairline) solid var(--color-text) !important;
+}
+
+/* Ctrl-tab panel (Better CtrlTab Panel mod) */
+#ctrlTab-panel {
+  --panel-background: var(--color-overlay) !important;
+}
+
+#ctrlTab-panel::part(content) {
+  background: var(--color-overlay) !important;
+  border: var(--border-hairline) solid var(--color-text) !important;
+}
+
+.ctrlTab-preview-inner {
+  background: var(--color-base) !important;
+  border: var(--border-hairline) solid var(--color-highlight-med) !important;
+}
+
+.ctrlTab-preview:focus .ctrlTab-preview-inner,
+.ctrlTab-preview[selected] .ctrlTab-preview-inner {
+  border: var(--border-window) double var(--color-pine) !important;
+}
+
+.ctrlTab-label {
+  color: var(--color-text) !important;
+}
+
+/* Find bar */
+findbar {
+  background: var(--color-base) !important;
+  color: var(--color-text) !important;
+  border-top: var(--border-divider) solid var(--color-overlay) !important;
+}
+
+/* Motion: cuts, never slides or fades */
+* {
+  transition: none !important;
+}
+
+/* App menu sign-in promo */
+#appMenu-fxa-sign-in-promo {
+  background: var(--color-highlight-low) !important;
+  border: var(--border-hairline) solid var(--color-highlight-med) !important;
+  color: var(--color-text) !important;
+}
+
+/* Checkbox and radio items: square boxes, filled when on */
+menuitem:is([type="checkbox"], [type="radio"]) > .menu-icon {
+  appearance: none !important;
+  width: 12px !important;
+  height: 12px !important;
+  padding: 2px !important;
+  border: var(--border-hairline) solid var(--color-subtle) !important;
+  background: transparent !important;
+  background-clip: content-box !important;
+}
+
+menuitem:is([type="checkbox"], [type="radio"])[checked="true"] > .menu-icon {
+  background-color: var(--color-foam) !important;
+  border-color: var(--color-foam) !important;
+}

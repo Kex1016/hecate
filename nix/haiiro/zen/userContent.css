@@ -1,0 +1,143 @@
+/* haiiro for Zen Browser internal pages and scrollbars. Tokens from the haiiro design system. */
+
+:root {
+  scrollbar-color: var(--color-foam, #9ccfd8) var(--color-base, #191724);
+}
+
+@-moz-document url-prefix("about:"), url-prefix("chrome://browser/content/"), url-prefix("moz-extension://") {
+  :root {
+    --color-base: #191724;
+    --color-surface: #1f1d2e;
+    --color-overlay: #26233a;
+    --color-muted: #6e6a86;
+    --color-subtle: #908caa;
+    --color-text: #e0def4;
+    --color-love: #eb6f92;
+    --color-gold: #f6c177;
+    --color-pine: #31748f;
+    --color-foam: #9ccfd8;
+    --color-iris: #c4a7e7;
+    --color-highlight-low: #21202e;
+    --color-highlight-med: #403d52;
+    --color-highlight-high: #524f67;
+    --font-mono: "IBM VGA 8x16", Unifont, "Unifont Upper", monospace;
+  }
+}
+
+@-moz-document url-prefix("about:") {
+  :root {
+    color-scheme: dark !important;
+    --in-content-page-background: var(--color-base) !important;
+    --in-content-page-color: var(--color-text) !important;
+    --in-content-text-color: var(--color-text) !important;
+    --in-content-deemphasized-text: var(--color-subtle) !important;
+    --in-content-box-background: var(--color-surface) !important;
+    --in-content-box-background-hover: var(--color-highlight-low) !important;
+    --in-content-box-background-active: var(--color-highlight-med) !important;
+    --in-content-box-border-color: var(--color-highlight-med) !important;
+    --in-content-box-info-background: var(--color-surface) !important;
+    --in-content-border-color: var(--color-highlight-med) !important;
+    --in-content-border-hover: var(--color-highlight-high) !important;
+    --in-content-border-active: var(--color-foam) !important;
+    --in-content-border-focus: var(--color-foam) !important;
+    --in-content-item-hover: var(--color-highlight-low) !important;
+    --in-content-item-selected: var(--color-highlight-med) !important;
+    --in-content-item-selected-text: var(--color-text) !important;
+    --in-content-accent-color: var(--color-foam) !important;
+    --in-content-accent-color-active: var(--color-text) !important;
+    --in-content-link-color: var(--color-foam) !important;
+    --in-content-link-color-hover: var(--color-text) !important;
+    --in-content-link-color-active: var(--color-text) !important;
+    --in-content-button-background: var(--color-highlight-low) !important;
+    --in-content-button-background-hover: var(--color-highlight-med) !important;
+    --in-content-button-background-active: var(--color-highlight-high) !important;
+    --in-content-button-text-color: var(--color-text) !important;
+    --in-content-primary-button-background: var(--color-pine) !important;
+    --in-content-primary-button-background-hover: var(--color-foam) !important;
+    --in-content-primary-button-background-active: var(--color-foam) !important;
+    --in-content-primary-button-text-color: var(--color-text) !important;
+    --in-content-primary-button-text-color-hover: var(--color-base) !important;
+    --in-content-primary-button-border-color: transparent !important;
+    --in-content-focus-outline-color: var(--color-foam) !important;
+    --in-content-table-background: var(--color-surface) !important;
+    --in-content-table-header-background: var(--color-overlay) !important;
+    --in-content-table-header-color: var(--color-text) !important;
+    --in-content-table-border-color: var(--color-highlight-med) !important;
+    --in-content-dialog-background: var(--color-overlay) !important;
+    --zen-colors-primary: var(--color-highlight-med) !important;
+    --zen-colors-secondary: var(--color-highlight-med) !important;
+    --zen-colors-tertiary: var(--color-surface) !important;
+    --zen-colors-border: var(--color-highlight-med) !important;
+    --zen-primary-color: var(--color-pine) !important;
+    --zen-branding-bg: var(--color-base) !important;
+    --zen-branding-paper: var(--color-text) !important;
+    --zen-in-content-dialog-background: var(--color-overlay) !important;
+    --background-color-canvas: var(--color-base) !important;
+    --background-color-box: var(--color-surface) !important;
+    --text-color: var(--color-text) !important;
+    --text-color-deemphasized: var(--color-subtle) !important;
+    --link-color: var(--color-foam) !important;
+    --link-color-hover: var(--color-text) !important;
+    --color-accent-primary: var(--color-pine) !important;
+    --color-accent-primary-hover: var(--color-foam) !important;
+    --color-accent-primary-active: var(--color-foam) !important;
+    --button-background-color: var(--color-highlight-low) !important;
+    --button-background-color-hover: var(--color-highlight-med) !important;
+    --button-background-color-active: var(--color-highlight-high) !important;
+    --button-background-color-primary: var(--color-pine) !important;
+    --button-background-color-primary-hover: var(--color-foam) !important;
+    --button-background-color-primary-active: var(--color-foam) !important;
+    --button-text-color-primary: var(--color-text) !important;
+    --button-text-color-primary-hover: var(--color-base) !important;
+    --button-font-weight: 400 !important;
+    --border-color: var(--color-highlight-med) !important;
+    --border-color-interactive: var(--color-highlight-high) !important;
+    --focus-outline-color: var(--color-foam) !important;
+    --input-border-color: var(--color-highlight-high) !important;
+    --input-background-color: var(--color-base) !important;
+    --border-radius-xsmall: 0 !important;
+    --border-radius-small: 0 !important;
+    --border-radius-medium: 0 !important;
+    --border-radius-large: 0 !important;
+    --border-radius-circle: 0 !important;
+    --button-border-radius: 0 !important;
+    --input-border-radius: 0 !important;
+    --font-weight-bold: 700 !important;
+    --font-weight-semibold: 400 !important;
+    --font-weight-heading: 400 !important;
+  }
+
+  html,
+  body {
+    background-color: var(--color-base) !important;
+    color: var(--color-text) !important;
+  }
+
+  * {
+    font-family: var(--font-mono) !important;
+    font-synthesis: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 400 !important;
+    color: var(--color-foam) !important;
+  }
+
+  a {
+    color: var(--color-foam) !important;
+  }
+
+  button:not(.category, [role="tab"], .ghost-button),
+  select,
+  input:not([type="checkbox"], [type="radio"]),
+  textarea {
+    border: var(--border-hairline, 1px) solid var(--color-highlight-high) !important;
+  }
+
+  *:focus-visible {
+    outline: 1px solid var(--color-foam) !important;
+    outline-offset: 0 !important;
+  }
+}
