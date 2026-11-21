@@ -1,0 +1,16 @@
+{
+  "visual.useAdaptiveColors": false,
+  "visual.useEmotionEngine": false,
+  "visual.matchPageToArtwork": false,
+  "visual.matchPageGlow": false,
+  "visual.ui_custom.customAccentColor": false,
+  "visual.ui_custom.customTintColor": false,
+  "visual.transparency": false,
+  "visual.forceViewportRounding": false,
+  "visual.viewTransitions": false,
+  "components.Glaze.Type": "none",
+  "components.MojaveLayouts.PlayerMaterial": "none",
+  "components.MojaveLayouts.LiquidGlassPlayer": false,
+  "components.MojaveLayouts.LCDChromaticAberration": false,
+  "components.MojaveLayouts.FloatingPlayerRadius": 0
+}
