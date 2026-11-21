@@ -552,9 +552,27 @@ findbar {
   border-top: var(--border-divider) solid var(--color-overlay) !important;
 }
 
-/* Motion: cuts, never slides or fades */
-* {
+/* Motion: cuts, never slides or fades. motion.cfg.js turns off Zen's
+   scripted motion; these pin what it still animates */
+*,
+*::before,
+*::after {
   transition: none !important;
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+}
+
+/* Workspace switch crossfades this layer with a 50ms floor */
+.zen-browser-generic-background,
+.zen-browser-generic-background::after {
+  opacity: 1 !important;
+}
+
+.zen-toast {
+  opacity: 1 !important;
+  scale: none !important;
+  transform: none !important;
 }
 
 /* App menu sign-in promo */
