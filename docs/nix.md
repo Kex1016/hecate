@@ -191,6 +191,24 @@ square corners):
   `motion.cfg.js` cuts Zen's own animations (workspace, glance, folder and Motion springs)
   without `ui.prefersReducedMotion`, so web pages keep their real setting.
 
+- **Vesktop** (not installed by the module): `nix/haiiro/vesktop/` has `haiiro.theme.css`, a
+  Vencord theme, and `shiki.nix`, the Rosé Pine theme URL for the ShikiCodeblocks plugin. Wire
+  them with Home Manager's `programs.vesktop`:
+
+  ```nix
+  programs.vesktop.vencord = {
+    themes.haiiro = builtins.readFile "${hecate}/nix/haiiro/vesktop/haiiro.theme.css";
+    settings = {
+      enabledThemes = [ "haiiro.css" ];
+      plugins.ShikiCodeblocks.theme = import "${hecate}/nix/haiiro/vesktop/shiki.nix";
+    };
+  };
+  ```
+
+  The theme cuts Discord's CSS animations and its JavaScript springs itself, so Discord's own
+  Reduce Motion setting can stay off. It names the VGA faces through `local()` (the 2x cut is its
+  bold), so the haiiro fonts must be installed.
+
 On the NixOS side, `programs.hecate.shell.enable = true` turns on what the shell needs from
 the system (see below).
 

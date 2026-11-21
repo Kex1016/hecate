@@ -23,3 +23,7 @@ wires them (see `docs/nix.md`).
 
 Terminal colours follow Rosé Pine's own mapping: black overlay, red love, green pine, yellow
 gold, blue foam, magenta iris, cyan rose, white text, bright black muted.
+
+`vesktop/` holds the Vesktop theme, which the module does not install either: `haiiro.theme.css`
+for `programs.vesktop.vencord.themes` (enabled as `haiiro.css`) and `shiki.nix`, the Rosé Pine
+theme URL for the ShikiCodeblocks plugin. The consumer wires them (see `docs/nix.md`).
