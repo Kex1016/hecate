@@ -623,29 +623,48 @@ zen-folder[collapsed] .tab-group-label {
   color: var(--color-subtle) !important;
 }
 
-/* Split view: panes share the window, a 3px overlay seam between them */
-.browserSidebarContainer[zen-split] {
-  margin: 0 !important;
-  outline: none !important;
-}
-
-.browserSidebarContainer[zen-split].deck-selected {
-  outline: var(--border-hairline) solid var(--color-foam) !important;
-  outline-offset: -1px !important;
+/* Split view: each pane is its own window. The shared frame goes, every
+   pane gets the double frame (pine when focused) and they sit 8px apart */
+#tabbrowser-tabbox[zen-split-view="true"] {
+  border: none !important;
+  padding: 0 !important;
+  margin: var(--space-1) !important;
 }
 
 #tabbrowser-tabpanels[zen-split-view] {
   --zen-split-column-gap: 0px !important;
   --zen-split-row-gap: 0px !important;
-  --zen-active-split-outline-color: var(--color-foam) !important;
+}
+
+#tabbrowser-tabpanels[zen-split-view] .browserSidebarContainer[zen-split] {
+  margin: var(--space-1) !important;
+  padding: var(--space-2) !important;
+  border: var(--border-window) double var(--color-highlight-med) !important;
+  outline: none !important;
+  background: var(--color-base) !important;
+}
+
+#tabbrowser-tabpanels[zen-split-view] .browserSidebarContainer[zen-split].deck-selected {
+  border-color: var(--color-pine) !important;
+  outline: none !important;
+}
+
+:root:-moz-window-inactive #tabbrowser-tabpanels[zen-split-view] .browserSidebarContainer[zen-split] {
+  border-color: var(--color-highlight-med) !important;
 }
 
 .zen-split-view-splitter {
-  background: linear-gradient(to right, transparent calc(50% - 1.5px), var(--color-overlay) calc(50% - 1.5px), var(--color-overlay) calc(50% + 1.5px), transparent calc(50% + 1.5px)) !important;
+  background: transparent !important;
 }
 
-.zen-split-view-splitter[orient="horizontal"] {
-  background: linear-gradient(to bottom, transparent calc(50% - 1.5px), var(--color-overlay) calc(50% - 1.5px), var(--color-overlay) calc(50% + 1.5px), transparent calc(50% + 1.5px)) !important;
+/* Focus mode keeps the pane frames and the gap between them, but the
+   panes reach the window edges and pages fill their frames */
+:root[zen-compact-mode="true"] #tabbrowser-tabbox[zen-split-view="true"] {
+  margin: calc(-1 * var(--space-1)) !important;
+}
+
+:root[zen-compact-mode="true"] #tabbrowser-tabpanels[zen-split-view] .browserSidebarContainer[zen-split] {
+  padding: 0 !important;
 }
 
 .zen-view-splitter-header {
