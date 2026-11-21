@@ -688,3 +688,47 @@ zen-folder[collapsed] .tab-group-label {
   border: var(--border-hairline) solid var(--color-highlight-high) !important;
   color: var(--color-text) !important;
 }
+
+/* Library (downloads, media, history) */
+#zen-library-panel,
+#zen-library-content {
+  background: var(--color-base) !important;
+}
+
+#zen-library-side {
+  background: var(--color-base) !important;
+  border-inline-end: var(--border-divider) solid var(--color-overlay) !important;
+}
+
+.zen-library-tab[selected]::before,
+.zen-library-tab:hover::before {
+  background: var(--color-highlight-med) !important;
+}
+
+.zen-library-search-box,
+.zen-library-filter-button,
+.zen-library-filter-done,
+.zen-library-filter-chip {
+  background: var(--color-highlight-low) !important;
+  border: var(--border-hairline) solid var(--color-highlight-med) !important;
+  color: var(--color-text) !important;
+}
+
+.zen-library-filter-chip:is([selected], [checked], [aria-pressed="true"]) {
+  border-style: solid !important;
+  border-color: var(--color-foam) !important;
+  color: var(--color-foam) !important;
+}
+
+.zen-library-filter-chip:not([selected], [checked], [aria-pressed="true"]) {
+  border-style: dashed !important;
+}
+
+.zen-library-tab-icon-image,
+.empty-state-icon-image {
+  --stroke: var(--color-subtle) !important;
+}
+
+.zen-library-tab[active] .zen-library-tab-icon-image {
+  --stroke: var(--color-foam) !important;
+}
