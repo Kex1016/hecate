@@ -209,6 +209,13 @@ square corners):
   Reduce Motion setting can stay off. It names the VGA faces through `local()` (the 2x cut is its
   bold), so the haiiro fonts must be installed.
 
+- **Cider** (not installed by the module): `nix/haiiro/cider/` has `theme.yml` and `main.css` (the whole
+  theme, fonts inlined), `settings.json` (the Cider settings it needs) and a README with the steps.
+  Cider is a Flatpak, and its sandbox cannot follow a symlink into `/nix/store`, so the two theme
+  files must be real copies in `~/.var/app/sh.cider.Cider/config/sh.cider.genten/themes/haiiro/`
+  (an activation step or a manual copy, not `home.file`). Enable "Main Stylesheet" once under
+  Settings, Extensions, Haiiro; Cider keeps that across restarts.
+
 On the NixOS side, `programs.hecate.shell.enable = true` turns on what the shell needs from
 the system (see below).
 

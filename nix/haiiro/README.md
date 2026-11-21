@@ -21,6 +21,11 @@ The Home Manager module installs them with `shell.theming.apps` (on by default),
 autoconfig script for the wrapper's `extraPrefsFiles` that cuts Zen's scripted motion. The consumer
 wires them (see `docs/nix.md`).
 
+`cider/` holds the Cider theme, which the module does not install: `theme.yml` and `main.css` for
+Cider's `themes/haiiro/` folder (real copies, the Flatpak cannot read the Nix store), and
+`settings.json`, the Cider settings the theme needs. Its README has the install steps and how to
+restore the settings.
+
 Terminal colours follow Rosé Pine's own mapping: black overlay, red love, green pine, yellow
 gold, blue foam, magenta iris, cyan rose, white text, bright black muted.
 
