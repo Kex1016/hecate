@@ -247,7 +247,7 @@ strong {
 
 #tabbrowser-tabbox {
   border: var(--border-window) double var(--color-pine) !important;
-  margin: var(--space-2) var(--space-2) var(--space-2) 0 !important;
+  margin: var(--space-2) !important;
   background: var(--color-base) !important;
 }
 
@@ -667,4 +667,24 @@ zen-folder[collapsed] .tab-group-label {
   background: var(--color-overlay) !important;
   border: var(--border-hairline) solid var(--color-text) !important;
   color: var(--color-subtle) !important;
+}
+
+/* Toasts: small haiiro windows, top right */
+.zen-toast {
+  background: var(--color-surface) !important;
+  border: var(--border-window) double var(--color-pine) !important;
+  color: var(--color-text) !important;
+  padding: var(--space-2) var(--space-3) !important;
+}
+
+.zen-toast label,
+.zen-toast description {
+  color: var(--color-text) !important;
+}
+
+.zen-toast button,
+.zen-toast toolbarbutton {
+  background: var(--color-highlight-low) !important;
+  border: var(--border-hairline) solid var(--color-highlight-high) !important;
+  color: var(--color-text) !important;
 }
