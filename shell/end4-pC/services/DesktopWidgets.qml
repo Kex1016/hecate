@@ -140,6 +140,18 @@ Singleton {
         return Qt.point(Math.max(0, Math.min(snap(x), Math.max(0, sw - w))), Math.max(0, Math.min(snap(y), Math.max(0, sh - h))));
     }
 
+    // The one monitor the widgets are on, or "" when they are on every monitor.
+    // A chosen monitor that is not plugged in falls back to the first one.
+    readonly property string screenName: {
+        const w = Config.options?.background?.widgets;
+        if ((w?.screens ?? "all") !== "one") return "";
+        const names = Quickshell.screens.map(s => s.name);
+        return names.includes(w.monitor) ? w.monitor : (names[0] ?? "");
+    }
+    function showsOn(screen) {
+        return root.screenName === "" || screen?.name === root.screenName;
+    }
+
     function zOf(key) { return st.pos?.[key]?.z ?? 0; }
 
     function setPosition(key, x, y, z) {

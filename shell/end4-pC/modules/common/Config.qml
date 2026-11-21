@@ -267,6 +267,14 @@ Singleton {
                     // "bottomLeft" | "bottomRight" | "centre"
                     property string corner: "bottomLeft"
                 }
+                // Which monitors the desktop widgets (and their right-click menu) are on.
+                property JsonObject widgets: JsonObject {
+                    // "all": every monitor, each with the same layout | "one": just `monitor`
+                    property string screens: "all"
+                    // "one" only: the output name ("DP-1"). Empty, or not plugged in: the
+                    // first monitor, until it is back.
+                    property string monitor: ""
+                }
 
                 // Legacy (background, lock, wallpaper picker, old desktop widgets, shell.qml)
                 property string lockWall: ""

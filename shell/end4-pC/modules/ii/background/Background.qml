@@ -144,13 +144,16 @@ Variants {
                 }
             }
 
-            WidgetCanvas {
+            // Only on the widgets' monitor when they are locked to one (background.widgets).
+            Loader {
                 anchors.fill: parent
-
-                WidgetsLoader {
-                    screen: bgRoot.screen
-                    wallpaperItem: wallpaper
-                    wallpaperSafetyTriggered: false
+                active: DesktopWidgets.showsOn(bgRoot.modelData)
+                sourceComponent: WidgetCanvas {
+                    WidgetsLoader {
+                        screen: bgRoot.screen
+                        wallpaperItem: wallpaper
+                        wallpaperSafetyTriggered: false
+                    }
                 }
             }
         }

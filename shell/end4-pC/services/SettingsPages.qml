@@ -17,7 +17,7 @@ Singleton {
         const list = [
             { id: "general",      name: "general",      group: "shell",  keywords: "name night light battery volume", file: "GeneralPage.qml" },
             { id: "bar",          name: "bar",          group: "shell",  file: "BarPage.qml" },
-            { id: "desktop",      name: "desktop",      group: "shell",  keywords: "wallpaper background blobs clock lock notifications time", file: "DesktopPage.qml" },
+            { id: "desktop",      name: "desktop",      group: "shell",  keywords: "wallpaper background blobs clock lock notifications time widgets monitor", file: "DesktopPage.qml" },
             { id: "panels",       name: "panels",       group: "shell",  keywords: "launcher alias search translate osd screenshot recording", file: "PanelsPage.qml" },
             { id: "calendars",    name: "calendars",    group: "shell",  keywords: "icloud caldav ics webcal reminders events", file: "CalendarsPage.qml" },
             { id: "services",     name: "services",     group: "shell",  keywords: "claude weather updates music", file: "ServicesPage.qml" },

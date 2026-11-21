@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The desktop widgets can be locked to one monitor (Settings → desktop → desktop widgets,
+  `background.widgets`); an unplugged choice falls back to the first monitor.
 - Docs for the haiiro shell: the look and its config (`docs/config.md#haiiro-look`), the blob
   background's keys and IPC, border tints in the IPC and as a bind (`docs/ipc.md`,
   `docs/keybinds.md`), the optional Claude and Apple services (`docs/shell.md`), the nix outputs
