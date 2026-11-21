@@ -69,6 +69,7 @@
   --zen-sidebar-notification-bg: var(--color-overlay) !important;
   --zen-sidebar-notification-outline: var(--border-hairline) solid var(--color-text) !important;
   --zen-border-radius: 0px !important;
+  --zen-element-separation: 0px !important;
   --zen-native-inner-radius: 0px !important;
   --zen-active-tab-scale: 1 !important;
   --zen-folder-behind-bgcolor: var(--color-highlight-med) !important;
