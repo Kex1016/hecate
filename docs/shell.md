@@ -51,6 +51,10 @@ turns the blobs off over IPC, see [config.md](config.md#haiiro-look)).
 - **Widgets**: the desktop widgets include a system group (weather, now
   playing, meters, network, disks, repos and updates) under
   `shell/end4-pC/modules/ii/background/widgets/system/`.
+  They show on every monitor by default; Settings → desktop → desktop widgets
+  locks them to one (`background.widgets.screens = "one"`, with the output
+  name in `background.widgets.monitor`). When that monitor isn't plugged in
+  they move to the first one until it's back.
 - **Border tints** show what needs you: gold while a Claude session waits
   for an answer, love for failures, foam when it's done. Any window can be
   tinted by hand with `hecate msg tint`.

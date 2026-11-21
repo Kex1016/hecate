@@ -1,8 +1,10 @@
 import QtQuick
+import Quickshell
 import qs
 import qs.modules.common
 import qs.services
 import qs.modules.ii.settings
+import qs.modules.common.widgets.haiiro as H
 
 SettingsPage {
     id: page
@@ -104,6 +106,28 @@ SettingsPage {
             key: "time.secondPrecision"
         }
         SetSection { text: "desktop widgets" }
+        SetChoice {
+            name: "show on"
+            description: "Where the desktop widgets and their right-click menu are."
+            key: "background.widgets.screens"
+            values: ["all", "one"]
+            labels: ["every monitor", "one monitor"]
+        }
+        SetRow {
+            id: widgetsMonitor
+            name: "monitor"
+            description: "One monitor only. Unplugged, they move to the first one until it is back."
+            enabled: Config.options.background.widgets.screens === "one"
+            readonly property var names: Quickshell.screens.map(s => s.name)
+            readonly property string shown: DesktopWidgets.screenName || (names[0] ?? "")
+            H.Spin {
+                value: Math.max(0, widgetsMonitor.names.indexOf(widgetsMonitor.shown))
+                from: 0
+                to: Math.max(0, widgetsMonitor.names.length - 1)
+                text: widgetsMonitor.shown || "none"
+                onMoved: v => Config.setNestedValue("background.widgets.monitor", widgetsMonitor.names[v])
+            }
+        }
         SetText {
             name: "race"
             description: "The character sheet's first line of flavour."
