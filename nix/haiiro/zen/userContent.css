@@ -14,6 +14,7 @@
     --color-text: #e0def4;
     --color-love: #eb6f92;
     --color-gold: #f6c177;
+    --color-rose: #ebbcba;
     --color-pine: #31748f;
     --color-foam: #9ccfd8;
     --color-iris: #c4a7e7;
@@ -392,5 +393,96 @@
   #full > #content::before {
     content: "add-ons";
     margin: var(--space-6) 0 0 var(--space-6);
+  }
+}
+
+/* Settings and add-ons sidebar: a haiiro window with list rows, after
+   Fishnet's side rail */
+@-moz-document url-prefix("about:preferences"), url-prefix("about:settings"), url-prefix("about:addons") {
+  moz-page-nav {
+    position: relative;
+    box-sizing: border-box;
+    width: 264px !important;
+    height: fit-content !important;
+    align-self: flex-start;
+    margin: var(--space-6) !important;
+    padding: 5px !important;
+    border: var(--border-window) double var(--color-pine) !important;
+    background: var(--color-surface) !important;
+  }
+  moz-page-nav::before,
+  moz-page-nav::after {
+    position: absolute;
+    top: 0;
+    transform: translateY(-50%);
+    background: var(--color-surface);
+    font-family: var(--font-mono);
+    font-size: 16px;
+    line-height: 1.15;
+  }
+  moz-page-nav::before {
+    content: "zen:";
+    left: 15px;
+    padding-left: 1ch;
+    color: var(--color-subtle);
+  }
+  moz-page-nav::after {
+    left: calc(15px + 5ch);
+    padding: 0 1ch;
+    color: var(--color-foam);
+  }
+  nav:has(> .primary-nav-group) {
+    padding: 10px 2px 6px !important;
+  }
+  nav:has(> .primary-nav-group) > hr {
+    margin: 6px 0 !important;
+    border: none !important;
+    border-top: 1px solid var(--color-highlight-med) !important;
+  }
+  :is(button, a):has(> .page-nav-icon) {
+    gap: 12px !important;
+    min-height: 28px !important;
+    padding: 4px 8px !important;
+    border: none !important;
+    background: transparent !important;
+    color: var(--color-subtle) !important;
+    white-space: nowrap;
+    outline-offset: -2px;
+  }
+  .page-nav-icon {
+    display: none !important;
+  }
+  :is(button, a):has(> .page-nav-icon)::before {
+    content: "»" !important;
+    display: inline !important;
+    position: static !important;
+    width: 1ch !important;
+    height: auto !important;
+    background: none !important;
+    color: transparent;
+  }
+  :is(button, a):has(> .page-nav-icon):hover {
+    color: var(--color-text) !important;
+  }
+  :is(button, a)[role="tab"][aria-selected="true"] {
+    background: var(--color-overlay) !important;
+    color: var(--color-text) !important;
+  }
+  :is(button, a)[role="tab"][aria-selected="true"]::before {
+    color: var(--color-rose) !important;
+  }
+}
+@-moz-document url-prefix("about:preferences"), url-prefix("about:settings") {
+  moz-page-nav::after { content: "~/settings"; }
+}
+@-moz-document url-prefix("about:addons") {
+  moz-page-nav::after { content: "~/add-ons"; }
+  #sidebar {
+    width: auto !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+  moz-page-nav {
+    margin-inline-end: 0 !important;
   }
 }
