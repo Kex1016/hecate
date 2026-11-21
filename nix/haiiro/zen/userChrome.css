@@ -646,6 +646,8 @@ zen-folder[collapsed] .tab-group-label {
 .zen-glance-overlay .browserContainer {
   border: var(--border-window) double var(--color-pine) !important;
   background: var(--color-base) !important;
+  height: calc(100% - 2 * var(--space-6)) !important;
+  margin-block: auto !important;
 }
 
 .zen-glance-sidebar-container toolbarbutton {
