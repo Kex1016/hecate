@@ -594,15 +594,10 @@ h1.apple-heading,
   text-transform: lowercase;
 }
 
-/* Phase 4: the player bar. A window (DS Window), a Transport strip with pixel glyphs, Progress and Slider tracks. */
-
-:root {
-  /* 8x8 pixel glyphs from the DS Transport, as mask images. */
-  --haiiro-glyph-prev: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Crect x='1' y='0' width='1' height='8'/%3E%3Crect x='3' y='3' width='1' height='2'/%3E%3Crect x='4' y='2' width='1' height='4'/%3E%3Crect x='5' y='1' width='1' height='6'/%3E%3Crect x='6' y='0' width='1' height='8'/%3E%3C/svg%3E");
-  --haiiro-glyph-next: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Crect x='1' y='0' width='1' height='8'/%3E%3Crect x='2' y='1' width='1' height='6'/%3E%3Crect x='3' y='2' width='1' height='4'/%3E%3Crect x='4' y='3' width='1' height='2'/%3E%3Crect x='6' y='0' width='1' height='8'/%3E%3C/svg%3E");
-  --haiiro-glyph-pause: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Crect x='1' y='0' width='2' height='8'/%3E%3Crect x='5' y='0' width='2' height='8'/%3E%3C/svg%3E");
-  --haiiro-glyph-play: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Crect x='1' y='0' width='1' height='8'/%3E%3Crect x='2' y='1' width='1' height='6'/%3E%3Crect x='3' y='2' width='1' height='4'/%3E%3Crect x='4' y='3' width='1' height='2'/%3E%3C/svg%3E");
-}
+/* Phase 4: the player bar. A window (DS Window), a Transport strip with pixel glyphs, Progress and Slider tracks.
+   The 8x8 pixel glyphs from the DS Transport are mask images, written inline in each rule as base64 and ending in `#`. Cider appends `?v=<time>` to every url() it injects,
+   and a data URI would take that as part of its body and fail to decode; after the `#` it lands in the
+   fragment, which is ignored. (Cider also strips the quotes, so plain SVG text is invalid there.) */
 
 /* The bar is a window labelled with the program and what it shows. */
 .ns-bottom-toolbar_inline.ns-bottom-toolbar_floating {
@@ -689,20 +684,24 @@ body[window-blurred] .ns-bottom-toolbar_inline.ns-bottom-toolbar_floating {
   -webkit-mask-size: contain;
 }
 .playback-action-button[title="Previous"]::before {
-  -webkit-mask-image: var(--haiiro-glyph-prev);
+  -webkit-mask-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA4IDgnIHNoYXBlLXJlbmRlcmluZz0nY3Jpc3BFZGdlcyc+PHJlY3QgeD0nMScgeT0nMCcgd2lkdGg9JzEnIGhlaWdodD0nOCcvPjxyZWN0IHg9JzMnIHk9JzMnIHdpZHRoPScxJyBoZWlnaHQ9JzInLz48cmVjdCB4PSc0JyB5PScyJyB3aWR0aD0nMScgaGVpZ2h0PSc0Jy8+PHJlY3QgeD0nNScgeT0nMScgd2lkdGg9JzEnIGhlaWdodD0nNicvPjxyZWN0IHg9JzYnIHk9JzAnIHdpZHRoPScxJyBoZWlnaHQ9JzgnLz48L3N2Zz4=#");
+  mask-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA4IDgnIHNoYXBlLXJlbmRlcmluZz0nY3Jpc3BFZGdlcyc+PHJlY3QgeD0nMScgeT0nMCcgd2lkdGg9JzEnIGhlaWdodD0nOCcvPjxyZWN0IHg9JzMnIHk9JzMnIHdpZHRoPScxJyBoZWlnaHQ9JzInLz48cmVjdCB4PSc0JyB5PScyJyB3aWR0aD0nMScgaGVpZ2h0PSc0Jy8+PHJlY3QgeD0nNScgeT0nMScgd2lkdGg9JzEnIGhlaWdodD0nNicvPjxyZWN0IHg9JzYnIHk9JzAnIHdpZHRoPScxJyBoZWlnaHQ9JzgnLz48L3N2Zz4=#");
 }
 .playback-action-button[title="Next"]::before {
-  -webkit-mask-image: var(--haiiro-glyph-next);
+  -webkit-mask-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA4IDgnIHNoYXBlLXJlbmRlcmluZz0nY3Jpc3BFZGdlcyc+PHJlY3QgeD0nMScgeT0nMCcgd2lkdGg9JzEnIGhlaWdodD0nOCcvPjxyZWN0IHg9JzInIHk9JzEnIHdpZHRoPScxJyBoZWlnaHQ9JzYnLz48cmVjdCB4PSczJyB5PScyJyB3aWR0aD0nMScgaGVpZ2h0PSc0Jy8+PHJlY3QgeD0nNCcgeT0nMycgd2lkdGg9JzEnIGhlaWdodD0nMicvPjxyZWN0IHg9JzYnIHk9JzAnIHdpZHRoPScxJyBoZWlnaHQ9JzgnLz48L3N2Zz4=#");
+  mask-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA4IDgnIHNoYXBlLXJlbmRlcmluZz0nY3Jpc3BFZGdlcyc+PHJlY3QgeD0nMScgeT0nMCcgd2lkdGg9JzEnIGhlaWdodD0nOCcvPjxyZWN0IHg9JzInIHk9JzEnIHdpZHRoPScxJyBoZWlnaHQ9JzYnLz48cmVjdCB4PSczJyB5PScyJyB3aWR0aD0nMScgaGVpZ2h0PSc0Jy8+PHJlY3QgeD0nNCcgeT0nMycgd2lkdGg9JzEnIGhlaWdodD0nMicvPjxyZWN0IHg9JzYnIHk9JzAnIHdpZHRoPScxJyBoZWlnaHQ9JzgnLz48L3N2Zz4=#");
 }
 .playback-action-button.action-play {
   width: 64px;
   background: var(--haiiro-pine);
 }
 .playback-action-button.action-play[title="Play"]::before {
-  -webkit-mask-image: var(--haiiro-glyph-play);
+  -webkit-mask-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA4IDgnIHNoYXBlLXJlbmRlcmluZz0nY3Jpc3BFZGdlcyc+PHJlY3QgeD0nMScgeT0nMCcgd2lkdGg9JzEnIGhlaWdodD0nOCcvPjxyZWN0IHg9JzInIHk9JzEnIHdpZHRoPScxJyBoZWlnaHQ9JzYnLz48cmVjdCB4PSczJyB5PScyJyB3aWR0aD0nMScgaGVpZ2h0PSc0Jy8+PHJlY3QgeD0nNCcgeT0nMycgd2lkdGg9JzEnIGhlaWdodD0nMicvPjwvc3ZnPg==#");
+  mask-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA4IDgnIHNoYXBlLXJlbmRlcmluZz0nY3Jpc3BFZGdlcyc+PHJlY3QgeD0nMScgeT0nMCcgd2lkdGg9JzEnIGhlaWdodD0nOCcvPjxyZWN0IHg9JzInIHk9JzEnIHdpZHRoPScxJyBoZWlnaHQ9JzYnLz48cmVjdCB4PSczJyB5PScyJyB3aWR0aD0nMScgaGVpZ2h0PSc0Jy8+PHJlY3QgeD0nNCcgeT0nMycgd2lkdGg9JzEnIGhlaWdodD0nMicvPjwvc3ZnPg==#");
 }
 .playback-action-button.action-play[title="Pause"]::before {
-  -webkit-mask-image: var(--haiiro-glyph-pause);
+  -webkit-mask-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA4IDgnIHNoYXBlLXJlbmRlcmluZz0nY3Jpc3BFZGdlcyc+PHJlY3QgeD0nMScgeT0nMCcgd2lkdGg9JzInIGhlaWdodD0nOCcvPjxyZWN0IHg9JzUnIHk9JzAnIHdpZHRoPScyJyBoZWlnaHQ9JzgnLz48L3N2Zz4=#");
+  mask-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCA4IDgnIHNoYXBlLXJlbmRlcmluZz0nY3Jpc3BFZGdlcyc+PHJlY3QgeD0nMScgeT0nMCcgd2lkdGg9JzInIGhlaWdodD0nOCcvPjxyZWN0IHg9JzUnIHk9JzAnIHdpZHRoPScyJyBoZWlnaHQ9JzgnLz48L3N2Zz4=#");
 }
 .playback-action-button:not(.action-small):hover {
   background: var(--haiiro-overlay);
