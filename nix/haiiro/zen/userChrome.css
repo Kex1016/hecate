@@ -558,9 +558,19 @@ findbar {
 *::before,
 *::after {
   transition: none !important;
+}
+
+/* One-shot flourishes jump to their end. Loops (loading bar, spinners,
+   skeletons) keep running */
+#urlbar[breakout-extend][animate-searchmode="true"]::before,
+#zen-library-button > .toolbarbutton-badge-stack[downloading],
+#zen-library-button .zen-library-sprite::before,
+#zen-loading-progress-bar[long-load="true"],
+.zen-library-section[fade-in] .zen-library-search-results,
+.zen-library-tab[animate] .zen-library-tab-icon-image,
+.zen-swipe-add-space-container[readytoadd] .zen-swipe-add-space-progress-badge {
   animation-duration: 0s !important;
   animation-delay: 0s !important;
-  animation-iteration-count: 1 !important;
 }
 
 /* Workspace switch crossfades this layer with a 50ms floor */
