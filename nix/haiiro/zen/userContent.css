@@ -141,3 +141,174 @@
     outline-offset: 0 !important;
   }
 }
+
+/* JSON viewer: devtools page on the JSON's own URL, so match its markup */
+:root.theme-dark:has(#rawdata-tab) {
+  --color-base: #191724;
+  --color-surface: #1f1d2e;
+  --color-overlay: #26233a;
+  --color-subtle: #908caa;
+  --color-text: #e0def4;
+  --color-gold: #f6c177;
+  --color-rose: #ebbcba;
+  --color-pine: #31748f;
+  --color-foam: #9ccfd8;
+  --color-iris: #c4a7e7;
+  --color-love: #eb6f92;
+  --color-highlight-low: #21202e;
+  --color-highlight-med: #403d52;
+  --color-highlight-high: #524f67;
+  --font-mono: "IBM VGA 8x16", Unifont, "Unifont Upper", monospace;
+  --space-2: 8px;
+
+  --theme-body-background: var(--color-base) !important;
+  --theme-body-color: var(--color-text) !important;
+  --theme-text-color-strong: var(--color-text) !important;
+  --theme-sidebar-background: var(--color-base) !important;
+  --theme-toolbar-background: var(--color-surface) !important;
+  --theme-tab-toolbar-background: var(--color-surface) !important;
+  --theme-toolbar-color: var(--color-subtle) !important;
+  --theme-toolbar-hover: var(--color-highlight-low) !important;
+  --theme-toolbar-hover-active: var(--color-highlight-med) !important;
+  --theme-toolbar-selected-background: var(--color-highlight-med) !important;
+  --theme-toolbar-selected-color: var(--color-foam) !important;
+  --theme-toolbar-selected-hover: var(--color-highlight-med) !important;
+  --theme-toolbar-selected-hover-color: var(--color-foam) !important;
+  --theme-splitter-color: var(--color-overlay) !important;
+  --theme-selection-background: var(--color-highlight-med) !important;
+  --theme-selection-background-hover: var(--color-highlight-low) !important;
+  --theme-selection-color: var(--color-text) !important;
+  --theme-icon-color: var(--color-subtle) !important;
+  --theme-icon-dimmed-color: var(--color-subtle) !important;
+  --theme-icon-hover-color: var(--color-text) !important;
+  --theme-link-color: var(--color-foam) !important;
+  --theme-comment: var(--color-subtle) !important;
+  --theme-error-color: var(--color-love) !important;
+  --theme-error-background: var(--color-highlight-low) !important;
+  --toolbarbutton-background: var(--color-highlight-low) !important;
+  --toolbarbutton-hover-background: var(--color-highlight-med) !important;
+  --tree-header-background: var(--color-surface) !important;
+  --tree-header-sorted-background: var(--color-highlight-med) !important;
+  --monospace-font-family: var(--font-mono) !important;
+
+  --object-color: var(--color-iris) !important;
+  --caption-color: var(--color-iris) !important;
+  --string-color: var(--color-gold) !important;
+  --number-color: var(--color-rose) !important;
+  --null-color: var(--color-subtle) !important;
+  --theme-highlight-blue: var(--color-foam) !important;
+  --theme-highlight-purple: var(--color-iris) !important;
+  --theme-highlight-red: var(--color-gold) !important;
+  --theme-highlight-green: var(--color-rose) !important;
+  --theme-highlight-gray: var(--color-subtle) !important;
+
+  scrollbar-color: var(--color-foam) var(--color-base);
+}
+
+:root.theme-dark:has(#rawdata-tab) :is(*, *::before, *::after) {
+  font-family: var(--font-mono) !important;
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  font-synthesis: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  transition: none !important;
+}
+
+:root.theme-dark:has(#rawdata-tab) {
+  #content {
+    box-sizing: border-box;
+    padding: var(--space-2);
+  }
+
+  .treeTable .treeRow {
+    line-height: 1.15;
+  }
+
+  :focus-visible,
+  .panelContent:focus {
+    outline: 1px solid var(--color-foam) !important;
+    outline-offset: -1px !important;
+  }
+
+  .treeTable .treeLabel {
+    color: var(--color-foam) !important;
+  }
+
+  .treeTable .treeRow.selected,
+  .treeTable .treeRow.selected :is(.treeLabel, .objectBox, .treeIcon) {
+    background-color: var(--color-highlight-med) !important;
+    color: var(--color-text) !important;
+    fill: var(--color-text) !important;
+  }
+
+  .treeTable .treeRow:not(.selected):hover {
+    background-color: var(--color-highlight-low) !important;
+  }
+
+  .tabs .tabs-navigation {
+    background: var(--color-surface) !important;
+    border-bottom: var(--border-divider, 3px) solid var(--color-overlay) !important;
+  }
+
+  .tabs .tabs-menu-item.is-active,
+  .tabs .tabs-menu-item.is-active:hover {
+    background: var(--color-highlight-med) !important;
+  }
+
+  .tabs .tabs-menu-item.is-active a {
+    color: var(--color-foam) !important;
+  }
+
+  .tabs .tabs-menu-item:not(.is-active) a {
+    color: var(--color-subtle) !important;
+  }
+
+  .tabs .tabs-menu-item::after,
+  .tabs .tabs-menu-item.is-active::after {
+    background: transparent !important;
+  }
+
+  .toolbar {
+    background: var(--color-surface) !important;
+    border-bottom: 1px solid var(--color-overlay) !important;
+    height: auto !important;
+    padding-block: 4px !important;
+  }
+
+  .toolbar .btn {
+    background: var(--color-highlight-low) !important;
+    border: 1px solid var(--color-highlight-high) !important;
+    color: var(--color-text) !important;
+    padding: 0 8px !important;
+  }
+
+  .toolbar .btn:hover {
+    background: var(--color-highlight-med) !important;
+  }
+
+  .searchBox {
+    background-color: var(--color-highlight-low) !important;
+    border: 1px solid var(--color-highlight-high) !important;
+    color: var(--color-text) !important;
+  }
+
+  .searchBox:focus {
+    outline: 1px solid var(--color-foam) !important;
+  }
+
+  pre,
+  .textPanelBox pre {
+    background: var(--color-base) !important;
+    color: var(--color-text) !important;
+  }
+
+  .headersPanelBox .netInfoHeadersTable :is(.netInfoParamName, .headerName) {
+    color: var(--color-foam) !important;
+  }
+
+  .netInfoHeadersGroup {
+    color: var(--color-subtle) !important;
+    border-bottom: 1px solid var(--color-overlay) !important;
+  }
+}
