@@ -275,7 +275,7 @@ strong {
 :root[zen-compact-mode="true"] #tabbrowser-tabbox {
   border: none !important;
   margin: 0 !important;
-  padding: 0 !important;
+  padding: var(--space-2) !important;
 }
 
 :root[zen-compact-mode="true"] #zen-appcontent-wrapper,
@@ -657,14 +657,33 @@ zen-folder[collapsed] .tab-group-label {
   background: transparent !important;
 }
 
-/* Focus mode keeps the pane frames and the gap between them, but the
-   panes reach the window edges and pages fill their frames */
+/* Focus mode: no frames. Outer gaps 8px, and between panes 8px on each
+   side of one double line drawn on the splitter */
 :root[zen-compact-mode="true"] #tabbrowser-tabbox[zen-split-view="true"] {
-  margin: calc(-1 * var(--space-1)) !important;
+  margin: calc(var(--border-window) / -2) !important;
+  padding: 0 !important;
 }
 
 :root[zen-compact-mode="true"] #tabbrowser-tabpanels[zen-split-view] .browserSidebarContainer[zen-split] {
+  margin: calc(var(--space-2) + var(--border-window) / 2) !important;
   padding: 0 !important;
+  border: none !important;
+}
+
+:root[zen-compact-mode="true"] .zen-split-view-splitter[orient="vertical"] {
+  width: 0 !important;
+  margin-inline-start: calc(var(--border-window) / -2) !important;
+  border-inline-start: var(--border-window) double var(--color-pine) !important;
+}
+
+:root[zen-compact-mode="true"] .zen-split-view-splitter[orient="horizontal"] {
+  height: 0 !important;
+  margin-block-start: calc(var(--border-window) / -2) !important;
+  border-block-start: var(--border-window) double var(--color-pine) !important;
+}
+
+:root[zen-compact-mode="true"]:-moz-window-inactive .zen-split-view-splitter {
+  border-color: var(--color-highlight-med) !important;
 }
 
 .zen-view-splitter-header {
