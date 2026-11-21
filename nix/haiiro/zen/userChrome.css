@@ -606,3 +606,46 @@ zen-folder[collapsed] .tab-group-label {
   color: var(--color-subtle) !important;
   fill: var(--color-subtle) !important;
 }
+
+/* Glance: a window over the page, which sits under the dither veil */
+.zen-glance-background {
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+  position: relative !important;
+}
+
+.zen-glance-background::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    repeating-conic-gradient(var(--color-base) 0 25%, transparent 0 50%) 0 0 / 4px 4px,
+    var(--veil-heavy);
+}
+
+.zen-glance-overlay .browserContainer {
+  border: var(--border-window) double var(--color-pine) !important;
+  background: var(--color-base) !important;
+}
+
+.zen-glance-sidebar-container toolbarbutton {
+  background: var(--color-overlay) !important;
+  border: var(--border-hairline) solid var(--color-highlight-high) !important;
+  fill: var(--color-subtle) !important;
+  color: var(--color-subtle) !important;
+}
+
+.zen-glance-sidebar-container toolbarbutton:hover {
+  background: var(--color-highlight-med) !important;
+  fill: var(--color-text) !important;
+}
+
+/* Status panel (link hover) */
+#statuspanel-label {
+  background: var(--color-overlay) !important;
+  border: var(--border-hairline) solid var(--color-text) !important;
+  color: var(--color-subtle) !important;
+}
