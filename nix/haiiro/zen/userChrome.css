@@ -268,6 +268,26 @@ strong {
   background: var(--color-base) !important;
 }
 
+:root[zen-compact-mode="true"] #navigator-toolbox:not([zen-has-hover], [has-popup-menu], [zen-user-show]) {
+  border-color: transparent !important;
+}
+
+/* Compact mode hover zones: reveal the sidebar and top bar a little before the edge */
+:root[zen-compact-mode="true"] #navigator-toolbox:not([zen-has-hover])::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 100%;
+  width: 24px;
+}
+
+:root[zen-compact-mode="true"] #zen-appcontent-navbar-wrapper:not([zen-has-hover]) {
+  position: relative !important;
+  z-index: 10 !important;
+  padding-bottom: 16px !important;
+  margin-bottom: -16px !important;
+}
+
 /* Sidebar */
 #navigator-toolbox {
   background: var(--color-base) !important;
