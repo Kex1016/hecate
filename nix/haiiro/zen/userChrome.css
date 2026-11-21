@@ -222,6 +222,11 @@ toolbarbutton {
   font-weight: 400;
 }
 
+/* The bold face is the 2x VGA, double width: chrome text stays regular. */
+* {
+  font-weight: 400 !important;
+}
+
 b,
 strong {
   font-weight: 700 !important;
@@ -404,7 +409,7 @@ toolbarbutton:hover,
   color: var(--color-foam) !important;
 }
 
-/* Emphasis is colour here: the 2x bold face is double width. */
+/* Emphasis is colour here, not the double width bold face. */
 .urlbarView strong,
 .urlbarView-action,
 .urlbarView-prettyName,
@@ -559,4 +564,13 @@ menuitem:is([type="checkbox"], [type="radio"]) > .menu-icon {
 menuitem:is([type="checkbox"], [type="radio"])[checked="true"] > .menu-icon {
   background-color: var(--color-foam) !important;
   border-color: var(--color-foam) !important;
+}
+
+/* Folders */
+zen-folder .tab-group-label {
+  color: var(--color-text) !important;
+}
+
+zen-folder[collapsed] .tab-group-label {
+  color: var(--color-subtle) !important;
 }
