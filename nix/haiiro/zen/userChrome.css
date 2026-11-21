@@ -574,3 +574,35 @@ zen-folder .tab-group-label {
 zen-folder[collapsed] .tab-group-label {
   color: var(--color-subtle) !important;
 }
+
+/* Split view: panes share the window, a 3px overlay seam between them */
+.browserSidebarContainer[zen-split] {
+  margin: 0 !important;
+  outline: none !important;
+}
+
+.browserSidebarContainer[zen-split].deck-selected {
+  outline: var(--border-hairline) solid var(--color-foam) !important;
+  outline-offset: -1px !important;
+}
+
+#tabbrowser-tabpanels[zen-split-view] {
+  --zen-split-column-gap: 0px !important;
+  --zen-split-row-gap: 0px !important;
+  --zen-active-split-outline-color: var(--color-foam) !important;
+}
+
+.zen-split-view-splitter {
+  background: linear-gradient(to right, transparent calc(50% - 1.5px), var(--color-overlay) calc(50% - 1.5px), var(--color-overlay) calc(50% + 1.5px), transparent calc(50% + 1.5px)) !important;
+}
+
+.zen-split-view-splitter[orient="horizontal"] {
+  background: linear-gradient(to bottom, transparent calc(50% - 1.5px), var(--color-overlay) calc(50% - 1.5px), var(--color-overlay) calc(50% + 1.5px), transparent calc(50% + 1.5px)) !important;
+}
+
+.zen-view-splitter-header {
+  background: var(--color-overlay) !important;
+  border: var(--border-hairline) solid var(--color-highlight-high) !important;
+  color: var(--color-subtle) !important;
+  fill: var(--color-subtle) !important;
+}
