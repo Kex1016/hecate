@@ -48,13 +48,28 @@ turns the blobs off over IPC, see [config.md](config.md#haiiro-look)).
 - **Faces**: IBM VGA 8x16, Jacquard 24 and GNU Unifont as the glyph
   fallback. `nix/fonts.nix` builds them as `haiiro-fonts`, and the NixOS
   module installs them system-wide (`programs.hecate.fonts.enable`).
-- **Widgets**: the desktop widgets include a system group (weather, now
-  playing, meters, network, disks, repos and updates) under
-  `shell/end4-pC/modules/ii/background/widgets/system/`.
-  They show on every monitor by default; Settings → desktop → desktop widgets
-  locks them to one (`background.widgets.screens = "one"`, with the output
-  name in `background.widgets.monitor`). When that monitor isn't plugged in
-  they move to the first one until it's back.
+- **Widgets** come in two styles. **Free** (the default) puts each widget
+  straight on the background, with no window; the background is cleared
+  around it so it reads on top of the blobs or a wallpaper. Free widgets are
+  `free/<Name>Free.qml` under `shell/end4-pC/modules/ii/background/widgets/free/`.
+  **Windows** keeps each widget in its own terminal-style window, the files
+  the widgets have always used (`desk/`, and `system/` for weather, now
+  playing, meters, network, disks, repos and updates). A widget without a
+  free file shows as a window in either style. Settings → desktop → desktop
+  widgets → widget style picks the style for all of them
+  (`background.widgets.form`, see [config.md](config.md#desktop-widgets)).
+  Drag a free widget by its prompt line.
+  - **Right-click switch**: right-click a widget's label (a free widget's
+    prompt line, a window's top edge, or anywhere on the display clock) to
+    show that one widget the other way ("show as window" or "show free").
+    The menu only opens where there is another style to switch to: a window
+    with no free file doesn't open it, and the right-click falls through to
+    the desktop menu. The choice is saved with the widget's position, and
+    choosing the style the desktop already uses clears it.
+  - They show on every monitor by default; Settings → desktop → desktop widgets
+    locks them to one (`background.widgets.screens = "one"`, with the output
+    name in `background.widgets.monitor`). When that monitor isn't plugged in
+    they move to the first one until it's back.
 - **Border tints** show what needs you: gold while a Claude session waits
   for an answer, love for failures, foam when it's done. Any window can be
   tinted by hand with `hecate msg tint`.
