@@ -17,6 +17,46 @@ Rectangle {
     // replay every PixelTransition on the sheet
     property bool shown: true
     property bool slow: false
+    // behind the free section: a still of the blobs, as the design system's
+    // free previews have. Left empty the cards sit on plain base.
+    property url freeBackground: ""
+    // scroll position, and where the free section starts
+    property alias scrollY: flick.contentY
+    readonly property real freeY: sheet.y + freeSheet.y
+
+    // one free-form preview: the part at 56,44 on the background, like the
+    // design system's cards
+    component FreeCard: Item {
+        id: freeCard
+        property string name: ""
+        default property alias body: freeInner.data
+        implicitWidth: 700
+        implicitHeight: 200
+        clip: true
+        Rectangle { anchors.fill: parent; color: HTokens.base }
+        Image {
+            anchors.fill: parent
+            visible: root.freeBackground.toString().length > 0
+            source: root.freeBackground
+            fillMode: Image.PreserveAspectCrop
+            smooth: false
+        }
+        Item {
+            id: freeInner
+            x: 56
+            y: 44
+            width: parent.width - 112
+            height: parent.height - 88
+        }
+        HText {
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: 6
+            text: freeCard.name
+            role: "badge"
+            ink: "inkMuted"
+        }
+    }
 
     component Card: ColumnLayout {
         id: card
@@ -33,6 +73,7 @@ Rectangle {
     }
 
     Flickable {
+        id: flick
         anchors.fill: parent
         contentWidth: width
         contentHeight: sheet.implicitHeight + 48
@@ -263,6 +304,164 @@ Rectangle {
                         CodeBlock {
                             width: 420
                             lines: ["mkdir -p gen", "cp gen-presets/hecate.nix gen/cakeos.nix", "- bar.clock.seconds = false", "+ bar.clock.seconds = true"]
+                        }
+                    }
+                }
+            }
+
+            HLabel { text: "free forms" }
+            Grid {
+                id: freeSheet
+                objectName: "freeSheet"
+                columns: 2
+                spacing: 8
+
+                FreeCard {
+                    name: "FreeWidget"
+                    FreeWidget {
+                        width: 300
+                        label: "uptime"
+                        FreeText { text: "3h 12m"; role: "nav" }
+                        FreeText { text: "up since 18:22 · load 0.42"; role: "code"; ink: "subtle" }
+                    }
+                }
+                FreeCard {
+                    name: "PixelCells"
+                    Column {
+                        PixelCells { count: 10; filled: 9 }
+                        PixelCells { count: 48; filled: 46; ink: "gold"; width: 238 }
+                        PixelCells { count: 25; filled: 11; large: true }
+                        PixelCells { count: 25; filled: 5; large: true }
+                    }
+                }
+                FreeCard {
+                    name: "DayRuler"
+                    implicitHeight: 140
+                    DayRuler { hour: 21 }
+                }
+                FreeCard {
+                    name: "RainColumns"
+                    RainColumns {
+                        width: 252
+                        hours: [{ hour: "22", chance: 80 }, { hour: "23", chance: 70 }, { hour: "00", chance: 55 }, { hour: "01", chance: 40 },
+                            { hour: "02", chance: 30 }, { hour: "03", chance: 30 }, { hour: "04", chance: 40 }]
+                    }
+                }
+                FreeCard {
+                    name: "MirrorSpark"
+                    implicitHeight: 190
+                    MirrorSpark {
+                        downMax: 100
+                        upMax: 100
+                        down: [20, 35, 30, 60, 85, 70, 40, 45, 90, 100, 75, 50, 30, 25, 55, 65, 45, 30, 20, 15, 35, 60, 40, 25, 30, 45, 70, 55, 35, 20]
+                        up: [10, 15, 10, 20, 30, 25, 15, 10, 40, 35, 20, 15, 10, 10, 20, 25, 15, 10, 10, 5, 15, 20, 15, 10, 10, 15, 25, 20, 15, 10]
+                    }
+                }
+                FreeCard {
+                    name: "PixelRing"
+                    implicitHeight: 260
+                    PixelRing {
+                        done: 15
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 4
+                            FreeText { anchors.horizontalCenter: parent.horizontalCenter; text: "18:42"; role: "nav"; ink: "gold" }
+                            FreeText { anchors.horizontalCenter: parent.horizontalCenter; text: "focus · 3 of 4"; role: "caption"; ink: "subtle" }
+                        }
+                    }
+                }
+                FreeCard {
+                    name: "PixelBattery"
+                    implicitHeight: 160
+                    Row {
+                        spacing: 16
+                        PixelBattery { level: 0.87; anchors.verticalCenter: parent.verticalCenter }
+                        FreeText { text: "87%"; role: "display"; size: 72 }
+                    }
+                }
+                FreeCard {
+                    name: "PixelMoon / SunPath"
+                    implicitHeight: 220
+                    Row {
+                        spacing: 16
+                        PixelMoon { illumination: 0.38; waxing: true }
+                        SunPath { progress: 0.37 }
+                    }
+                }
+                FreeCard {
+                    name: "PixelBuds"
+                    implicitHeight: 260
+                    Row {
+                        spacing: 40
+                        PixelBuds { part: "left"; anchors.bottom: parent.bottom }
+                        PixelBuds { part: "case"; anchors.bottom: parent.bottom }
+                        PixelBuds { part: "right"; anchors.bottom: parent.bottom }
+                        PixelBuds { part: "max"; anchors.bottom: parent.bottom }
+                        PixelBuds { part: "left"; dim: true; anchors.bottom: parent.bottom }
+                    }
+                }
+                FreeCard {
+                    name: "PixelGlyph"
+                    Row {
+                        spacing: 36
+                        PixelGlyph { name: "cloud"; anchors.verticalCenter: parent.verticalCenter }
+                        PixelGlyph { name: "bell"; anchors.verticalCenter: parent.verticalCenter }
+                        PixelGlyph { name: "toggleOff"; anchors.verticalCenter: parent.verticalCenter }
+                        PixelGlyph { name: "toggleOn"; anchors.verticalCenter: parent.verticalCenter }
+                        PixelGlyph { name: "clipboard"; anchors.verticalCenter: parent.verticalCenter }
+                    }
+                }
+                FreeCard {
+                    name: "GlyphTransport / PlayLine"
+                    Column {
+                        width: 300
+                        Item { width: 1; height: 6 }
+                        PlayLine { width: parent.width; progress: 0.46 }
+                        GlyphTransport { x: -12; playing: true; time: "1:52 / 4:03" }
+                    }
+                }
+                FreeCard {
+                    name: "RuledNote"
+                    RuledNote {
+                        width: 260
+                        endCursor: true
+                        text: "tea: sencha, 3 min\n\nask kuro about the\nminecraft backup"
+                    }
+                }
+                FreeCard {
+                    name: "PixelCheck / TextBar / BlockCursor / FreeArt"
+                    implicitHeight: 260
+                    Row {
+                        spacing: 32
+                        Column {
+                            spacing: 2
+                            Repeater {
+                                model: [{ text: "greetd fix", done: true }, { text: "iso build", done: true }, { text: "bar mock", done: false }, { text: "groceries", done: false }]
+                                Row {
+                                    id: todo
+                                    required property var modelData
+                                    required property int index
+                                    spacing: 10
+                                    FreeText { width: 16; horizontalAlignment: Text.AlignRight; height: 24; text: todo.index + 1; role: "caption"; ink: "highlightHigh" }
+                                    PixelCheck { height: 24; checked: todo.modelData.done }
+                                    FreeText { height: 24; text: todo.modelData.text; ink: todo.modelData.done ? "subtle" : "text"; font.strikeout: todo.modelData.done }
+                                }
+                            }
+                            FreeText { leftPadding: 16; text: "~"; ink: "pine" }
+                        }
+                        Column {
+                            spacing: 2
+                            Row { spacing: 8; FreeText { text: "cpu"; ink: "subtle" } TextBar { value: 0.23 } FreeText { text: "23%"; ink: "foam" } }
+                            Row { spacing: 8; FreeText { text: "ram"; ink: "subtle" } TextBar { value: 0.35 } FreeText { text: "35%"; ink: "foam" } }
+                            Row { spacing: 8; FreeText { text: "gpu"; ink: "subtle" } TextBar { value: 0.08 } FreeText { text: " 8%"; ink: "foam" } }
+                            Item { width: 1; height: 16 }
+                            Row {
+                                FreeText { text: "The tea has gone cold."; role: "nav"; ink: "rose" }
+                                Item { width: 8; height: 1 }
+                                BlockCursor { ink: "rose"; size: 32; anchors.verticalCenter: parent.verticalCenter }
+                            }
+                            Item { width: 1; height: 16 }
+                            FreeArt { width: 64; height: 64; Dither { anchors.fill: parent; tone: "pine"; big: true } }
                         }
                     }
                 }
