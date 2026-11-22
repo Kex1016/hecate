@@ -51,6 +51,9 @@ Singleton {
     // files under it still waiting to upload.
     property var entries: []
     property int uploading: 0
+    // Space on the account, { used, total } in bytes, from `rclone about` through the mount's rc
+    // socket; null until it answers, or if the backend cannot say.
+    property var quota: null
 
     // Widgets that show the entries hold this up; the list is read only while it is above 0.
     property int consumers: 0
@@ -76,6 +79,7 @@ Singleton {
         Quickshell.execDetached(["systemctl", "--user", "stop", root.unit]);
         root.mounted = false;
         root.entries = [];
+        root.quota = null;
         root.status = "idle";
     }
 
@@ -200,6 +204,37 @@ Singleton {
         }
     }
 
+    // Asked through the mount's rc socket, so it uses the mount's session and no new login.
+    function askQuota() {
+        if (!root.mounted || aboutProc.running) return;
+        aboutProc.command = ["rclone", "rc", "--unix-socket", root.socket, "operations/about", `fs=${root.remote}:`];
+        aboutProc.running = true;
+    }
+
+    Process {
+        id: aboutProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const a = JSON.parse(text || "{}");
+                    const total = Number(a.total ?? 0), used = Number(a.used ?? 0);
+                    root.quota = total > 0 ? { used, total } : null;
+                } catch (e) {
+                    root.quota = null;
+                }
+            }
+        }
+    }
+
+    // only while a widget shows it: it is a request to Apple, and the space changes slowly
+    Timer {
+        running: root.mounted && root.consumers > 0
+        interval: 10 * 60 * 1000
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.askQuota()
+    }
+
     Timer {
         running: root.mounted
         interval: root.consumers > 0 ? 15000 : 5 * 60 * 1000
@@ -250,7 +285,7 @@ Singleton {
         }
         function status(): string {
             return JSON.stringify({ status: root.status, message: root.message, mounted: root.mounted,
-                configured: root.configured, uploading: root.uploading });
+                configured: root.configured, uploading: root.uploading, quota: root.quota });
         }
     }
 }

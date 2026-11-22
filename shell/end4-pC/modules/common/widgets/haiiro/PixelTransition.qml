@@ -30,7 +30,8 @@ Item {
     readonly property int steps: Math.max(1, HTokens.pixelateSteps)
     readonly property int stepMs: Math.round(HTokens.pixelateDuration / steps)
     // 0: nothing on screen, 1: sharp, >1: the size of a cell in pixels
-    property real cell: shown && !animateOnLoad ? 1 : 0
+    // set once on creation (a binding to `shown` would race the close)
+    property real cell: 0
     readonly property bool animating: delay.running || stepper.running
     readonly property bool present: shown || cell !== 0
     signal opened()
@@ -53,6 +54,10 @@ Item {
     function play() {
         delay.stop();
         stepper.stop();
+        // nothing on screen yet (created hidden, or an open still waiting):
+        // a close has nothing to play
+        if (!root.shown && root.cell === 0)
+            return;
         if (HTokens.cut) {
             root.cell = root.shown ? 1 : 0;
             root.shown ? root.opened() : root.closed();
@@ -77,7 +82,11 @@ Item {
     }
 
     onShownChanged: play()
-    Component.onCompleted: if (shown && animateOnLoad) play()
+    Component.onCompleted: {
+        if (!shown) return;
+        if (animateOnLoad) play();
+        else cell = 1;
+    }
 
     Timer {
         id: delay

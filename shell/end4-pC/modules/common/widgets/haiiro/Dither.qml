@@ -6,7 +6,9 @@ import qs.modules.common.widgets.haiiro
 // (highlight-med), "pine". `big` doubles the tile to 8px. Set `ink` and
 // `ground` directly for anything else; a transparent ground lets what is
 // behind show through (that is the Veil).
-Item {
+// Drawn by a shader on whole device pixels, so it stays sharp at 1.25 and
+// 1.75; Qt's software renderer gets the two inks blended instead.
+PixelGrid {
     id: root
 
     property string tone: "muted"
@@ -14,35 +16,32 @@ Item {
     property color ink: tone === "lo" ? HTokens.highlightMed : tone === "pine" ? HTokens.pine : HTokens.muted
     property color ground: HTokens.base
     readonly property int tile: big ? HTokens.ditherTileBig : HTokens.ditherTile
-
-    function hex(c) {
-        return "#" + [c.r, c.g, c.b].map(v => Math.round(v * 255).toString(16).padStart(2, "0")).join("");
-    }
-    function rect(x, y, s, c) {
-        return "<rect x='" + x + "' y='" + y + "' width='" + s + "' height='" + s + "' fill='" + hex(c) + "' fill-opacity='" + c.a + "'/>";
-    }
-    // the conic-gradient checker of bundle.css: ink in the top-right and
-    // bottom-left quarters, ground in the others
-    readonly property string svg: {
-        const t = root.tile, h = t / 2;
-        return "<svg xmlns='http://www.w3.org/2000/svg' width='" + t + "' height='" + t + "' shape-rendering='crispEdges'>"
-            + (root.ground.a > 0 ? root.rect(0, 0, t, root.ground) : "")
-            + root.rect(h, 0, h, root.ink) + root.rect(0, h, h, root.ink) + "</svg>";
-    }
+    readonly property bool shaded: GraphicsInfo.api !== GraphicsInfo.Software
 
     implicitWidth: 64
     implicitHeight: 64
 
-    Image {
-        anchors.fill: parent
-        source: "data:image/svg+xml;utf8," + encodeURIComponent(root.svg)
-        sourceSize: Qt.size(root.tile, root.tile)
-        fillMode: Image.Tile
-        horizontalAlignment: Image.AlignLeft
-        verticalAlignment: Image.AlignTop
-        smooth: false
-        mipmap: false
-        cache: true
-        asynchronous: false
+    // the conic-gradient checker of bundle.css: ink in the top-right and
+    // bottom-left quarters, ground in the others
+    ShaderEffect {
+        visible: root.shaded
+        readonly property color ink: root.ink
+        readonly property color ground: root.ground
+        readonly property size size: Qt.size(Math.round(width * root.dpr), Math.round(height * root.dpr))
+        readonly property real cell: root.dev(root.tile / 2)
+        width: Math.round(root.width * root.dpr) / root.dpr
+        height: Math.round(root.height * root.dpr) / root.dpr
+        fragmentShader: Qt.resolvedUrl("shaders/dither.frag.qsb")
+    }
+
+    Rectangle {
+        visible: !root.shaded
+        width: root.width
+        height: root.height
+        color: {
+            const i = root.ink, g = root.ground, a = (i.a + g.a) / 2;
+            const mix = (x, y) => a > 0 ? (x * i.a + y * g.a) / 2 / a : 0;
+            return Qt.rgba(mix(i.r, g.r), mix(i.g, g.g), mix(i.b, g.b), a);
+        }
     }
 }

@@ -107,6 +107,13 @@ SettingsPage {
         }
         SetSection { text: "desktop widgets" }
         SetChoice {
+            name: "widget style"
+            description: "Free: straight on the background, no window. Windows: each in its terminal window. Right-click a widget's label to change just that one."
+            key: "background.widgets.form"
+            values: ["free", "window"]
+            labels: ["free", "windows"]
+        }
+        SetChoice {
             name: "show on"
             description: "Where the desktop widgets and their right-click menu are."
             key: "background.widgets.screens"

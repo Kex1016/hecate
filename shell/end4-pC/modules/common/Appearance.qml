@@ -45,6 +45,8 @@ Singleton {
             readonly property color inkTrack: Qt.rgba(hc.text.r, hc.text.g, hc.text.b, 0.14)
             // color-base at 55%, under the dither veil of a full-screen panel.
             readonly property color veilHeavy: Qt.rgba(hc.base.r, hc.base.g, hc.base.b, 0.55)
+            // color-base at 94%: the solid middle of a free widget's clearing.
+            readonly property color clearingFill: Qt.rgba(hc.base.r, hc.base.g, hc.base.b, 0.94)
         }
 
         // The bundled faces (assets/fonts/haiiro). Set font.family to mono or display. Bold is
@@ -113,6 +115,18 @@ Singleton {
                 readonly property int y: 8
                 readonly property color color: hc.base
             }
+            // The hard offset under every glyph of a free widget.
+            readonly property QtObject free: QtObject {
+                readonly property int x: 2
+                readonly property int y: 2
+                readonly property color color: hc.base
+            }
+            // The hard offset under album art and portraits in free widgets.
+            readonly property QtObject art: QtObject {
+                readonly property int x: 8
+                readonly property int y: 8
+                readonly property color color: hc.base
+            }
         }
 
         // Fixed sizes. The shell is on rails: these are not settings.
@@ -134,6 +148,15 @@ Singleton {
             readonly property int transportMainSmall: 48
             readonly property int ditherTile: 4
             readonly property int ditherTileBig: 8
+            // How far a free widget's clearing reaches past its content.
+            readonly property int freeClearingX: 36
+            readonly property int freeClearingY: 28
+            // One square of a pixel shape, and the gap between two.
+            readonly property int pixelCell: 8
+            readonly property int pixelCellLarge: 10
+            readonly property int pixelGap: 2
+            // The hit target of a bare glyph button.
+            readonly property int glyphTarget: 44
         }
 
         // The live background. The compositor draws it; these are the same numbers.
