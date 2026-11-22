@@ -80,12 +80,13 @@ H.FreeWidget {
                 ink: "pine"
                 text: "~"
             }
+            // what the tilde is for, until it is clicked
             H.FreeText {
-                visible: root.items.length === 0 && !input.activeFocus
+                visible: !input.activeFocus && input.text.length === 0
                 x: tilde.x + 2 * H.HTokens.ch(H.HTokens.fontBody)
                 height: parent.height
                 ink: "muted"
-                text: "nothing to do"
+                text: root.items.length === 0 ? "nothing to do · + add one" : "+"
             }
             TextInput {
                 id: input
