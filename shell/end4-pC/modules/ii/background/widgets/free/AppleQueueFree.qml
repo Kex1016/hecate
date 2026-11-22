@@ -11,7 +11,7 @@ import qs.modules.ii.background.widgets.system as System
 // squares are the dither placeholder. With `items` ([{ type: "songs", id, name, artist,
 // durationMs }], from a search or a Claude answer) it is a queue to look over: nothing plays
 // until "play in cider". `prompt` is the question line it came from, `label` is
-// "claude: queue" then. Cider's own queue gets "clear".
+// "claude: queue" then. The muted shuffle is Cider's own, pine while on.
 H.FreeWidget {
     id: root
 
@@ -155,7 +155,7 @@ H.FreeWidget {
     }
 
     RowLayout {
-        visible: root.proposed || root.rows.length > 0
+        visible: root.proposed || root.rows.length > 0 || root.hasCurrent
         spacing: 8
         H.InkButton {
             visible: root.proposed
@@ -168,12 +168,13 @@ H.FreeWidget {
                 root.played();
             }
         }
+        // Cider's shuffle, pine while it is on
         H.InkButton {
-            visible: !root.proposed
-            ink: "c1"
+            ink: Cider.shuffle ? "c5" : "c1"
             role: "code"
-            text: "clear"
-            onClicked: Cider.clearQueue()
+            text: "shuffle"
+            enabled: Cider.open
+            onClicked: Cider.toggleShuffle()
         }
     }
 }
