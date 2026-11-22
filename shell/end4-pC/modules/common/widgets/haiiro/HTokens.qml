@@ -18,6 +18,7 @@ Singleton {
     readonly property var bw: src?.border ?? null
     readonly property var sz: src?.size ?? null
     readonly property var tr: src?.transition ?? null
+    readonly property var sh: src?.shadow ?? null
 
     // colour
     readonly property color base: c?.base ?? "#191724"
@@ -39,6 +40,7 @@ Singleton {
     readonly property color inkHairline: c?.inkHairline ?? Qt.rgba(224 / 255, 222 / 255, 244 / 255, 0.25)
     readonly property color inkTrack: c?.inkTrack ?? Qt.rgba(224 / 255, 222 / 255, 244 / 255, 0.14)
     readonly property color veilHeavy: c?.veilHeavy ?? Qt.rgba(25 / 255, 23 / 255, 36 / 255, 0.55)
+    readonly property color clearingFill: c?.clearingFill ?? Qt.rgba(25 / 255, 23 / 255, 36 / 255, 0.94)
 
     // Ink classes c1-c8, or a token name ("foam", "inkMuted"). Anything else passes through.
     function ink(name) {
@@ -132,6 +134,18 @@ Singleton {
     readonly property int transportCellSmall: sz?.transportCellSmall ?? 36
     readonly property int transportMain: sz?.transportMain ?? 64
     readonly property int transportMainSmall: sz?.transportMainSmall ?? 48
+
+    // free widgets
+    readonly property int freeClearingX: sz?.freeClearingX ?? 36
+    readonly property int freeClearingY: sz?.freeClearingY ?? 28
+    readonly property int pixelCell: sz?.pixelCell ?? 8
+    readonly property int pixelCellLarge: sz?.pixelCellLarge ?? 10
+    readonly property int pixelGap: sz?.pixelGap ?? 2
+    readonly property int glyphTarget: sz?.glyphTarget ?? 44
+    // hard shadows: the offset in pixels, always in base
+    readonly property int shadowTitle: sh?.title?.x ?? 8
+    readonly property int shadowFree: sh?.free?.x ?? 2
+    readonly property int shadowArt: sh?.art?.x ?? 8
 
     // motion
     readonly property int pixelateDuration: tr?.pixelateDuration ?? 500
