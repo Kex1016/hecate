@@ -114,8 +114,8 @@ Item {
 
                 Loader {
                     id: body
-                    // kept through the close frames
-                    active: slot.wanted || widget.present
+                    // not before the free-file check, and kept through the close frames
+                    active: widget.shown || widget.present
                     source: active && slot.source !== "" ? Qt.resolvedUrl("widgets/" + slot.source) : ""
                     onStatusChanged: {
                         if (status !== Loader.Error) return;
