@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import Quickshell
 import qs.services.apple
 import qs.modules.common.widgets.haiiro as H
+import qs.modules.ii.background.widgets.system as System
 
 // ls ~/iCloud, free · a pixel cloud beside the mount drawn as a tree. A folder that is still
 // uploading carries three squares that step in foam; space used is twenty cells when the
@@ -15,8 +16,8 @@ H.FreeWidget {
     property int maxRows: 5
 
     readonly property string shownPath: Drive.mountPoint.replace(new RegExp(`^${Quickshell.env("HOME")}`), "~")
-    // { used, total } in bytes, when Drive reports it (it does not yet)
-    readonly property var quota: Drive["quota"] ?? null
+    // { used, total } in bytes, null until Drive knows
+    readonly property var quota: Drive.quota
     readonly property var rows: Drive.mounted ? Drive.entries.slice(0, root.maxRows) : []
     readonly property bool anySyncing: root.rows.some(r => r.syncing > 0)
     property int step: 0
@@ -25,14 +26,10 @@ H.FreeWidget {
     implicitWidth: 360
 
     // holds one of the service's `consumers` while the widget is live
-    property bool held: false
-    function hold() {
-        if (root.live && !root.held) { Drive.consumers++; root.held = true; }
-        else if (!root.live && root.held) { Drive.consumers--; root.held = false; }
+    System.ConsumerTicket {
+        service: Drive
+        active: root.live
     }
-    onLiveChanged: hold()
-    Component.onCompleted: hold()
-    Component.onDestruction: if (root.held) Drive.consumers--
 
     Timer {
         running: root.live && root.anySyncing
