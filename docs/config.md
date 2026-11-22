@@ -261,6 +261,33 @@ the file hecate-greetd writes when you log in, so the first blob frame of
 the session follows the login screen's last one. A missing file just starts
 the blobs afresh.
 
+## Desktop widgets
+
+The desktop widgets are shell settings, set in Settings → desktop → desktop
+widgets; they are not `config.toml` keys. The keys live in the shell's config:
+
+| key | values | default | meaning |
+| --- | ------ | ------- | ------- |
+| `background.widgets.form` | `"free"`, `"window"` | `"free"` | the style of every widget: straight on the background, or each in its own window (the "widget style" row, `free` / `windows`) |
+| `background.widgets.screens` | `"all"`, `"one"` | `"all"` | which monitors the widgets are on |
+| `background.widgets.monitor` | output name | `""` | the monitor when `screens` is `"one"`; empty, or not plugged in, means the first monitor |
+
+One widget can differ from the style. Right-clicking its label
+(see [shell.md](shell.md)) saves that widget's form under the
+`forms` key of the widget state file, `desktop-widgets.json`, in the shell's
+state directory (`~/.local/state/quickshell/user/`), next to `pos` (positions)
+and `enabled`:
+
+```json
+{ "forms": { "sheet": "window", "sky": "free" } }
+```
+
+Keys are the widget catalogue's keys (`clock`, `vgaClock`, `sheet`, `sky`,
+`countdown`, `todo`, `repos`, ...). Only widgets that differ from the style
+appear in `forms`; choosing the style the desktop already uses removes the
+entry. The shell writes this file; changes to `background.widgets.form` apply
+live, and saved positions apply in either style.
+
 ## Same thing from Nix (Home Manager)
 
 ```nix
