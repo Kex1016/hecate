@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import qs.services
 import qs.services.apple
 import qs.modules.common.widgets.haiiro as H
+import qs.modules.ii.background.widgets.system as System
 
 // cider: up next, free · the song playing at 48px, its art floating on a 4px hard shadow with
 // the rose » beside it, then the queue numbered at 24px. Without cover art in the queue the
@@ -34,14 +35,11 @@ H.FreeWidget {
     implicitWidth: 360
     spacing: 8
 
-    property bool held: false
-    function hold() {
-        if (root.live && !root.held) { Cider.consumers++; root.held = true; }
-        else if (!root.live && root.held) { Cider.consumers--; root.held = false; }
+    // holds one of the service's `consumers` while the widget is live
+    System.ConsumerTicket {
+        service: Cider
+        active: root.live
     }
-    onLiveChanged: hold()
-    Component.onCompleted: hold()
-    Component.onDestruction: if (root.held) Cider.consumers--
 
     function duration(ms) {
         const minutes = Math.round(ms / 60000);
