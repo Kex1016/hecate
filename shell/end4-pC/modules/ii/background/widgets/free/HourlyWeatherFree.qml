@@ -46,6 +46,6 @@ H.FreeWidget {
         visible: root.hours.length > 0
         hours: root.hours.map(h => ({ hour: h.hour, chance: h.rain }))
         // the cloud line runs one gap past the last column, as on the board
-        width: implicitWidth + px(10)
+        Layout.preferredWidth: implicitWidth + px(10)
     }
 }
