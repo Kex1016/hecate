@@ -37,39 +37,49 @@ H.FreeWidget {
         input: root.sentText
     }
 
-    Repeater {
-        model: runner.done && runner.error === "" ? root.notes : []
+    // the board's pre: one block of terminal text, no gap between its lines
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: 0
+        visible: runner.done && runner.error === ""
 
-        Row {
-            id: n
-            required property var modelData
-            Layout.fillWidth: true
-            spacing: 8
+        Repeater {
+            model: runner.done && runner.error === "" ? root.notes : []
 
-            H.FreeText { role: "code"; ink: "gold"; text: "*" }
-            // six characters, as the board pads its tags; a longer tag pushes its line over
-            Item {
-                width: Math.max(6 * H.HTokens.ch(tag.font.pixelSize), tag.implicitWidth)
-                height: body.implicitHeight
-                H.FreeText {
-                    id: tag
-                    role: "code"
-                    ink: "gold"
-                    text: n.modelData.tag
+            Row {
+                id: n
+                required property var modelData
+                Layout.fillWidth: true
+                spacing: 8
+
+                H.FreeText { role: "code"; leading: H.HTokens.leadingPre; ink: "gold"; text: "*" }
+                // six characters, as the board pads its tags; a longer tag pushes its line over
+                Item {
+                    width: Math.max(6 * H.HTokens.ch(tag.font.pixelSize), tag.implicitWidth)
+                    height: body.implicitHeight
+                    H.FreeText {
+                        id: tag
+                        role: "code"
+                        leading: H.HTokens.leadingPre
+                        ink: "gold"
+                        text: n.modelData.tag
+                    }
+                    // the graph's line runs down the wrapped lines of this change, under its tag
+                    H.FreeText {
+                        role: "code"
+                        leading: H.HTokens.leadingPre
+                        ink: "muted"
+                        text: "\n" + Array.from({ length: Math.max(0, body.lineCount - 1) }, () => "│").join("\n")
+                    }
                 }
-                // the graph's line runs down the wrapped lines of this change, under its tag
                 H.FreeText {
+                    id: body
+                    width: root.width - x
                     role: "code"
-                    ink: "muted"
-                    text: "\n" + Array.from({ length: Math.max(0, body.lineCount - 1) }, () => "│").join("\n")
+                    leading: H.HTokens.leadingPre
+                    wrapMode: Text.WordWrap
+                    text: n.modelData.text
                 }
-            }
-            H.FreeText {
-                id: body
-                width: root.width - x
-                role: "code"
-                wrapMode: Text.WordWrap
-                text: n.modelData.text
             }
         }
     }
@@ -78,6 +88,7 @@ H.FreeWidget {
         Layout.fillWidth: true
         visible: !runner.done && !runner.running
         role: "code"
+        leading: H.HTokens.leadingPre
         ink: "subtle"
         wrapMode: Text.WordWrap
         text: !Updates.cakeos ? "no cakeos updater on this system" : root.behind ? `${root.commits.length} commit${root.commits.length === 1 ? "" : "s"} waiting. Nothing explained yet.` : "cakeos is up to date"

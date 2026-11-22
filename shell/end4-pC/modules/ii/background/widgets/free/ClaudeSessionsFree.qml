@@ -57,49 +57,59 @@ H.FreeWidget {
         return state === "waiting" ? "gold" : state === "working" ? "pine" : state === "failed" ? "love" : "muted";
     }
 
-    Repeater {
-        model: root.rows.slice(0, root.maxRows)
+    // the board's pre: one block of terminal text, no gap between its lines
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: 0
+        visible: root.rows.length > 0
 
-        MouseArea {
-            id: row
-            required property var modelData
-            Layout.fillWidth: true
-            implicitHeight: line.implicitHeight
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            // a click opens the project's directory in a terminal, as in the window
-            onClicked: Quickshell.execDetached({
-                command: ["sh", "-c", Config.options.apps.terminal],
-                workingDirectory: modelData.cwd || Quickshell.env("HOME"),
-            })
+        Repeater {
+            model: root.rows.slice(0, root.maxRows)
 
-            Row {
-                id: line
-                spacing: 8
-                H.PixelCells {
-                    anchors.verticalCenter: parent.verticalCenter
-                    count: 1
-                    filled: row.modelData.state === "done" ? 0 : 1
-                    ink: root.inkOf(row.modelData.state)
-                }
-                H.FreeText {
-                    width: Math.max(92, implicitWidth)
-                    role: "code"
-                    ink: row.containsMouse ? "text" : "foam"
-                    text: row.modelData.name
-                }
+            MouseArea {
+                id: row
+                required property var modelData
+                Layout.fillWidth: true
+                implicitHeight: line.implicitHeight
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                // a click opens the project's directory in a terminal, as in the window
+                onClicked: Quickshell.execDetached({
+                    command: ["sh", "-c", Config.options.apps.terminal],
+                    workingDirectory: modelData.cwd || Quickshell.env("HOME"),
+                })
+
                 Row {
-                    spacing: 0
-                    H.FreeText {
-                        role: "code"
-                        ink: row.modelData.state === "waiting" ? "gold" : row.modelData.state === "failed" ? "love" : row.modelData.state === "working" ? "text" : "subtle"
-                        text: row.modelData.state
+                    id: line
+                    spacing: 8
+                    H.PixelCells {
+                        anchors.verticalCenter: parent.verticalCenter
+                        count: 1
+                        filled: row.modelData.state === "done" ? 0 : 1
+                        ink: root.inkOf(row.modelData.state)
                     }
                     H.FreeText {
-                        visible: row.modelData.extra !== ""
+                        width: Math.max(92, implicitWidth)
                         role: "code"
-                        ink: row.modelData.state === "waiting" ? "gold" : row.modelData.state === "failed" ? "love" : "subtle"
-                        text: (row.modelData.state === "working" ? " " : " · ") + row.modelData.extra
+                        leading: H.HTokens.leadingPre
+                        ink: row.containsMouse ? "text" : "foam"
+                        text: row.modelData.name
+                    }
+                    Row {
+                        spacing: 0
+                        H.FreeText {
+                            role: "code"
+                            leading: H.HTokens.leadingPre
+                            ink: row.modelData.state === "waiting" ? "gold" : row.modelData.state === "failed" ? "love" : row.modelData.state === "working" ? "text" : "subtle"
+                            text: row.modelData.state
+                        }
+                        H.FreeText {
+                            visible: row.modelData.extra !== ""
+                            role: "code"
+                            leading: H.HTokens.leadingPre
+                            ink: row.modelData.state === "waiting" ? "gold" : row.modelData.state === "failed" ? "love" : "subtle"
+                            text: (row.modelData.state === "working" ? " " : " · ") + row.modelData.extra
+                        }
                     }
                 }
             }
@@ -109,6 +119,7 @@ H.FreeWidget {
     H.FreeText {
         visible: root.rows.length === 0
         role: "code"
+        leading: H.HTokens.leadingPre
         ink: "subtle"
         text: "no claude code sessions are open"
     }

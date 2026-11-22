@@ -115,23 +115,33 @@ H.FreeWidget {
         }
     }
 
-    H.FreeText {
+    // the board's pre: one block of terminal text, no gap between its lines
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: 0
         visible: root.proposing
-        role: "code"
-        ink: "subtle"
-        text: root.configName
-    }
-    H.FreeText {
-        visible: root.proposing
-        role: "code"
-        ink: "love"
-        text: `- ${root.key} = ${root.oldText}`
-    }
-    H.FreeText {
-        visible: root.proposing
-        role: "code"
-        ink: "foam"
-        text: `+ ${root.key} = ${root.newText}`
+
+        H.FreeText {
+            visible: root.proposing
+            role: "code"
+            leading: H.HTokens.leadingPre
+            ink: "subtle"
+            text: root.configName
+        }
+        H.FreeText {
+            visible: root.proposing
+            role: "code"
+            leading: H.HTokens.leadingPre
+            ink: "love"
+            text: `- ${root.key} = ${root.oldText}`
+        }
+        H.FreeText {
+            visible: root.proposing
+            role: "code"
+            leading: H.HTokens.leadingPre
+            ink: "foam"
+            text: `+ ${root.key} = ${root.newText}`
+        }
     }
 
     Row {

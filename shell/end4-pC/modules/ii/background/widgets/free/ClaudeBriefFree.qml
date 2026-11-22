@@ -25,6 +25,7 @@ H.FreeWidget {
     H.FreeText {
         Layout.fillWidth: true
         size: 16
+        leading: H.HTokens.leadingProse
         wrapMode: Text.WordWrap
         ink: ClaudeBrief.text !== "" ? "rose" : "subtle"
         text: ClaudeBrief.text !== "" ? ClaudeBrief.text : "no brief yet"

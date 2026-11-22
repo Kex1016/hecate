@@ -35,6 +35,7 @@ H.FreeWidget {
         id: measure
         visible: false
         role: "code"
+        leading: H.HTokens.leadingPre
         text: "M"
     }
 
@@ -47,69 +48,81 @@ H.FreeWidget {
         }
     }
 
-    H.FreeText {
+    // the board's pre: one block of terminal text, no gap between its lines
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: 0
         visible: Repos.repos.length > 0
-        role: "code"
-        text: root.shownPath
-    }
 
-    Repeater {
-        model: root.shown
+        H.FreeText {
+            visible: Repos.repos.length > 0
+            role: "code"
+            leading: H.HTokens.leadingPre
+            text: root.shownPath
+        }
 
-        Item {
-            id: row
-            required property var modelData
-            required property int index
-            readonly property var st: root.status(modelData)
-            readonly property bool last: index === root.shown.length - 1
+        Repeater {
+            model: root.shown
 
-            Layout.fillWidth: true
-            implicitHeight: line.implicitHeight
+            Item {
+                id: row
+                required property var modelData
+                required property int index
+                readonly property var st: root.status(modelData)
+                readonly property bool last: index === root.shown.length - 1
 
-            Rectangle {
-                anchors.fill: parent
-                anchors.leftMargin: -4
-                anchors.rightMargin: -4
-                color: H.HTokens.overlay
-                visible: hover.hovered
-            }
+                Layout.fillWidth: true
+                implicitHeight: line.implicitHeight
 
-            Row {
-                id: line
-                spacing: root.cw * 2
-
-                H.FreeText {
-                    role: "code"
-                    ink: "muted"
-                    text: row.last ? "└─" : "├─"
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.leftMargin: -4
+                    anchors.rightMargin: -4
+                    color: H.HTokens.overlay
+                    visible: hover.hovered
                 }
-                H.FreeText {
-                    width: root.nameChars * root.cw
-                    role: "code"
-                    ink: "text"
-                    elide: Text.ElideRight
-                    text: row.modelData.name
-                }
-                H.FreeText {
-                    width: root.branchChars * root.cw
-                    role: "code"
-                    ink: "pine"
-                    elide: Text.ElideRight
-                    text: row.modelData.branch
-                }
-                H.FreeText {
-                    role: "code"
-                    ink: row.st.ink
-                    text: row.st.text
-                }
-            }
 
-            HoverHandler {
-                id: hover
-                cursorShape: Qt.PointingHandCursor
-            }
-            TapHandler {
-                onTapped: Repos.openTerminal(row.modelData.path)
+                Row {
+                    id: line
+                    spacing: root.cw
+
+                    H.FreeText {
+                        role: "code"
+                        leading: H.HTokens.leadingPre
+                        ink: "muted"
+                        text: row.last ? "└─" : "├─"
+                    }
+                    H.FreeText {
+                        width: root.nameChars * root.cw
+                        role: "code"
+                        leading: H.HTokens.leadingPre
+                        ink: "text"
+                        elide: Text.ElideRight
+                        text: row.modelData.name
+                    }
+                    H.FreeText {
+                        width: root.branchChars * root.cw
+                        role: "code"
+                        leading: H.HTokens.leadingPre
+                        ink: "pine"
+                        elide: Text.ElideRight
+                        text: row.modelData.branch
+                    }
+                    H.FreeText {
+                        role: "code"
+                        leading: H.HTokens.leadingPre
+                        ink: row.st.ink
+                        text: row.st.text
+                    }
+                }
+
+                HoverHandler {
+                    id: hover
+                    cursorShape: Qt.PointingHandCursor
+                }
+                TapHandler {
+                    onTapped: Repos.openTerminal(row.modelData.path)
+                }
             }
         }
     }
@@ -117,6 +130,7 @@ H.FreeWidget {
     H.FreeText {
         visible: Repos.repos.length === 0
         role: "code"
+        leading: H.HTokens.leadingPre
         ink: "muted"
         text: Repos.loading ? "reading…" : `no checkouts in ${root.shownPath}`
     }
