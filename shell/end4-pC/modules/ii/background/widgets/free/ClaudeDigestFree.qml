@@ -47,7 +47,7 @@ H.FreeWidget {
         H.FreeText {
             anchors.verticalCenter: parent.verticalCenter
             role: "display"
-            size: 56
+            size: 72
             text: String(root.missed.length)
         }
         Row {

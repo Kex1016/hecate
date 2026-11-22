@@ -6,9 +6,9 @@ import qs.modules.common.widgets.haiiro as H
 import ".." as W
 
 // update-cakeos --explain, free · the pending CakeOS commits in plain words, drawn like the
-// updates graph: a gold `*` and gold area tag per change, a muted `|` down its wrapped lines,
-// then the gold `update · N` button. `explain` sends the commit subjects (print them with
-// `sent`); the update is its own button and is never pressed for you.
+// updates graph: a gold `*` and gold area tag per change, a muted `│` under the tag down its
+// wrapped lines, then the gold `update · N` button. `explain` sends the commit subjects (print
+// them with `sent`); the update is its own button and is never pressed for you.
 H.FreeWidget {
     id: root
 
@@ -46,23 +46,21 @@ H.FreeWidget {
             Layout.fillWidth: true
             spacing: 8
 
+            H.FreeText { role: "code"; ink: "gold"; text: "*" }
             Item {
-                width: star.implicitWidth
+                width: 72
                 height: body.implicitHeight
-                H.FreeText { id: star; role: "code"; ink: "gold"; text: "*" }
-                // the graph's line runs down the wrapped lines of this change
+                H.FreeText {
+                    role: "code"
+                    ink: "gold"
+                    text: n.modelData.tag
+                }
+                // the graph's line runs down the wrapped lines of this change, under its tag
                 H.FreeText {
                     role: "code"
                     ink: "muted"
-                    text: "\n" + Array.from({ length: Math.max(0, body.lineCount - 1) }, () => "|").join("\n")
+                    text: "\n" + Array.from({ length: Math.max(0, body.lineCount - 1) }, () => "│").join("\n")
                 }
-            }
-            H.FreeText {
-                width: 72
-                visible: n.modelData.tag !== ""
-                role: "code"
-                ink: "gold"
-                text: n.modelData.tag
             }
             H.FreeText {
                 id: body
