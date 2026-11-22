@@ -10,6 +10,7 @@
   python3,
   nodejs,
   qt6,
+  quickshell,
 }:
 let
   shell = ../shell/end4-pC;
@@ -81,4 +82,24 @@ in
         python3 -I ${./tests/shell-lint.py} ${shell} ${qt6.qtdeclarative}/bin/qmllint ${nodejs}/bin/node
         touch $out
       '';
+
+  # The kit and the free widgets, with the shell's `qs.` imports resolved, so qmllint also sees an
+  # unknown property, type or name in them; plus the catalogue/free/ agreement and the kit's
+  # imports. Fails on any warning not listed in the script.
+  shell-free-lint =
+    runCommand "hecate-shell-free-lint"
+      {
+        nativeBuildInputs = [ python3 ];
+      }
+      ''
+        python3 -I ${./tests/free-lint.py} ${shell} ${qt6.qtdeclarative}/bin/qmllint \
+          ${qt6.qtdeclarative}/${qt6.qtbase.qtQmlPrefix} ${quickshell}/${qt6.qtbase.qtQmlPrefix}
+        touch $out
+      '';
+
+  # The log filter vm-shell applies to each widget style: what counts as a widget's QML problem.
+  shell-widget-log = runCommand "hecate-shell-widget-log" { nativeBuildInputs = [ python3 ]; } ''
+    python3 -I ${./tests/widget-log.py}
+    touch $out
+  '';
 }

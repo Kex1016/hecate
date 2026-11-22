@@ -1,11 +1,31 @@
 # NixOS VM test for the bundled shell: alice's home comes from the Home Manager module with the
 # shell on. hecate runs headless, the shell's own user unit is started against it, and the test
-# checks that the shell's layers map, its shortcuts register, and its binds reach hecate.
+# checks that the shell's layers map, its shortcuts register, and its binds reach hecate. It then
+# loads the desktop with every widget on, once in each widget style (free, then windows, then free
+# again by switching the setting under the running shell), and fails on any QML problem a widget
+# logs (widget-log.py says which lines count).
 {
   self,
   pkgs,
   home-manager,
 }:
+let
+  # Every widget the loader knows, from the catalogue itself.
+  widgetKeys = map builtins.head (
+    builtins.filter builtins.isList (
+      builtins.split ''\{ key: "([A-Za-z0-9]+)"'' (
+        builtins.readFile ../../shell/end4-pC/services/DesktopWidgets.qml
+      )
+    )
+  );
+  # desktop-widgets.json: all of them on (the defaults would show only a few of them).
+  widgetState = pkgs.writeText "desktop-widgets.json" (
+    builtins.toJSON { enabled = builtins.listToAttrs (map (k: { name = k; value = true; }) widgetKeys); }
+  );
+  styleConfig =
+    form: pkgs.writeText "config-${form}.json" (builtins.toJSON { background.widgets.form = form; });
+in
+assert builtins.length widgetKeys >= 28;
 pkgs.testers.runNixOSTest {
   name = "hecate-vm-shell";
   nodes.machine =
@@ -122,6 +142,55 @@ pkgs.testers.runNixOSTest {
             )
         )[1]
         assert not errors.strip(), "the shell logged QML errors:\n" + errors
+
+        # --- every widget, in each style ---------------------------------------------------
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("widget_log", "${./widget-log.py}")
+        assert spec is not None and spec.loader is not None
+        widget_log = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(widget_log)
+
+        configs = {"free": "${styleConfig "free"}", "window": "${styleConfig "window"}"}
+        alice_config = "/home/alice/.config/illogical-impulse/config.json"
+        alice_state = "/home/alice/.local/state/quickshell/user/desktop-widgets.json"
+
+        def journal_cursor():
+            out = machine.succeed(as_alice("journalctl --user -u hecate-shell --no-pager -n 0 --show-cursor"))
+            return out.split("cursor:")[-1].strip()
+
+        def set_style(style):
+            machine.succeed(f"install -o alice -m 644 {configs[style]} {alice_config}")
+
+        def check_widgets(style, cursor):
+            # The loader reads the style from the config file the shell watches, so what it
+            # shows is what the file says; the journal since `cursor` is what the widgets said.
+            machine.succeed(f"grep -Eq '\"form\": *\"{style}\"' {alice_config}")
+            machine.succeed(as_alice("systemctl --user is-active hecate-shell"))
+            log = machine.succeed(as_alice(f"journalctl --user -u hecate-shell --no-pager --after-cursor={cursor}"))
+            problems = widget_log.widget_problems(log)
+            assert not problems, f"widgets logged problems in the {style} style:\n" + "\n".join(problems)
+
+        # Loaded: the widgets slots settle a few seconds after the background maps (the loader
+        # first lists which free files exist, then each widget loads its file).
+        settle = 30
+
+        for style in ("free", "window"):
+            machine.succeed(as_alice("systemctl --user stop hecate-shell"))
+            machine.succeed(as_alice("mkdir -p ~/.config/illogical-impulse ~/.local/state/quickshell/user"))
+            set_style(style)
+            machine.succeed(f"install -o alice -m 644 ${widgetState} {alice_state}")
+            cursor = journal_cursor()
+            machine.succeed(as_alice("systemctl --user start hecate-shell"))
+            machine.wait_until_succeeds(has_layer("background"), timeout=180)
+            machine.sleep(settle)
+            check_widgets(style, cursor)
+
+        # Windows to free under the running shell: every widget swaps its form live.
+        cursor = journal_cursor()
+        set_style("free")
+        machine.sleep(settle)
+        check_widgets("free", cursor)
     except Exception:
         dump()
         raise
