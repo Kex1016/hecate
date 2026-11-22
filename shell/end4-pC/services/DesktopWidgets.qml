@@ -17,41 +17,43 @@ Singleton {
     readonly property int grid: 8
 
     // key: what the loader and the settings card call it. file: the widget's
-    // QML under background/widgets/. w: the width it asks for, so the default
-    // columns line up. Settings keeps reading key, icon and name.
+    // window form under background/widgets/. free: its free form (no window,
+    // straight on the background), free/<Name>Free.qml by the naming rule; a
+    // free file that is not there yet, or fails to load, falls back to file.
+    // Settings keeps reading key, icon and name.
     readonly property var catalog: [
-        { key: "clock",      icon: "schedule",       name: "Display clock",   file: "desk/DisplayClockWidget.qml" },
-        { key: "vgaClock",   icon: "calendar_today", name: "Date",            file: "desk/VgaClockWidget.qml" },
-        { key: "sheet",      icon: "person",         name: "Character sheet", file: "desk/CharacterSheetWidget.qml" },
-        { key: "sky",        icon: "dark_mode",      name: "Sky",             file: "desk/SkyWidget.qml" },
-        { key: "countdown",  icon: "event",          name: "Next event",      file: "desk/CountdownWidget.qml" },
-        { key: "todo",       icon: "add_task",       name: "To-do",           file: "desk/TodoListWidget.qml" },
-        { key: "timer",      icon: "timer",          name: "Focus timer",     file: "desk/FocusTimerWidget.qml" },
-        { key: "note",       icon: "note_stack_add", name: "Note",            file: "desk/NoteWidget.qml" },
-        { key: "narrator",   icon: "chat",           name: "Narrator",        file: "desk/NarratorWidget.qml" },
-        { key: "power",      icon: "battery_full",   name: "Power",           file: "desk/PowerWidget.qml" },
+        { key: "clock",      icon: "schedule",       name: "Display clock",   file: "desk/DisplayClockWidget.qml", free: "free/DisplayClockFree.qml" },
+        { key: "vgaClock",   icon: "calendar_today", name: "Date",            file: "desk/VgaClockWidget.qml", free: "free/VgaClockFree.qml" },
+        { key: "sheet",      icon: "person",         name: "Character sheet", file: "desk/CharacterSheetWidget.qml", free: "free/CharacterSheetFree.qml" },
+        { key: "sky",        icon: "dark_mode",      name: "Sky",             file: "desk/SkyWidget.qml", free: "free/SkyFree.qml" },
+        { key: "countdown",  icon: "event",          name: "Next event",      file: "desk/CountdownWidget.qml", free: "free/CountdownFree.qml" },
+        { key: "todo",       icon: "add_task",       name: "To-do",           file: "desk/TodoListWidget.qml", free: "free/TodoListFree.qml" },
+        { key: "timer",      icon: "timer",          name: "Focus timer",     file: "desk/FocusTimerWidget.qml", free: "free/FocusTimerFree.qml" },
+        { key: "note",       icon: "note_stack_add", name: "Note",            file: "desk/NoteWidget.qml", free: "free/NoteFree.qml" },
+        { key: "narrator",   icon: "chat",           name: "Narrator",        file: "desk/NarratorWidget.qml", free: "free/NarratorFree.qml" },
+        { key: "power",      icon: "battery_full",   name: "Power",           file: "desk/PowerWidget.qml", free: "free/PowerFree.qml" },
         // system widgets (W1-widgets-b): widgets/system/<name>.qml
-        { key: "weather",    icon: "partly_cloudy_day", name: "Weather",      file: "system/HourlyWeatherWidget.qml" },
-        { key: "nowPlaying", icon: "music_note",     name: "Now playing",     file: "system/NowPlayingWidget.qml" },
-        { key: "meters",     icon: "monitor_heart",  name: "Meters",          file: "system/MetersWidget.qml" },
-        { key: "network",    icon: "network_check",  name: "Network",         file: "system/NetworkWidget.qml" },
-        { key: "disks",      icon: "hard_drive",     name: "Disks",           file: "system/DisksWidget.qml" },
-        { key: "repos",      icon: "source",         name: "Repos",           file: "system/ReposWidget.qml" },
-        { key: "updates",    icon: "system_update",  name: "Updates",         file: "system/UpdatesWidget.qml" },
+        { key: "weather",    icon: "partly_cloudy_day", name: "Weather",      file: "system/HourlyWeatherWidget.qml", free: "free/HourlyWeatherFree.qml" },
+        { key: "nowPlaying", icon: "music_note",     name: "Now playing",     file: "system/NowPlayingWidget.qml", free: "free/NowPlayingFree.qml" },
+        { key: "meters",     icon: "monitor_heart",  name: "Meters",          file: "system/MetersWidget.qml", free: "free/MetersFree.qml" },
+        { key: "network",    icon: "network_check",  name: "Network",         file: "system/NetworkWidget.qml", free: "free/NetworkFree.qml" },
+        { key: "disks",      icon: "hard_drive",     name: "Disks",           file: "system/DisksWidget.qml", free: "free/DisksFree.qml" },
+        { key: "repos",      icon: "source",         name: "Repos",           file: "system/ReposWidget.qml", free: "free/ReposFree.qml" },
+        { key: "updates",    icon: "system_update",  name: "Updates",         file: "system/UpdatesWidget.qml", free: "free/UpdatesFree.qml" },
         // Apple (widgets/Apple*.qml): AirPods through librepods, iCloud Drive, Cider
-        { key: "airpods",    icon: "earbuds",        name: "AirPods",         file: "AppleAirPodsWidget.qml" },
-        { key: "icloudDrive", icon: "cloud",         name: "iCloud Drive",    file: "AppleDriveWidget.qml" },
-        { key: "lyrics",     icon: "lyrics",         name: "Lyrics",          file: "AppleLyricsWidget.qml" },
-        { key: "queue",      icon: "queue_music",    name: "Up next",         file: "AppleQueueWidget.qml" },
+        { key: "airpods",    icon: "earbuds",        name: "AirPods",         file: "AppleAirPodsWidget.qml", free: "free/AppleAirPodsFree.qml" },
+        { key: "icloudDrive", icon: "cloud",         name: "iCloud Drive",    file: "AppleDriveWidget.qml", free: "free/AppleDriveFree.qml" },
+        { key: "lyrics",     icon: "lyrics",         name: "Lyrics",          file: "AppleLyricsWidget.qml", free: "free/AppleLyricsFree.qml" },
+        { key: "queue",      icon: "queue_music",    name: "Up next",         file: "AppleQueueWidget.qml", free: "free/AppleQueueFree.qml" },
         // Claude (widgets/Claude*.qml): only while Claude is switched on (claude.enable).
         // Each runs only on a press and shows what it sends.
-        { key: "claudeUsage",    icon: "data_usage",  name: "Claude usage",    file: "ClaudeUsageWidget.qml",       needs: "claude" },
-        { key: "claudeSessions", icon: "terminal",    name: "Claude sessions", file: "ClaudeSessionsWidget.qml",    needs: "claude" },
-        { key: "claudeBrief",    icon: "wb_twilight", name: "Brief",           file: "ClaudeBriefWidget.qml",       needs: "claude" },
-        { key: "claudeUpdates",  icon: "update",      name: "What changed",    file: "ClaudeUpdateNotesWidget.qml", needs: "claude" },
-        { key: "claudeDigest",   icon: "inbox",       name: "Digest",          file: "ClaudeDigestWidget.qml",      needs: "claude" },
-        { key: "claudeSettings", icon: "tune",        name: "Ask about a setting", file: "ClaudeSettingsWidget.qml", needs: "claude" },
-        { key: "claudeClipboard", icon: "content_paste", name: "Explain the clipboard", file: "ClaudeClipboardWidget.qml", needs: "claude" }
+        { key: "claudeUsage",    icon: "data_usage",  name: "Claude usage",    file: "ClaudeUsageWidget.qml", free: "free/ClaudeUsageFree.qml",       needs: "claude" },
+        { key: "claudeSessions", icon: "terminal",    name: "Claude sessions", file: "ClaudeSessionsWidget.qml", free: "free/ClaudeSessionsFree.qml",    needs: "claude" },
+        { key: "claudeBrief",    icon: "wb_twilight", name: "Brief",           file: "ClaudeBriefWidget.qml", free: "free/ClaudeBriefFree.qml",       needs: "claude" },
+        { key: "claudeUpdates",  icon: "update",      name: "What changed",    file: "ClaudeUpdateNotesWidget.qml", free: "free/ClaudeUpdateNotesFree.qml", needs: "claude" },
+        { key: "claudeDigest",   icon: "inbox",       name: "Digest",          file: "ClaudeDigestWidget.qml", free: "free/ClaudeDigestFree.qml",      needs: "claude" },
+        { key: "claudeSettings", icon: "tune",        name: "Ask about a setting", file: "ClaudeSettingsWidget.qml", free: "free/ClaudeSettingsFree.qml", needs: "claude" },
+        { key: "claudeClipboard", icon: "content_paste", name: "Explain the clipboard", file: "ClaudeClipboardWidget.qml", free: "free/ClaudeClipboardFree.qml", needs: "claude" }
     ]
     // what this machine can show: the catalog less what needs something that is off
     readonly property var available: catalog.filter(w => !w.needs || root.has(w.needs))
@@ -73,11 +75,64 @@ Singleton {
     })
     readonly property var defaultEnabled: ["sheet", "sky", "countdown", "nowPlaying", "todo", "timer", "clock", "narrator"]
 
+    // The FreeDesktop board (1920x1080): whoami, sky and the clock with its
+    // narration on the left; weather, countdown, network and meters in the
+    // middle; todo, timer, now playing and repos on the right. Each edge is a
+    // fraction of the screen (left/right of the width, top/bottom of the
+    // height), measured from the side it names, so 1920x1080 is the board and
+    // other sizes keep the columns.
+    readonly property var freeDefaults: ({
+        sheet:      { left: 96 / 1920,   top: 140 / 1080 },
+        sky:        { left: 96 / 1920,   top: 360 / 1080 },
+        clock:      { left: 96 / 1920,   bottom: 96 / 1080 },
+        weather:    { left: 760 / 1920,  top: 130 / 1080 },
+        countdown:  { left: 1100 / 1920, top: 150 / 1080 },
+        network:    { left: 760 / 1920,  top: 560 / 1080 },
+        meters:     { left: 760 / 1920,  bottom: 110 / 1080 },
+        timer:      { left: 1150 / 1920, top: 520 / 1080 },
+        todo:       { right: 96 / 1920,  top: 140 / 1080 },
+        nowPlaying: { right: 96 / 1920,  top: 470 / 1080 },
+        repos:      { right: 96 / 1920,  bottom: 110 / 1080 }
+    })
+    // the display clock carries the narration line in the free form, so the
+    // narrator is not on by default there
+    readonly property var freeDefaultEnabled: Object.keys(freeDefaults)
+
+    // The widget style: "free" (the default) or "window", from the settings.
+    // One widget can differ: st.forms[key], set from its label's right-click.
+    readonly property string form: (Config.options?.background?.widgets?.form ?? "free") === "window" ? "window" : "free"
+    function formOf(key) {
+        const f = st.forms?.[key];
+        return f === "free" || f === "window" ? f : root.form;
+    }
+    // Pins one widget to a form; the style the desktop already uses clears the pin.
+    function setForm(key, f) {
+        const next = Object.assign({}, st);
+        const forms = Object.assign({}, st.forms ?? {});
+        if (f === root.form) delete forms[key];
+        else forms[key] = f;
+        next.forms = forms;
+        save(next);
+    }
+    // whether the free file is on disk (checked once at start, see freeProbe)
+    function hasFree(key) {
+        const w = catalog.find(c => c.key === key);
+        return !!w?.free && root.freeFiles.includes(w.free);
+    }
+    // What the loader loads for a widget, relative to background/widgets/.
+    // free: true picks the free file when there is one; the window file otherwise.
+    function sourceOf(key, free) {
+        const w = catalog.find(c => c.key === key);
+        if (!w) return "";
+        return free && root.hasFree(key) ? w.free : w.file;
+    }
+
     readonly property var hidden: st.hidden ?? []
     readonly property var menuItems: available.filter(w => !hidden.includes(w.key))
     readonly property int enabledCount: available.filter(w => isEnabled(w.key)).length
 
-    // saved state: { enabled: {key: bool}, pos: {key: {x, y, z}}, hidden: [], profile: {race, klass} }
+    // saved state: { enabled: {key: bool}, pos: {key: {x, y, z}}, forms: {key: "free"|"window"},
+    //                hidden: [], profile: {race, klass} }
     property var st: ({})
     property bool loaded: false
 
@@ -104,7 +159,7 @@ Singleton {
     function isEnabled(key) {
         const w = catalog.find(c => c.key === key);
         if (w?.needs && !root.has(w.needs)) return false;
-        return st.enabled?.[key] ?? defaultEnabled.includes(key);
+        return st.enabled?.[key] ?? (root.form === "free" ? freeDefaultEnabled : defaultEnabled).includes(key);
     }
 
     function setEnabled(key, value) {
@@ -117,12 +172,18 @@ Singleton {
 
     function snap(v) { return Math.round(v / grid) * grid; }
 
-    // where a widget of size w x h goes on a screen of sw x sh
+    // where a widget of size w x h goes on a screen of sw x sh. A saved
+    // position wins in either form; without one, a free widget takes its
+    // place on the FreeDesktop board and a window the Desktop-with-widgets one.
     function position(key, sw, sh, w, h) {
         const p = st.pos?.[key];
+        const f = formOf(key) === "free" ? freeDefaults[key] : null;
         let x, y;
         if (p) {
             x = p.x; y = p.y;
+        } else if (f) {
+            x = f.right !== undefined ? sw - f.right * sw - w : (f.left ?? 0) * sw;
+            y = f.bottom !== undefined ? sh - f.bottom * sh - h : (f.top ?? 0) * sh;
         } else {
             const d = defaults[key];
             if (!d) {
@@ -198,6 +259,22 @@ Singleton {
                 console.warn("[DesktopWidgets] could not read the state file:", error);
             root.loaded = true;
         }
+    }
+
+    // Which free files exist, relative to background/widgets/. Until a widget's
+    // free form lands it has none, and it shows as a window without a warning.
+    property var freeFiles: []
+    property bool freeChecked: false
+    readonly property string widgetsDir: FileUtils.trimFileProtocol(Qt.resolvedUrl("../modules/ii/background/widgets/").toString())
+    Process {
+        id: freeProbe
+        running: true
+        command: ["sh", "-c", 'cd "$1" && shift && for f; do [ -f "$f" ] && printf "%s\\n" "$f"; done; true', "sh", root.widgetsDir]
+            .concat(root.catalog.filter(c => c.free).map(c => c.free))
+        stdout: StdioCollector {
+            onStreamFinished: root.freeFiles = this.text.split("\n").filter(l => l.length > 0)
+        }
+        onExited: root.freeChecked = true
     }
 
     FileView {

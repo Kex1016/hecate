@@ -267,13 +267,18 @@ Singleton {
                     // "bottomLeft" | "bottomRight" | "centre"
                     property string corner: "bottomLeft"
                 }
-                // Which monitors the desktop widgets (and their right-click menu) are on.
+                // The desktop widgets: which monitors they (and their right-click menu) are on,
+                // and their style.
                 property JsonObject widgets: JsonObject {
                     // "all": every monitor, each with the same layout | "one": just `monitor`
                     property string screens: "all"
                     // "one" only: the output name ("DP-1"). Empty, or not plugged in: the
                     // first monitor, until it is back.
                     property string monitor: ""
+                    // "free": straight on the background, no window (the default) |
+                    // "window": every widget in its terminal window. One widget can
+                    // differ, from a right-click on its label (kept with its position).
+                    property string form: "free"
                 }
 
                 // Legacy (background, lock, wallpaper picker, old desktop widgets, shell.qml)
