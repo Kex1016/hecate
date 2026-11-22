@@ -6,8 +6,9 @@ import qs.services.claude
 import qs.modules.common.widgets.haiiro as H
 
 // claude: brief, free · a few sentences about the evening in rose at 16px, no wider than 400px,
-// with when it was written under it. Claude writes it when you press `write`, or every hour once
-// `hourly` is on (off until you do). `sent` prints the exact lines handed to Claude.
+// with when it was written under it: the board's words and nothing else. Claude writes it every
+// hour once `hourly` is on, or when you press `write`; those words, and `sent` (the exact lines
+// handed to Claude), show while the pointer is over it, and always until there is a brief.
 H.FreeWidget {
     id: root
 
@@ -26,7 +27,7 @@ H.FreeWidget {
         size: 16
         wrapMode: Text.WordWrap
         ink: ClaudeBrief.text !== "" ? "rose" : "subtle"
-        text: ClaudeBrief.text !== "" ? ClaudeBrief.text : "No brief yet. Press write and Claude will read what is sent and tell you about it."
+        text: ClaudeBrief.text !== "" ? ClaudeBrief.text : "no brief yet"
     }
 
     H.FreeText {
@@ -39,8 +40,12 @@ H.FreeWidget {
             if (ClaudeBrief.error !== "") return ClaudeBrief.error;
             if (ClaudeBrief.writtenAt === 0) return "not written yet";
             const w = `written ${ClaudeBrief.stamp(ClaudeBrief.writtenAt)}`;
-            return ClaudeBrief.scheduled ? `${w} · next at ${ClaudeBrief.stamp(ClaudeBrief.nextAt)}` : `${w} · hourly is off`;
+            return ClaudeBrief.scheduled ? `${w} · next at ${ClaudeBrief.stamp(ClaudeBrief.nextAt)}` : w;
         }
+    }
+
+    HoverHandler {
+        id: hover
     }
 
     H.CodeBlock {
@@ -50,6 +55,7 @@ H.FreeWidget {
     }
 
     Row {
+        visible: hover.hovered || root.showContext || ClaudeBrief.text === ""
         spacing: 4
         H.InkButton {
             flat: true
