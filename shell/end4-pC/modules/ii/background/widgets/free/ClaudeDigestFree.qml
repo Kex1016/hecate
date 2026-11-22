@@ -50,17 +50,19 @@ H.FreeWidget {
             size: 72
             text: String(root.missed.length)
         }
+        // on the count's foot, as on the board
         Row {
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 6
             spacing: 0
             H.FreeText {
-                role: "caption"
+                size: 14
                 ink: "subtle"
                 text: root.missed.length === 0 ? "nothing came in while you were away" : "while you were away"
             }
             H.FreeText {
                 visible: root.picked && root.missed.length > 0
-                role: "caption"
+                size: 14
                 ink: "gold"
                 text: ` · ${root.picks.length} matter${root.picks.length === 1 ? "s" : ""}`
             }

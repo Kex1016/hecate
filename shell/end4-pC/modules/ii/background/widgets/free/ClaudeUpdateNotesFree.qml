@@ -47,10 +47,12 @@ H.FreeWidget {
             spacing: 8
 
             H.FreeText { role: "code"; ink: "gold"; text: "*" }
+            // six characters, as the board pads its tags; a longer tag pushes its line over
             Item {
-                width: 72
+                width: Math.max(6 * H.HTokens.ch(tag.font.pixelSize), tag.implicitWidth)
                 height: body.implicitHeight
                 H.FreeText {
+                    id: tag
                     role: "code"
                     ink: "gold"
                     text: n.modelData.tag
