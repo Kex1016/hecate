@@ -53,6 +53,14 @@ Item {
         }
     }
 
+    // every free widget's clearing, under all of the widgets, so one
+    // widget's clearing never covers a neighbour
+    Item {
+        id: clearings
+        anchors.fill: parent
+        z: -1
+    }
+
     Repeater {
         model: DesktopWidgets.catalog
 
@@ -94,12 +102,20 @@ Item {
                 // a free widget's clearing reaches past its box; keep it while pixelating
                 margin: slot.free ? 40 : 9
 
+                // While sharp, the clearing sits on the shared layer under
+                // every widget; while pixelating, under this one, so it
+                // pixelates with it.
+                Binding {
+                    target: body.item
+                    property: "clearingLayer"
+                    value: widget.cell === 1 ? clearings : null
+                    when: slot.free && body.status === Loader.Ready && body.item?.clearingLayer !== undefined
+                }
+
                 Loader {
                     id: body
-                    // PixelTransition plays a close for every widget at start (its
-                    // shown starts true), which loaded each one once; only a
-                    // widget that was on needs its close frames
-                    active: slot.wanted || (widget.present && slot.wasOn)
+                    // not before the free-file check, and kept through the close frames
+                    active: widget.shown || widget.present
                     source: active && slot.source !== "" ? Qt.resolvedUrl("widgets/" + slot.source) : ""
                     onStatusChanged: {
                         if (status !== Loader.Error) return;
@@ -116,13 +132,22 @@ Item {
 
             // Drag: by the free widget's prompt line, a window's top edge, or
             // all of a bare widget. Right-click: show this one in the other form.
+            // It lies over the handle rather than inside it: the handle is a
+            // Row, which stops placing its children once one is anchored.
             MouseArea {
                 id: grab
-                parent: slot.handle ?? slot
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.right: parent.right
-                height: slot.handle || slot.bare ? parent.height : 22
+                readonly property rect area: {
+                    const h = slot.handle;
+                    if (!h) return Qt.rect(0, 0, slot.width, slot.bare ? slot.height : 22);
+                    // mapToItem is not a binding: read what moves the handle
+                    h.x; h.y; h.width; h.height; h.parent?.x; h.parent?.y; slot.width; slot.height;
+                    const p = h.mapToItem(slot, 0, 0);
+                    return Qt.rect(p.x, p.y, h.width, h.height);
+                }
+                x: area.x
+                y: area.y
+                width: area.width
+                height: area.height
                 enabled: slot.wanted && !GlobalStates.screenLocked
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
@@ -154,12 +179,7 @@ Item {
                     slot.rehome();
                 }
             }
-            property bool wasOn: false
-            onWantedChanged: if (wanted) wasOn = true
-            Component.onCompleted: {
-                wasOn = wanted;
-                rehome();
-            }
+            Component.onCompleted: rehome()
             // freeFailed stays for the session: the shell's files do not change
             // under it, so trying again would only warn again
         }

@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import qs.services
 import qs.services.apple
 import qs.modules.common.widgets.haiiro as H
+import qs.modules.ii.background.widgets.system as System
 
 // cider: lyrics, free · the line being sung is the biggest thing on it, with the rose » and
 // the words already sung in text, the rest subtle; the lines around it sit above and below.
@@ -78,14 +79,10 @@ H.FreeWidget {
     }
 
     // holds the service's faster polling and the line timer while this is up
-    property bool held: false
-    function hold() {
-        if (root.live && !root.held) { Cider.consumers++; root.held = true; }
-        else if (!root.live && root.held) { Cider.consumers--; root.held = false; }
+    System.ConsumerTicket {
+        service: Cider
+        active: root.live
     }
-    onLiveChanged: hold()
-    Component.onCompleted: hold()
-    Component.onDestruction: if (root.held) Cider.consumers--
 
     Timer {
         running: root.live && (root.synced || root.plain)

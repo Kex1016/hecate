@@ -4,13 +4,14 @@ import QtQuick.Layouts
 import qs.services
 import qs.services.apple
 import qs.modules.common.widgets.haiiro as H
+import qs.modules.ii.background.widgets.system as System
 
 // cider: up next, free · the song playing at 48px, its art floating on a 4px hard shadow with
 // the rose » beside it, then the queue numbered at 24px. Without cover art in the queue the
 // squares are the dither placeholder. With `items` ([{ type: "songs", id, name, artist,
 // durationMs }], from a search or a Claude answer) it is a queue to look over: nothing plays
 // until "play in cider". `prompt` is the question line it came from, `label` is
-// "claude: queue" then. Cider's own queue gets "clear".
+// "claude: queue" then. The muted shuffle is Cider's own, pine while on.
 H.FreeWidget {
     id: root
 
@@ -34,14 +35,11 @@ H.FreeWidget {
     implicitWidth: 360
     spacing: 8
 
-    property bool held: false
-    function hold() {
-        if (root.live && !root.held) { Cider.consumers++; root.held = true; }
-        else if (!root.live && root.held) { Cider.consumers--; root.held = false; }
+    // holds one of the service's `consumers` while the widget is live
+    System.ConsumerTicket {
+        service: Cider
+        active: root.live
     }
-    onLiveChanged: hold()
-    Component.onCompleted: hold()
-    Component.onDestruction: if (root.held) Cider.consumers--
 
     function duration(ms) {
         const minutes = Math.round(ms / 60000);
@@ -157,7 +155,7 @@ H.FreeWidget {
     }
 
     RowLayout {
-        visible: root.proposed || root.rows.length > 0
+        visible: root.proposed || root.rows.length > 0 || root.hasCurrent
         spacing: 8
         H.InkButton {
             visible: root.proposed
@@ -170,12 +168,13 @@ H.FreeWidget {
                 root.played();
             }
         }
+        // Cider's shuffle, pine while it is on
         H.InkButton {
-            visible: !root.proposed
-            ink: "c1"
+            ink: Cider.shuffle ? "c5" : "c1"
             role: "code"
-            text: "clear"
-            onClicked: Cider.clearQueue()
+            text: "shuffle"
+            enabled: Cider.open
+            onClicked: Cider.toggleShuffle()
         }
     }
 }

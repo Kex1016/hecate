@@ -27,60 +27,69 @@ H.FreeWidget {
         return (s ?? "").replace(/^[a-z]+(\([^)]*\))?!?:\s*/i, "").split("\n")[0];
     }
 
-    Repeater {
-        model: Updates.cakeos ? root.commits.slice(0, root.maxRows) : []
+    // the board's pre: one block of terminal text, no gap between its lines
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: 0
 
-        Row {
-            id: commit
-            required property var modelData
-            Layout.fillWidth: true
-            spacing: H.HTokens.ch(H.HTokens.fontHeadingSm)
+        Repeater {
+            model: Updates.cakeos ? root.commits.slice(0, root.maxRows) : []
 
-            H.FreeText { role: "code"; ink: "gold"; text: "*" }
-            H.FreeText { role: "code"; ink: "gold"; text: (commit.modelData.sha ?? "").slice(0, 7) }
-            H.FreeText {
-                width: Math.max(0, root.width - x)
-                role: "code"
-                elide: Text.ElideRight
-                text: root.subject(commit.modelData.subject)
+            Row {
+                id: commit
+                required property var modelData
+                Layout.fillWidth: true
+                spacing: H.HTokens.ch(H.HTokens.fontHeadingSm)
+
+                H.FreeText { role: "code"; leading: H.HTokens.leadingPre; ink: "gold"; text: "*" }
+                H.FreeText { role: "code"; leading: H.HTokens.leadingPre; ink: "gold"; text: (commit.modelData.sha ?? "").slice(0, 7) }
+                H.FreeText {
+                    width: Math.max(0, root.width - x)
+                    role: "code"
+                    leading: H.HTokens.leadingPre
+                    elide: Text.ElideRight
+                    text: root.subject(commit.modelData.subject)
+                }
             }
         }
-    }
 
-    // the graph's line, down to the installed commit
-    Row {
-        visible: root.behind
-        spacing: H.HTokens.ch(H.HTokens.fontHeadingSm)
-        H.FreeText { role: "code"; ink: "muted"; text: "¦" }
-        H.FreeText {
-            visible: root.commits.length > root.maxRows
-            role: "code"
-            ink: "muted"
-            text: `and ${root.commits.length - root.maxRows} more`
+        // the graph's line, down to the installed commit
+        Row {
+            visible: root.behind
+            spacing: H.HTokens.ch(H.HTokens.fontHeadingSm)
+            H.FreeText { role: "code"; leading: H.HTokens.leadingPre; ink: "muted"; text: "¦" }
+            H.FreeText {
+                visible: root.commits.length > root.maxRows
+                role: "code"
+                leading: H.HTokens.leadingPre
+                ink: "muted"
+                text: `and ${root.commits.length - root.maxRows} more`
+            }
         }
-    }
 
-    Row {
-        visible: root.known
-        spacing: H.HTokens.ch(H.HTokens.fontHeadingSm)
-        H.FreeText { role: "code"; ink: "pine"; text: "*" }
-        H.FreeText { role: "code"; ink: "pine"; text: root.installed.length > 0 ? root.installed : "unknown" }
-        H.FreeText { role: "code"; ink: "subtle"; text: "installed" }
-    }
+        Row {
+            visible: root.known
+            spacing: H.HTokens.ch(H.HTokens.fontHeadingSm)
+            H.FreeText { role: "code"; leading: H.HTokens.leadingPre; ink: "pine"; text: "*" }
+            H.FreeText { role: "code"; leading: H.HTokens.leadingPre; ink: "pine"; text: root.installed.length > 0 ? root.installed : "unknown" }
+            H.FreeText { role: "code"; leading: H.HTokens.leadingPre; ink: "subtle"; text: "installed" }
+        }
 
-    H.FreeText {
-        Layout.fillWidth: true
-        visible: text.length > 0
-        role: "code"
-        ink: Updates.cakeos && root.status?.error ? "love" : "muted"
-        elide: Text.ElideRight
-        text: {
-            if (!Updates.available) return "no updater on this system";
-            if (!Updates.cakeos) return Updates.count > 0 ? `${Updates.count} packages to update` : "up to date";
-            if (root.status === null) return Updates.checking ? "checking…" : "not checked yet";
-            if (root.status.error) return String(root.status.error).toLowerCase();
-            if (root.status.behind === 0) return "cakeos is up to date";
-            return "";
+        H.FreeText {
+            Layout.fillWidth: true
+            visible: text.length > 0
+            role: "code"
+            leading: H.HTokens.leadingPre
+            ink: Updates.cakeos && root.status?.error ? "love" : "muted"
+            elide: Text.ElideRight
+            text: {
+                if (!Updates.available) return "no updater on this system";
+                if (!Updates.cakeos) return Updates.count > 0 ? `${Updates.count} packages to update` : "up to date";
+                if (root.status === null) return Updates.checking ? "checking…" : "not checked yet";
+                if (root.status.error) return String(root.status.error).toLowerCase();
+                if (root.status.behind === 0) return "cakeos is up to date";
+                return "";
+            }
         }
     }
 

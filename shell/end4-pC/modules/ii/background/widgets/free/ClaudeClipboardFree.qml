@@ -56,6 +56,7 @@ H.FreeWidget {
             width: root.width - glyph.width - 14
             anchors.verticalCenter: parent.verticalCenter
             role: "code"
+            leading: H.HTokens.leadingPre
             ink: "foam"
             elide: Text.ElideRight
             text: root.image ? "[image]" : root.entryBody !== "" ? root.entryBody.replace(/\s+/g, " ").slice(0, 120) : "clipboard is empty"
@@ -66,6 +67,7 @@ H.FreeWidget {
         Layout.fillWidth: true
         visible: root.answered
         size: 16
+        leading: H.HTokens.leadingProse
         wrapMode: Text.WordWrap
         maximumLineCount: 12
         elide: Text.ElideRight

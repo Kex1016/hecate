@@ -3,6 +3,7 @@ import QtQuick
 import QtQuick.Layouts
 import qs.services
 import qs.modules.common.widgets.haiiro as H
+import qs.modules.ii.background.widgets.system as System
 
 // df -h · the free form of the disks widget: a row of 25 squares per mount, 4% each. A disk
 // over 90% turns love, label and squares both.
@@ -17,30 +18,7 @@ H.FreeWidget {
     label: "df -h"
     implicitWidth: 360
 
-    // holds one of the service's `consumers` while the widget is live, so it only polls while shown
-    component Ticket: QtObject {
-        id: ticket
-        property var service: null
-        property bool active: true
-        property bool held: false
-        function sync() {
-            if (!service) return;
-            if (active && !held) {
-                service.consumers++;
-                held = true;
-            } else if (!active && held) {
-                service.consumers--;
-                held = false;
-            }
-        }
-        onActiveChanged: sync()
-        Component.onCompleted: sync()
-        Component.onDestruction: {
-            if (held && service) service.consumers--;
-        }
-    }
-
-    Ticket {
+    System.ConsumerTicket {
         service: ResourceUsage
         active: root.live
     }

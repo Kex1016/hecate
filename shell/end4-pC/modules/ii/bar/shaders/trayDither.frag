@@ -34,6 +34,7 @@ void main() {
     }
     vec3 rgb = c.rgb / c.a;
     float lightness = dot(rgb, vec3(0.299, 0.587, 0.114));
+    // the inks arrive premultiplied
     vec4 ink = lightness > bayer4(cell) + 1.0 / 32.0 ? light : dark;
-    fragColor = vec4(ink.rgb * ink.a, ink.a) * qt_Opacity;
+    fragColor = ink * qt_Opacity;
 }

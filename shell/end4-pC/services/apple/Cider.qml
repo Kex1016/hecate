@@ -58,6 +58,8 @@ Singleton {
     property real position: 0         // seconds, at positionAt
     property double positionAt: 0
     property bool playing: false
+    // Cider's shuffle, from now-playing; toggleShuffle() flips it
+    property bool shuffle: false
 
     function isCiderPlayer(p) {
         if (!p) return false;
@@ -141,6 +143,7 @@ Singleton {
             root.position = info.currentPlaybackTime ?? 0;
             root.positionAt = Date.now();
             root.playing = root.player?.isPlaying ?? false;
+            if (info.shuffleMode !== undefined) root.shuffle = info.shuffleMode === 1;
             if (changed) root.loadLyrics();
             root.updateLine();
         });
@@ -356,6 +359,15 @@ Singleton {
     }
     function moveInQueue(from, to) {
         root.post("/api/v1/playback/queue/move-to-position", { startIndex: from, destinationIndex: to }, () => root.refreshQueue());
+    }
+    // Cider only toggles; ask afterwards which way it went. The queue reorders with it.
+    function toggleShuffle() {
+        root.post("/api/v1/playback/toggle-shuffle", null, () => {
+            root.request("GET", "/api/v1/playback/shuffle-mode", null, (json, code) => {
+                if (json?.value !== undefined) root.shuffle = json.value === 1;
+                root.refreshQueue();
+            });
+        });
     }
     function clearQueue() {
         root.post("/api/v1/playback/queue/clear-queue", null, () => root.refreshQueue());

@@ -6,9 +6,9 @@ import qs.modules.common.widgets.haiiro as H
 import ".." as W
 
 // update-cakeos --explain, free · the pending CakeOS commits in plain words, drawn like the
-// updates graph: a gold `*` and gold area tag per change, a muted `|` down its wrapped lines,
-// then the gold `update · N` button. `explain` sends the commit subjects (print them with
-// `sent`); the update is its own button and is never pressed for you.
+// updates graph: a gold `*` and gold area tag per change, a muted `│` under the tag down its
+// wrapped lines, then the gold `update · N` button. `explain` sends the commit subjects (print
+// them with `sent`); the update is its own button and is never pressed for you.
 H.FreeWidget {
     id: root
 
@@ -37,39 +37,49 @@ H.FreeWidget {
         input: root.sentText
     }
 
-    Repeater {
-        model: runner.done && runner.error === "" ? root.notes : []
+    // the board's pre: one block of terminal text, no gap between its lines
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: 0
+        visible: runner.done && runner.error === ""
 
-        Row {
-            id: n
-            required property var modelData
-            Layout.fillWidth: true
-            spacing: 8
+        Repeater {
+            model: runner.done && runner.error === "" ? root.notes : []
 
-            Item {
-                width: star.implicitWidth
-                height: body.implicitHeight
-                H.FreeText { id: star; role: "code"; ink: "gold"; text: "*" }
-                // the graph's line runs down the wrapped lines of this change
-                H.FreeText {
-                    role: "code"
-                    ink: "muted"
-                    text: "\n" + Array.from({ length: Math.max(0, body.lineCount - 1) }, () => "|").join("\n")
+            Row {
+                id: n
+                required property var modelData
+                Layout.fillWidth: true
+                spacing: 8
+
+                H.FreeText { role: "code"; leading: H.HTokens.leadingPre; ink: "gold"; text: "*" }
+                // six characters, as the board pads its tags; a longer tag pushes its line over
+                Item {
+                    width: Math.max(6 * H.HTokens.ch(tag.font.pixelSize), tag.implicitWidth)
+                    height: body.implicitHeight
+                    H.FreeText {
+                        id: tag
+                        role: "code"
+                        leading: H.HTokens.leadingPre
+                        ink: "gold"
+                        text: n.modelData.tag
+                    }
+                    // the graph's line runs down the wrapped lines of this change, under its tag
+                    H.FreeText {
+                        role: "code"
+                        leading: H.HTokens.leadingPre
+                        ink: "muted"
+                        text: "\n" + Array.from({ length: Math.max(0, body.lineCount - 1) }, () => "│").join("\n")
+                    }
                 }
-            }
-            H.FreeText {
-                width: 72
-                visible: n.modelData.tag !== ""
-                role: "code"
-                ink: "gold"
-                text: n.modelData.tag
-            }
-            H.FreeText {
-                id: body
-                width: root.width - x
-                role: "code"
-                wrapMode: Text.WordWrap
-                text: n.modelData.text
+                H.FreeText {
+                    id: body
+                    width: root.width - x
+                    role: "code"
+                    leading: H.HTokens.leadingPre
+                    wrapMode: Text.WordWrap
+                    text: n.modelData.text
+                }
             }
         }
     }
@@ -78,6 +88,7 @@ H.FreeWidget {
         Layout.fillWidth: true
         visible: !runner.done && !runner.running
         role: "code"
+        leading: H.HTokens.leadingPre
         ink: "subtle"
         wrapMode: Text.WordWrap
         text: !Updates.cakeos ? "no cakeos updater on this system" : root.behind ? `${root.commits.length} commit${root.commits.length === 1 ? "" : "s"} waiting. Nothing explained yet.` : "cakeos is up to date"
