@@ -146,7 +146,6 @@ H.FreeWidget {
             visible: Drive.installed && (!Drive.configured || Drive.status === "signIn")
             ink: "c3"
             role: "code"
-            leading: H.HTokens.leadingPre
             text: "sign in"
             onClicked: Drive.signIn()
         }
@@ -154,7 +153,6 @@ H.FreeWidget {
             visible: Drive.installed && Drive.configured && Drive.status !== "signIn" && Drive.status !== "mounting"
             ink: "c1"
             role: "code"
-            leading: H.HTokens.leadingPre
             text: "mount"
             onClicked: Drive.mount()
         }
