@@ -70,6 +70,10 @@ Singleton {
     readonly property string mono: f?.mono ?? "IBM VGA 8x16"
     readonly property string display: f?.display ?? "Jacquard 24"
     readonly property real lineHeight: f?.lineHeight ?? 1.15
+    // The free boards' other two leadings: terminal text that keeps its spacing (htop bars,
+    // trees, git graphs, diffs) at 1.25, and a few sentences of prose (the brief, an answer) at 1.4.
+    readonly property real leadingPre: f?.leadingPre ?? 1.25
+    readonly property real leadingProse: f?.leadingProse ?? 1.4
     readonly property var ls: src?.letterSpacing ?? null
     readonly property real trackHeadingSm: ls?.headingSm ?? 1.12
     readonly property real trackLabel: ls?.label ?? 0.96
