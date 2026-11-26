@@ -1,12 +1,14 @@
 //! The window overview (`toggle_overview`, Mod+W): every window of each output's active
 //! workspace laid out in a live grid, drawn by the compositor.
 
+pub mod input;
 pub mod layout;
 pub mod render;
 
 use std::collections::HashMap;
 use std::time::Duration;
 
+use smithay::backend::renderer::element::memory::MemoryRenderBuffer;
 use smithay::desktop::Window;
 use smithay::output::Output;
 use smithay::utils::{Logical, Rectangle};
@@ -36,6 +38,21 @@ pub struct Overview {
     pub previous_focus: Option<Window>,
     /// Entries per output name, in reading order.
     pub per_output: HashMap<String, Vec<Entry>>,
+    /// Each output's usable area at the last layout (drawing can't look it up: the layer
+    /// map is locked then).
+    pub(crate) usable: HashMap<String, Rectangle<i32, Logical>>,
+    /// The filter prompt's buffer, kept while its text and look stay the same.
+    pub(crate) prompt: std::cell::RefCell<Option<(PromptKey, MemoryRenderBuffer, i32)>>,
+}
+
+/// What the filter prompt was drawn from.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct PromptKey {
+    pub text: String,
+    pub max_width: usize,
+    pub fg: crate::config::Color,
+    pub bg: crate::config::Color,
+    pub zoom: usize,
 }
 
 impl Overview {
@@ -259,6 +276,8 @@ impl State {
                 .collect();
             entries.sort_by_key(|e| (e.slot.frame.loc.y, e.slot.frame.loc.x));
             per_output.insert(output.name(), entries);
+            let usable = Wm::usable_area(output, &self.hecate.config);
+            self.hecate.overview.usable.insert(output.name(), usable);
         }
         self.hecate.overview.per_output = per_output;
 

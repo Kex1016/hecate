@@ -406,6 +406,36 @@ mod drawing {
     }
 
     #[test]
+    fn filter_prompt_is_drawn() {
+        let Some((mut f, _)) = two("[border.label]\ncolor = \"#ff00ff\"\n") else {
+            return;
+        };
+        f.hecate().open_overview();
+        let empty = f.render("headless-1");
+        f.hecate().overview_key(
+            smithay::input::keyboard::Keysym::f,
+            crate::config::keys::Modifiers::empty(),
+            Some('f'),
+        );
+        f.hecate().overview_key(
+            smithay::input::keyboard::Keysym::i,
+            crate::config::keys::Modifiers::empty(),
+            Some('i'),
+        );
+        let frame = f.render("headless-1");
+        let gap = f.hecate().hecate.config.overview.gap;
+        let rows = gap..gap + crate::render::label::NOTCH_HEIGHT;
+        let ink = |fr: &Frame| {
+            rows.clone()
+                .flat_map(|y| (0..fr.w).map(move |x| (x, y)))
+                .filter(|&p| rgb(fr, p) == [255, 0, 255])
+                .count()
+        };
+        assert_eq!(ink(&empty), 0, "no prompt while the filter is empty");
+        assert!(ink(&frame) > 20, "the prompt's text is drawn in the label colour");
+    }
+
+    #[test]
     fn fullscreen_window_gets_a_slot_and_the_bar_shows() {
         use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_shell_v1::Layer;
         use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_surface_v1::Anchor;
@@ -451,4 +481,169 @@ mod drawing {
         let (x, y) = centre(slot.content);
         frame.assert_rgb(x, y, [255, 0, 0], "the fullscreen window in its slot");
     }
+}
+
+// ---------------------------------------------------------------- keyboard
+
+const ESC: u32 = 1 + 8;
+const RETURN: u32 = 28 + 8;
+const BACKSPACE: u32 = 14 + 8;
+const LEFT: u32 = 105 + 8;
+const RIGHT: u32 = 106 + 8;
+const DOWN: u32 = 108 + 8;
+const KEY_F: u32 = 33 + 8;
+const KEY_I: u32 = 23 + 8;
+const KEY_Z: u32 = 44 + 8;
+const CTRL: u32 = 29 + 8;
+const KEY_U: u32 = 22 + 8;
+
+/// Four 300×200 windows, overview open, slot 0 (reading order) selected.
+fn four() -> (Fixture, ClientId) {
+    let (mut f, id) = setup();
+    for i in 0..4 {
+        f.map_window(id, (300, 200), RED, Some(&format!("w{i}")));
+    }
+    f.hecate().open_overview();
+    let first = entries(&mut f)[0].clone();
+    f.hecate().hecate.overview.selected = Some(first);
+    (f, id)
+}
+
+fn slots(f: &mut Fixture) -> Vec<crate::overview::layout::Slot> {
+    f.hecate().hecate.overview.per_output["headless-1"]
+        .iter()
+        .map(|e| e.slot)
+        .collect()
+}
+
+#[test]
+fn arrows_move_the_selection() {
+    let (mut f, id) = four();
+    let order = entries(&mut f);
+    let s = slots(&mut f);
+    // a 2×2 grid: 0 1 / 2 3
+    assert!(s[0].frame.loc.y == s[1].frame.loc.y && s[2].frame.loc.y > s[0].frame.loc.y);
+    tap(&mut f, id, &[RIGHT]);
+    assert_eq!(f.hecate().hecate.overview.selected, Some(order[1].clone()));
+    tap(&mut f, id, &[DOWN]);
+    assert_eq!(f.hecate().hecate.overview.selected, Some(order[3].clone()));
+    tap(&mut f, id, &[LEFT]);
+    assert_eq!(f.hecate().hecate.overview.selected, Some(order[2].clone()));
+}
+
+#[test]
+fn return_focuses_the_selected_window_and_closes() {
+    let (mut f, id) = four();
+    let order = entries(&mut f);
+    tap(&mut f, id, &[RIGHT]);
+    tap(&mut f, id, &[RETURN]);
+    assert!(!f.hecate().hecate.overview.open);
+    assert_eq!(f.focused(), Some(order[1].clone()));
+}
+
+#[test]
+fn escape_closes_and_keeps_focus() {
+    let (mut f, id) = four();
+    let before = f.hecate().hecate.overview.previous_focus.clone();
+    assert!(before.is_some());
+    tap(&mut f, id, &[RIGHT]);
+    tap(&mut f, id, &[ESC]);
+    assert!(!f.hecate().hecate.overview.open);
+    assert_eq!(f.focused(), before);
+}
+
+#[test]
+fn mod_w_closes_from_inside() {
+    let (mut f, id) = four();
+    tap(&mut f, id, &[SUPER, W]);
+    assert!(!f.hecate().hecate.overview.open);
+}
+
+#[test]
+fn typing_filters_and_backspace_undoes() {
+    let (mut f, id) = setup();
+    f.map_window(id, (300, 200), RED, Some("firefox"));
+    f.map_window(id, (300, 200), RED, Some("foot"));
+    f.map_window(id, (300, 200), RED, Some("kitty"));
+    let firefox = f.windows()[0].clone();
+    let kitty = f.windows()[2].clone();
+    f.hecate().focus_window(&kitty);
+    f.hecate().open_overview();
+    tap(&mut f, id, &[KEY_F]);
+    tap(&mut f, id, &[KEY_I]);
+    let o = &f.hecate().hecate.overview;
+    assert_eq!(o.filter, "fi");
+    assert_eq!(o.selected, Some(firefox.clone()), "the only match is selected");
+    tap(&mut f, id, &[BACKSPACE]);
+    let o = &f.hecate().hecate.overview;
+    assert_eq!(o.filter, "f");
+    let foot = f.windows()[1].clone();
+    assert!(f.hecate().hecate.overview.matches(&foot), "foot matches again");
+    tap(&mut f, id, &[CTRL, KEY_U]);
+    assert_eq!(f.hecate().hecate.overview.filter, "");
+}
+
+#[test]
+fn keys_do_not_reach_the_client_while_open() {
+    use super::client::KeyboardEvent;
+    let (mut f, id) = setup();
+    let surface = f.map_window(id, (300, 200), RED, Some("a"));
+    f.double_roundtrip(id);
+    let _ = f.client(id).state.recent_keyboard_events(&surface).count();
+    f.hecate().open_overview();
+    tap(&mut f, id, &[KEY_F]);
+    let keys: Vec<KeyboardEvent> = f
+        .client(id)
+        .state
+        .recent_keyboard_events(&surface)
+        .filter(|e| matches!(e, KeyboardEvent::Key { .. }))
+        .cloned()
+        .collect();
+    assert!(keys.is_empty(), "no key reached the client: {keys:?}");
+    assert_eq!(f.hecate().hecate.overview.filter, "f");
+}
+
+#[test]
+fn modified_keys_and_no_matches_leave_the_overview_alone() {
+    let (mut f, id) = four();
+    tap(&mut f, id, &[CTRL, KEY_F]);
+    assert_eq!(f.hecate().hecate.overview.filter, "", "Ctrl+F types nothing");
+    tap(&mut f, id, &[KEY_Z]);
+    tap(&mut f, id, &[KEY_Z]);
+    tap(&mut f, id, &[KEY_Z]);
+    let o = &f.hecate().hecate.overview;
+    assert_eq!(o.filter, "zzz");
+    assert_eq!(o.selected, None, "nothing matches");
+    tap(&mut f, id, &[RETURN]);
+    assert!(
+        f.hecate().hecate.overview.open,
+        "Return with no match does nothing"
+    );
+}
+
+#[test]
+fn unknown_glyphs_are_kept_in_the_filter() {
+    let (mut f, _) = four();
+    f.hecate().overview_key(
+        smithay::input::keyboard::Keysym::NoSymbol,
+        crate::config::keys::Modifiers::empty(),
+        Some('\u{10FFFD}'),
+    );
+    assert_eq!(f.hecate().hecate.overview.filter, "\u{10FFFD}");
+}
+
+#[test]
+fn lock_bind_still_works_while_open() {
+    // The shell's Mod+L spawns its lock screen with allow_when_locked; any action will do.
+    let mut f = Fixture::with_toml(
+        "[binds]\n\"Mod+L\" = { action = \"toggle_show_desktop\", allow_when_locked = true }\n",
+    );
+    f.add_output("headless-1", (1920, 1080));
+    let id = f.add_client();
+    f.map_window(id, (300, 200), RED, Some("a"));
+    f.hecate().open_overview();
+    let before = f.hecate().hecate.overview.filter.clone();
+    tap(&mut f, id, &[SUPER, 38 + 8]);
+    assert_eq!(f.hecate().hecate.overview.filter, before, "L typed nothing");
+    assert!(f.hecate().hecate.wm.show_desktop, "the bind ran");
 }

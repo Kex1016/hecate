@@ -45,7 +45,9 @@ pub fn grid(area: Rectangle<i32, Logical>, items: &[Item], gap: i32) -> Vec<Slot
     if n == 0 {
         return Vec::new();
     }
-    // The column count that shows the most window area; ties keep fewer columns.
+    // The column count that shows the most window area; ties go to the squarest grid
+    // (columns nearest √n), then to fewer columns.
+    let square = (n as f64).sqrt().ceil();
     let mut best: Option<(f64, usize, (i32, i32))> = None;
     for c in 1..=n {
         let Some(cell) = cell_size(area, n, c, gap) else {
@@ -58,7 +60,15 @@ pub fn grid(area: Rectangle<i32, Logical>, items: &[Item], gap: i32) -> Vec<Slot
                 f64::from(it.rect.size.w) * s * f64::from(it.rect.size.h) * s
             })
             .sum();
-        if best.is_none_or(|(b, _, _)| shown > b) {
+        let better = best.is_none_or(|(b, bc, _)| {
+            let tie = (shown - b).abs() <= b.abs() * 1e-9;
+            if tie {
+                (c as f64 - square).abs() < (bc as f64 - square).abs()
+            } else {
+                shown > b
+            }
+        });
+        if better {
             best = Some((shown, c, cell));
         }
     }
@@ -216,6 +226,19 @@ mod tests {
                 assert!(!a.frame.overlaps(b.frame));
             }
         }
+    }
+
+    #[test]
+    fn small_windows_that_fit_any_way_make_a_square_grid() {
+        let s = grid(
+            area(),
+            &[item(300, 200), item(300, 200), item(300, 200), item(300, 200)],
+            24,
+        );
+        assert!(s.iter().all(|x| x.scale == 1.0));
+        let xs: std::collections::BTreeSet<_> = s.iter().map(|s| s.frame.loc.x).collect();
+        let ys: std::collections::BTreeSet<_> = s.iter().map(|s| s.frame.loc.y).collect();
+        assert_eq!((xs.len(), ys.len()), (2, 2));
     }
 
     #[test]

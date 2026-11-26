@@ -39,6 +39,8 @@ enum KeyResult {
     /// Ctrl+Alt+Fn: switch virtual terminal.
     Vt(i32),
     CancelPick,
+    /// A press while the overview is open: its key, modifiers and typed character.
+    Overview(smithay::input::keyboard::Keysym, Modifiers, Option<char>),
 }
 
 impl State {
@@ -123,6 +125,7 @@ impl State {
         let pending_tap = self.hecate.pending_mod_tap.take();
 
         let picking = self.has_pending_pick();
+        let overview = self.hecate.overview.open;
         let keyboard = self.hecate.seat.get_keyboard().unwrap();
         let mut key_report: Option<hecate_ipc::KeyEvent> = None;
         let (result, mods_changed) = keyboard.input_intercept(self, keycode, state, |_, mods, handle| {
@@ -219,10 +222,22 @@ impl State {
                 if locked && !f.allow_when_locked {
                     continue;
                 }
+                // The overview takes every key but the ones that work on a lock screen.
+                if overview && !f.allow_when_locked {
+                    continue;
+                }
                 if (!keybinds_enabled || inhibited) && !f.allow_when_inhibited {
                     continue;
                 }
                 return FilterResult::Intercept(KeyResult::Bind(b.value.clone(), true));
+            }
+            if overview {
+                let modified = handle.modified_sym();
+                return FilterResult::Intercept(KeyResult::Overview(
+                    modified,
+                    modifiers,
+                    modified.key_char(),
+                ));
             }
             FilterResult::Forward
         });
@@ -297,6 +312,11 @@ impl State {
             }
             Some(KeyResult::Swallow) => {
                 self.hecate.suppressed_keys.retain(|k| *k != raw_code);
+            }
+            Some(KeyResult::Overview(sym, mods, text)) => {
+                // Its release is swallowed too.
+                self.hecate.suppressed_keys.push(raw_code);
+                self.overview_key(sym, mods, text);
             }
             Some(KeyResult::CancelPick) => {
                 self.hecate.suppressed_keys.push(raw_code);

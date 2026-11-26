@@ -12,9 +12,15 @@ use smithay::desktop::Window;
 use smithay::output::Output;
 use smithay::utils::{Logical, Point, Rectangle, Scale};
 
+use smithay::backend::allocator::Fourcc;
+use smithay::backend::renderer::element::memory::{MemoryRenderBuffer, MemoryRenderBufferRenderElement};
+use smithay::utils::Transform;
+
+use super::PromptKey;
 use crate::config::AnimStyle;
 use crate::render::border::{self, BorderStyle};
-use crate::render::{HecateElement, WindowElement, pixelate, snapshot};
+use crate::render::fonts::{self, Lookup};
+use crate::render::{HecateElement, WindowElement, label, pixelate, snapshot};
 use crate::state::Hecate;
 use crate::wm::{WindowExt, Wm};
 
@@ -65,6 +71,10 @@ impl Hecate {
         let anim = o.anim.as_ref().filter(|a| !a.is_done(now));
         let style = anim.map(|a| a.style);
         let cell = anim.map_or(1, |a| pixelate::cell_px(a.pixelate_cell(now, closing), scale));
+
+        if o.open && !o.filter.is_empty() {
+            self.push_prompt(renderer, out, output);
+        }
 
         // The selected window goes on top of the rest.
         let mut entries: Vec<_> = o.entries(output).iter().collect();
@@ -154,6 +164,66 @@ impl Hecate {
                 }
             }
             out.extend(elems.into_iter().map(HecateElement::Window));
+        }
+    }
+
+    /// The typed filter, `> filter_`, centred in the row kept free above the grid.
+    fn push_prompt(&self, renderer: &mut GlesRenderer, out: &mut Vec<HecateElement>, output: &Output) {
+        let o = &self.overview;
+        let gap = self.config.overview.gap.max(0);
+        let Some(&usable) = o.usable.get(&output.name()) else {
+            return;
+        };
+        let output_loc = Wm::output_geometry(output).loc;
+        let scale = Scale::from(output.current_scale().fractional_scale());
+        // A character the font can't draw shows as `?`; the filter keeps the real one.
+        let shown: String = o
+            .filter
+            .chars()
+            .map(|c| match fonts::lookup(c) {
+                Lookup::Missing => '?',
+                _ => c,
+            })
+            .collect();
+        let key = PromptKey {
+            text: format!("> {shown}_"),
+            max_width: (usable.size.w - 2 * gap).max(0) as usize,
+            fg: self.config.border.label.color,
+            bg: self.config.border.background,
+            zoom: scale.x.ceil().max(1.) as usize,
+        };
+        let mut cache = o.prompt.borrow_mut();
+        if cache.as_ref().is_none_or(|(k, _, _)| *k != key) {
+            let inner = key.max_width.saturating_sub(2 * label::NOTCH_PAD_X);
+            *cache = label::layout(&key.text, inner).map(|line| {
+                let (pixels, w, h) = label::rasterize_line(&line, key.fg, key.bg, key.zoom);
+                let buf = MemoryRenderBuffer::from_slice(
+                    &pixels,
+                    Fourcc::Argb8888,
+                    (w as i32, h as i32),
+                    key.zoom as i32,
+                    Transform::Normal,
+                    None,
+                );
+                (key.clone(), buf, (line.width + 2 * label::NOTCH_PAD_X) as i32)
+            });
+        }
+        let Some((_, buffer, width)) = cache.as_ref() else {
+            return;
+        };
+        let loc =
+            Point::<i32, Logical>::from((usable.loc.x + (usable.size.w - width) / 2, usable.loc.y + gap));
+        match MemoryRenderBufferRenderElement::from_buffer(
+            renderer,
+            (loc - output_loc).to_physical_precise_round(scale),
+            buffer,
+            None,
+            None,
+            None,
+            Kind::Unspecified,
+        ) {
+            Ok(e) => out.push(HecateElement::Memory(e)),
+            Err(err) => tracing::warn!("error importing the overview prompt: {err:?}"),
         }
     }
 }
