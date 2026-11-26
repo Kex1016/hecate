@@ -123,6 +123,16 @@ pub fn grid(area: Rectangle<i32, Logical>, items: &[Item], gap: i32) -> Vec<Slot
     slots
 }
 
+/// The close button of a slot: 16×16 on its frame's top line, 4 px in from the right,
+/// where a notch would sit.
+pub fn close_button(frame: Rectangle<i32, Logical>) -> Rectangle<i32, Logical> {
+    let size = 16;
+    Rectangle::new(
+        (frame.loc.x + frame.size.w - 4 - size, frame.loc.y).into(),
+        (size, size).into(),
+    )
+}
+
 fn centre(rect: Rectangle<i32, Logical>) -> (f64, f64) {
     (
         f64::from(rect.loc.x) + f64::from(rect.size.w) / 2.0,

@@ -163,7 +163,73 @@ impl Hecate {
                     );
                 }
             }
+            if o.selected.as_ref() == Some(window) && cell == 1 {
+                self.push_close_button(
+                    renderer,
+                    out,
+                    frame_style.extents().around(content),
+                    output_loc,
+                    scale,
+                );
+            }
             out.extend(elems.into_iter().map(HecateElement::Window));
+        }
+    }
+
+    /// The selected slot's close button: an `x` in the background colour on love.
+    fn push_close_button(
+        &self,
+        renderer: &mut GlesRenderer,
+        out: &mut Vec<HecateElement>,
+        frame: Rectangle<i32, Logical>,
+        output_loc: Point<i32, Logical>,
+        scale: Scale<f64>,
+    ) {
+        let button = super::layout::close_button(frame);
+        let key = PromptKey {
+            text: "x".into(),
+            max_width: button.size.w as usize,
+            fg: self.config.border.background,
+            bg: self.config.border.tint.love,
+            zoom: scale.x.ceil().max(1.) as usize,
+        };
+        let mut cache = self.overview.close.borrow_mut();
+        if cache.as_ref().is_none_or(|(k, _)| *k != key) {
+            *cache = label::layout("x", 64).map(|line| {
+                // The notch line is padded; keep the 16×16 around the glyph.
+                let (pixels, w, _) = label::rasterize_line(&line, key.fg, key.bg, key.zoom);
+                let z = key.zoom;
+                let side = button.size.w as usize * z;
+                let (x0, y0) = ((w - side) / 2, label::NOTCH_PAD_Y * z);
+                let mut cut = Vec::with_capacity(side * side * 4);
+                for y in y0..y0 + side {
+                    cut.extend_from_slice(&pixels[(y * w + x0) * 4..(y * w + x0 + side) * 4]);
+                }
+                let buf = MemoryRenderBuffer::from_slice(
+                    &cut,
+                    Fourcc::Argb8888,
+                    (side as i32, side as i32),
+                    z as i32,
+                    Transform::Normal,
+                    None,
+                );
+                (key.clone(), buf)
+            });
+        }
+        let Some((_, buffer)) = cache.as_ref() else {
+            return;
+        };
+        match MemoryRenderBufferRenderElement::from_buffer(
+            renderer,
+            (button.loc - output_loc).to_physical_precise_round(scale),
+            buffer,
+            None,
+            None,
+            None,
+            Kind::Unspecified,
+        ) {
+            Ok(e) => out.push(HecateElement::Memory(e)),
+            Err(err) => tracing::warn!("error importing the overview close button: {err:?}"),
         }
     }
 

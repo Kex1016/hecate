@@ -198,8 +198,9 @@ mod drawing {
     pub(super) const BG: [u8; 3] = [0x10, 0x20, 0x30];
     /// A 6 px cyan single border, square, and a yellow gold tint.
     pub(super) const LOOK: &str = "[general]\nbackground_color = \"#102030\"\n[border]\nwidth = 6\nradius = 0\n\
-                                   [border.color]\nactive = \"#00ffff\"\ninactive = \"#00ffff\"\n\
-                                   [border.tint]\ngold = \"#ffff00\"\n";
+                                   [border.color]\nactive = \"#00ffff\"\ninactive = \"#00ffff\"\n";
+    /// LOOK's gold, appended to each test's own tints.
+    const GOLD: &str = "gold = \"#ffff00\"\n";
 
     /// A window backed by an shm buffer of `size`, with an app id.
     pub(super) fn window(
@@ -223,6 +224,12 @@ mod drawing {
 
     /// The overview look plus `extra`, with a red and a blue 300×200 window.
     pub(super) fn two(extra: &str) -> Option<(Fixture, ClientId)> {
+        // Every test gets a [border.tint] table with the yellow gold in it.
+        let extra = if extra.contains("[border.tint]") {
+            extra.replace("[border.tint]\n", &format!("[border.tint]\n{GOLD}"))
+        } else {
+            format!("{extra}[border.tint]\n{GOLD}")
+        };
         let (mut f, id) = with_toml(&format!("{LOOK}{extra}"))?;
         window(&mut f, id, (300, 200), RED, "red");
         window(&mut f, id, (300, 200), BLUE, "blue");
@@ -436,6 +443,27 @@ mod drawing {
     }
 
     #[test]
+    fn close_button_is_drawn_on_the_selected_slot() {
+        let Some((mut f, _)) = two("[border.tint]\nlove = \"#ff0080\"\n") else {
+            return;
+        };
+        f.hecate().open_overview();
+        let (red_w, red, _) = entry(&mut f, "red");
+        let (_, blue, _) = entry(&mut f, "blue");
+        f.hecate().hecate.overview.selected = Some(red_w);
+        let frame = f.render("headless-1");
+        let love = |r: Rectangle<i32, Logical>| {
+            let b = crate::overview::layout::close_button(r);
+            (b.loc.y..b.loc.y + b.size.h)
+                .flat_map(|y| (b.loc.x..b.loc.x + b.size.w).map(move |x| (x, y)))
+                .filter(|&p| rgb(&frame, p) == [255, 0, 128])
+                .count()
+        };
+        assert!(love(red.frame) > 100, "a love button on the selected slot");
+        assert_eq!(love(blue.frame), 0, "none on the other");
+    }
+
+    #[test]
     fn fullscreen_window_gets_a_slot_and_the_bar_shows() {
         use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_shell_v1::Layer;
         use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_surface_v1::Anchor;
@@ -646,4 +674,192 @@ fn lock_bind_still_works_while_open() {
     tap(&mut f, id, &[SUPER, 38 + 8]);
     assert_eq!(f.hecate().hecate.overview.filter, before, "L typed nothing");
     assert!(f.hecate().hecate.wm.show_desktop, "the bind ran");
+}
+
+// ---------------------------------------------------------------- pointer
+
+mod pointer {
+    use smithay::utils::{Logical, Point, Rectangle};
+
+    use super::super::fixture::Fixture;
+    use super::{RED, entries, setup};
+    use crate::config::keys::{BTN_LEFT, BTN_MIDDLE};
+    use crate::overview::layout::close_button;
+
+    fn centre(r: Rectangle<i32, Logical>) -> Point<f64, Logical> {
+        (
+            r.loc.x as f64 + r.size.w as f64 / 2.,
+            r.loc.y as f64 + r.size.h as f64 / 2.,
+        )
+            .into()
+    }
+
+    fn slot(f: &mut Fixture, i: usize) -> crate::overview::layout::Slot {
+        f.hecate().hecate.overview.per_output["headless-1"][i].slot
+    }
+
+    /// Two windows, open, the first in reading order selected.
+    fn open_two() -> (
+        Fixture,
+        super::ClientId,
+        Vec<wayland_client::protocol::wl_surface::WlSurface>,
+    ) {
+        let (mut f, id) = setup();
+        let a = f.map_window(id, (300, 200), RED, Some("a"));
+        let b = f.map_window(id, (300, 200), RED, Some("b"));
+        f.hecate().open_overview();
+        let first = entries(&mut f)[0].clone();
+        f.hecate().hecate.overview.selected = Some(first);
+        (f, id, vec![a, b])
+    }
+
+    fn surface_of(
+        f: &mut Fixture,
+        surfaces: &[wayland_client::protocol::wl_surface::WlSurface],
+        w: &smithay::desktop::Window,
+    ) -> wayland_client::protocol::wl_surface::WlSurface {
+        let i = f.windows().iter().position(|x| x == w).unwrap();
+        surfaces[i].clone()
+    }
+
+    #[test]
+    fn close_button_sits_on_the_top_line_at_the_right() {
+        let frame = Rectangle::new((100, 50).into(), (300, 200).into());
+        assert_eq!(
+            close_button(frame),
+            Rectangle::new((380, 50).into(), (16, 16).into())
+        );
+    }
+
+    #[test]
+    fn hover_selects() {
+        let (mut f, _, _) = open_two();
+        let s1 = slot(&mut f, 1);
+        let second = entries(&mut f)[1].clone();
+        f.hecate().overview_hover(centre(s1.frame));
+        assert_eq!(f.hecate().hecate.overview.selected, Some(second));
+    }
+
+    #[test]
+    fn click_slot_focuses_it() {
+        let (mut f, _, _) = open_two();
+        let s1 = slot(&mut f, 1);
+        let w = entries(&mut f)[1].clone();
+        f.hecate().overview_click(centre(s1.content), BTN_LEFT);
+        assert!(!f.hecate().hecate.overview.open);
+        assert_eq!(f.focused(), Some(w));
+    }
+
+    #[test]
+    fn click_close_button_asks_the_window_to_close() {
+        let (mut f, id, surfaces) = open_two();
+        let s0 = slot(&mut f, 0);
+        let w = entries(&mut f)[0].clone();
+        f.hecate()
+            .overview_click(centre(close_button(s0.frame)), BTN_LEFT);
+        f.double_roundtrip(id);
+        let surface = surface_of(&mut f, &surfaces, &w);
+        assert!(f.client(id).window(&surface).close_requested, "asked to close");
+        assert!(f.hecate().hecate.overview.open, "the overview stays");
+    }
+
+    #[test]
+    fn middle_click_closes_a_window() {
+        let (mut f, id, surfaces) = open_two();
+        let s1 = slot(&mut f, 1);
+        let w = entries(&mut f)[1].clone();
+        f.hecate().overview_click(centre(s1.content), BTN_MIDDLE);
+        f.double_roundtrip(id);
+        let surface = surface_of(&mut f, &surfaces, &w);
+        assert!(f.client(id).window(&surface).close_requested);
+        assert!(f.hecate().hecate.overview.open);
+    }
+
+    #[test]
+    fn click_on_empty_space_closes_the_overview() {
+        let (mut f, _, _) = open_two();
+        let before = f.focused();
+        f.hecate().overview_click((5., 5.).into(), BTN_LEFT);
+        assert!(!f.hecate().hecate.overview.open);
+        assert_eq!(f.focused(), before);
+    }
+
+    #[test]
+    fn click_on_second_output_at_fractional_scale_focuses_its_window() {
+        let mut f = Fixture::with_toml("[outputs.headless-2]\nscale = 1.25\nposition = [1920, 0]\n");
+        f.add_output("headless-1", (1920, 1080));
+        f.add_output("headless-2", (1920, 1080));
+        let id = f.add_client();
+        f.map_window(id, (300, 200), RED, Some("one"));
+        let two_out = f
+            .hecate()
+            .hecate
+            .wm
+            .output_by_name("headless-2")
+            .cloned()
+            .unwrap();
+        f.hecate().hecate.wm.focused_output = Some(two_out.clone());
+        f.map_window(id, (300, 200), RED, Some("two"));
+        let two = f.windows()[1].clone();
+        assert_eq!(
+            f.hecate().hecate.wm.output_for_window(&two),
+            Some(&two_out),
+            "mapped on the second output"
+        );
+        let one_out = f
+            .hecate()
+            .hecate
+            .wm
+            .output_by_name("headless-1")
+            .cloned()
+            .unwrap();
+        let one = f.windows()[0].clone();
+        f.hecate().focus_window(&one);
+        assert_eq!(f.hecate().hecate.wm.focused_output.as_ref(), Some(&one_out));
+
+        f.hecate().open_overview();
+        let config = f.hecate().hecate.config.clone();
+        let usable = crate::wm::Wm::usable_area(&two_out, &config);
+        assert_eq!(usable.size, (1536, 864).into(), "1920×1080 at 1.25");
+        let slots: Vec<_> = f.hecate().hecate.overview.per_output["headless-2"]
+            .iter()
+            .map(|e| e.slot)
+            .collect();
+        assert_eq!(slots.len(), 1);
+        assert!(
+            usable.contains_rect(slots[0].frame),
+            "{:?} inside {usable:?}",
+            slots[0].frame
+        );
+        f.hecate().overview_click(centre(slots[0].content), BTN_LEFT);
+        assert_eq!(f.focused(), Some(two));
+        assert_eq!(f.hecate().hecate.wm.focused_output.as_ref(), Some(&two_out));
+    }
+
+    /// What the input paths call: open, presses and motion are the overview's.
+    #[test]
+    fn pointer_input_goes_to_the_overview_only_while_open() {
+        let (mut f, _, _) = open_two();
+        let s1 = slot(&mut f, 1);
+        let w = entries(&mut f)[1].clone();
+        assert!(f.hecate().overview_motion(centre(s1.frame)), "motion is taken");
+        assert_eq!(f.hecate().hecate.overview.selected, Some(w.clone()));
+        assert!(
+            f.hecate().overview_button(centre(s1.content), BTN_LEFT, true),
+            "the press is taken"
+        );
+        assert!(!f.hecate().hecate.overview.open);
+        assert!(
+            f.hecate().overview_button(centre(s1.content), BTN_LEFT, false),
+            "and its release"
+        );
+        assert!(
+            !f.hecate().overview_button(centre(s1.content), BTN_LEFT, true),
+            "closed: not taken"
+        );
+        assert!(
+            !f.hecate().overview_motion(centre(s1.frame)),
+            "closed: motion goes on"
+        );
+    }
 }

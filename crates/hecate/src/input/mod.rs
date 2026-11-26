@@ -465,6 +465,13 @@ impl State {
         let pos = pointer.current_location();
         let serial = SERIAL_COUNTER.next_serial();
 
+        // The overview takes the pointer: no constraints, no client focus.
+        if self.hecate.overview.open {
+            let new_pos = self.clamp_to_outputs(pos, pos + event.delta());
+            self.overview_motion(new_pos);
+            return;
+        }
+
         // Pointer constraints on the focused surface.
         let focus = self.contents_under(pos).surface;
         let mut locked = false;
@@ -542,6 +549,9 @@ impl State {
         };
         let geo = Wm::output_geometry(&output);
         let pos = event.position_transformed(geo.size) + geo.loc.to_f64();
+        if self.overview_motion(pos) {
+            return;
+        }
         let serial = SERIAL_COUNTER.next_serial();
         let under = self.contents_under(pos);
         self.focus_follows_mouse(&under);
@@ -633,6 +643,10 @@ impl State {
         if state == ButtonState::Pressed && self.has_pending_pick() {
             self.hecate.suppressed_buttons.push(button);
             self.finish_picks(button != crate::config::keys::BTN_LEFT);
+            return;
+        }
+
+        if self.overview_button(pointer.current_location(), button, state == ButtonState::Pressed) {
             return;
         }
 

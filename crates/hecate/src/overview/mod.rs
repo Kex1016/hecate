@@ -43,6 +43,10 @@ pub struct Overview {
     pub(crate) usable: HashMap<String, Rectangle<i32, Logical>>,
     /// The filter prompt's buffer, kept while its text and look stay the same.
     pub(crate) prompt: std::cell::RefCell<Option<(PromptKey, MemoryRenderBuffer, i32)>>,
+    /// Buttons pressed while open, whose releases the overview swallows too.
+    pub(crate) pressed: Vec<u32>,
+    /// The close button's buffer and what it was drawn from.
+    pub(crate) close: std::cell::RefCell<Option<(PromptKey, MemoryRenderBuffer)>>,
 }
 
 /// What the filter prompt was drawn from.
