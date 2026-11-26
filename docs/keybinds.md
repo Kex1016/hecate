@@ -21,6 +21,7 @@ nearest stacking equivalent or dropped.
 | bind                         | action                         | origin |
 | ---------------------------- | ------------------------------ | ------ |
 | `Mod+Q`                      | `close`                        | niri, end-4 |
+| `Mod+W`                      | `toggle_overview`              | GNOME, macOS Exposé |
 | `Alt+F4`                     | `close`                        | labwc |
 | `Mod+Left/Down/Up/Right`     | `focus_direction <dir>` (stops at the output edge) | niri `focus-column-left` ... |
 | `Mod+J/K/L/M`                | `focus_direction <dir>`        | niri. **Dropped in the shell profile**, see conflicts |
@@ -117,7 +118,7 @@ so `hecate msg binds` shows each bind's layer.
 | `Mod+Shift+N` / `B` / `P` / `M` | media next / previous / play-pause / mute |
 | `Mod+Alt+M`                  | mic mute                                |
 
-end-4's app launchers (`Mod+T`, `Mod+E`, `Mod+W`, `Mod+X`, `Mod+I`, ...)
+end-4's app launchers (`Mod+T`, `Mod+E`, `Mod+X`, `Mod+I`, ...)
 are left out of the shell profile; apps are personal.
 
 Not bound because end4-pC has no such shortcut: `Mod+Tab` (the workspace

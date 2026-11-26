@@ -543,6 +543,10 @@ pub enum Event {
     Signal {
         name: String,
     },
+    /// The window overview (`toggle_overview`) opened or closed.
+    OverviewChanged {
+        open: bool,
+    },
 }
 
 /// One line on a `key_stream` connection.

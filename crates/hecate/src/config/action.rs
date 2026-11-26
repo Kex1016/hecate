@@ -27,6 +27,8 @@ pub enum Action {
 
     // Windows
     Close,
+    /// Open or close the window overview.
+    ToggleOverview,
     Kill,
     Focus,
     Raise,
@@ -237,6 +239,7 @@ mod tests {
     #[test]
     fn bare_and_table_actions() {
         assert_eq!(parse(r#"a = "close""#), Action::Close);
+        assert_eq!(parse(r#"a = "toggle_overview""#), Action::ToggleOverview);
         assert_eq!(
             parse(r#"a = { workspace = 3 }"#),
             Action::Workspace(WorkspaceRef::Index(3))

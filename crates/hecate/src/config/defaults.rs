@@ -8,6 +8,7 @@ use super::{BindValue, MouseBind};
 pub const BASE_BINDS_TOML: &str = r#"
 [binds]
 "Mod+Q" = "close"
+"Mod+W" = "toggle_overview"
 "Alt+F4" = "close"
 "Mod+Shift+Alt+Q" = "kill"
 

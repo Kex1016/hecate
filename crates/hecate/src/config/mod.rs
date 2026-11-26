@@ -42,6 +42,7 @@ pub struct Config {
     pub blur: Blur,
     pub background: Background,
     pub animations: Animations,
+    pub overview: OverviewConfig,
     pub keyboard: Keyboard,
     pub cursor: Cursor,
     pub gestures: Gestures,
@@ -85,6 +86,7 @@ impl Default for Config {
             blur: Blur::default(),
             background: Background::default(),
             animations: Animations::default(),
+            overview: OverviewConfig::default(),
             keyboard: Keyboard::default(),
             cursor: Cursor::default(),
             gestures: Gestures::default(),
@@ -896,6 +898,9 @@ pub struct Animations {
     pub layer_open: Anim,
     pub layer_close: Anim,
     pub workspace_switch: Anim,
+    /// The window overview (`toggle_overview`) opening and closing: `slide` moves each
+    /// window to its slot, `pixelate` cuts to the slots and sharpens them.
+    pub overview: Anim,
     /// Named timings: cubic béziers `[x1, y1, x2, y2]`, or `{ steps = 4 }`. The built-in
     /// names stay known when this table doesn't list them.
     pub curves: BTreeMap<String, Timing>,
@@ -948,8 +953,25 @@ impl Default for Animations {
             layer_open: Anim::new(AnimStyle::Popin, 0.93, 270, "emphasized_decel"),
             layer_close: Anim::new(AnimStyle::Popin, 0.94, 240, "menu_accel"),
             workspace_switch: Anim::new(AnimStyle::Slide, 1.0, 700, "menu_decel"),
+            overview: Anim::new(AnimStyle::Slide, 1.0, 300, "emphasized_decel"),
             curves,
         }
+    }
+}
+
+/// The window overview (`toggle_overview`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(default, deny_unknown_fields)]
+pub struct OverviewConfig {
+    /// Space between windows, and around the grid, in logical pixels.
+    pub gap: i32,
+    /// Opacity of windows the typed filter leaves out.
+    pub dim: f32,
+}
+
+impl Default for OverviewConfig {
+    fn default() -> Self {
+        OverviewConfig { gap: 24, dim: 0.35 }
     }
 }
 
