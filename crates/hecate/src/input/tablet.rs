@@ -68,6 +68,9 @@ impl State {
         smithay::reexports::wayland_server::protocol::wl_surface::WlSurface,
         Point<f64, Logical>,
     )> {
+        if self.overview_motion(pos) {
+            return None;
+        }
         let under = self.contents_under(pos).surface;
         let pointer = self.hecate.seat.get_pointer().unwrap();
         pointer.motion(
@@ -163,6 +166,12 @@ impl State {
         let Some(t) = self.hecate.seat.tablet_seat().get_tool(&event.tool()) else {
             return;
         };
+        // The overview takes the pen's tip like a left button.
+        let down = event.tip_state() == TabletToolTipState::Down;
+        let pos = self.hecate.pointer_location;
+        if self.overview_button(pos, crate::config::keys::BTN_LEFT, down) {
+            return;
+        }
         let serial = SERIAL_COUNTER.next_serial();
         match event.tip_state() {
             TabletToolTipState::Down => {

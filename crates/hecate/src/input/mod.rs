@@ -177,6 +177,7 @@ impl State {
                     if let Some(b) = tap
                         && (keybinds_enabled && (!inhibited || b.value.flags.allow_when_inhibited))
                         && (!locked || b.value.flags.allow_when_locked)
+                        && (!overview || b.value.flags.allow_when_locked)
                     {
                         return FilterResult::Intercept(KeyResult::Bind(b.value.clone(), false));
                     }
@@ -222,8 +223,16 @@ impl State {
                 if locked && !f.allow_when_locked {
                     continue;
                 }
-                // The overview takes every key but the ones that work on a lock screen.
-                if overview && !f.allow_when_locked {
+                // The overview takes every key but the ones that work on a lock screen, the
+                // overview's own toggle and workspace switches (it stays open over them).
+                let passes = matches!(
+                    b.value.action,
+                    Some(
+                        crate::config::action::Action::ToggleOverview
+                            | crate::config::action::Action::Workspace(_)
+                    )
+                );
+                if overview && !f.allow_when_locked && !passes {
                     continue;
                 }
                 if (!keybinds_enabled || inhibited) && !f.allow_when_inhibited {

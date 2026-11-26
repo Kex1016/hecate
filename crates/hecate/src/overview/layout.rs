@@ -18,6 +18,8 @@ pub struct Slot {
     pub frame: Rectangle<i32, Logical>,
     pub content: Rectangle<i32, Logical>,
     pub scale: f64,
+    /// Position in reading order (row by row, left to right).
+    pub index: usize,
 }
 
 /// The scale that fits `item` with its frame into a cell of `cell` size, never above 1.
@@ -85,7 +87,8 @@ pub fn grid(area: Rectangle<i32, Logical>, items: &[Item], gap: i32) -> Vec<Slot
         Slot {
             frame: Rectangle::default(),
             content: Rectangle::default(),
-            scale: 1.0
+            scale: 1.0,
+            index: 0
         };
         n
     ];
@@ -118,6 +121,7 @@ pub fn grid(area: Rectangle<i32, Logical>, items: &[Item], gap: i32) -> Vec<Slot
             frame: ext.around(content),
             content,
             scale,
+            index: k,
         };
     }
     slots

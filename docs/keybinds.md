@@ -129,7 +129,8 @@ sheet; the keybind list in its settings reads `hecate msg -j binds`),
 ## overview
 
 While the overview (`Mod+W`) is open it takes the keyboard; only binds with
-`allow_when_locked` (and VT switches) still fire. See
+`allow_when_locked`, binds to `toggle_overview` or `workspace`, and VT
+switches still fire. Touch and pen taps pick a window like a click. See
 [config.md](config.md#window-overview).
 
 | key                          | does                           |

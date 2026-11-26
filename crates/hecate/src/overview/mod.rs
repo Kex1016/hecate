@@ -48,6 +48,11 @@ pub struct Overview {
     pub strips: HashMap<String, Vec<strip::Thumb>>,
     /// A window being dragged towards the strip.
     pub drag: Option<strip::Drag>,
+    /// A touch point the overview took, and where it went down: a tap there on release.
+    pub touch: Option<(
+        smithay::backend::input::TouchSlot,
+        smithay::utils::Point<f64, Logical>,
+    )>,
     /// Fills and lines of the strip, per workspace, kept for stable damage.
     pub(crate) solids:
         std::cell::RefCell<HashMap<(u64, u8), smithay::backend::renderer::element::solid::SolidColorBuffer>>,
@@ -225,6 +230,18 @@ impl State {
             _ => self.first_overview_match(),
         };
         self.hecate.overview.selected = selected;
+        // Clients lose the pointer: a scroll or click must not reach a hidden window.
+        let pointer = self.hecate.seat.get_pointer().unwrap();
+        pointer.motion(
+            self,
+            None,
+            &smithay::input::pointer::MotionEvent {
+                location: self.hecate.pointer_location,
+                serial: smithay::utils::SERIAL_COUNTER.next_serial(),
+                time: smithay::backend::input::InputTime::now(),
+            },
+        );
+        pointer.frame(self);
         self.ipc_broadcast_event(hecate_ipc::Event::OverviewChanged { open: true });
         self.hecate.queue_redraw_all();
     }
@@ -254,6 +271,8 @@ impl State {
                 }
             }
         }
+        // What is under the pointer gets it back.
+        self.warp_pointer(self.hecate.pointer_location);
     }
 
     /// Close at once, with no transition and no refocus (the session locked).
@@ -261,6 +280,7 @@ impl State {
         if self.hecate.overview.open {
             self.finish_close(None);
             self.hecate.overview.previous_focus = None;
+            self.warp_pointer(self.hecate.pointer_location);
         }
     }
 
@@ -343,7 +363,7 @@ impl State {
                 .zip(from)
                 .map(|((window, slot), from)| Entry { window, slot, from })
                 .collect();
-            entries.sort_by_key(|e| (e.slot.frame.loc.y, e.slot.frame.loc.x));
+            entries.sort_by_key(|e| e.slot.index);
             per_output.insert(output.name(), entries);
             let thumbs = self.overview_thumbs(output);
             self.hecate.overview.strips.insert(output.name(), thumbs);
@@ -351,6 +371,11 @@ impl State {
             self.hecate.overview.usable.insert(output.name(), usable);
         }
         self.hecate.overview.per_output = per_output;
+        if let Some(d) = &self.hecate.overview.drag
+            && !self.hecate.overview.contains(&d.window)
+        {
+            self.hecate.overview.drag = None;
+        }
         let names: Vec<String> = outputs.iter().map(|o| o.name()).collect();
         self.hecate.overview.strips.retain(|n, _| names.contains(n));
         self.hecate.overview.usable.retain(|n, _| names.contains(n));

@@ -43,6 +43,13 @@ impl State {
         let Some(touch) = self.hecate.seat.get_touch() else {
             return;
         };
+        // The overview takes touches: a tap is a left click on release.
+        if self.hecate.overview.open {
+            if self.hecate.overview.touch.is_none() {
+                self.hecate.overview.touch = Some((slot, pos));
+            }
+            return;
+        }
         let under = self.contents_under(pos);
         if !touch.is_grabbed() && !self.hecate.wm.is_locked() {
             if let Some(w) = &under.window {
@@ -69,6 +76,9 @@ impl State {
         let Some(touch) = self.hecate.seat.get_touch() else {
             return;
         };
+        if self.hecate.overview.open {
+            return;
+        }
         let under = self.contents_under(pos);
         touch.motion(
             self,
@@ -85,6 +95,18 @@ impl State {
         let Some(touch) = self.hecate.seat.get_touch() else {
             return;
         };
+        if let Some((s, pos)) = self.hecate.overview.touch
+            && s == slot
+        {
+            self.hecate.overview.touch = None;
+            if self.hecate.overview.open {
+                self.overview_click(pos, crate::config::keys::BTN_LEFT);
+            }
+            return;
+        }
+        if self.hecate.overview.open {
+            return;
+        }
         touch.up(
             self,
             &UpEvent {

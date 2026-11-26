@@ -321,7 +321,9 @@ closes it at once.
   previous or next workspace.
 
 Binds that work on a lock screen (`allow_when_locked`, such as the shell's
-`Mod+L`) still work while the overview is open; every other key goes to it.
+`Mod+L`), binds to `toggle_overview` (whichever key you give it) and
+`workspace` binds (`Mod+1`…) still work while the overview is open; every
+other key goes to it. Touch and pen taps pick a window like a click.
 Opening and closing are announced on the event stream as `OverviewChanged`
 ([ipc.md](ipc.md#events)). How it moves in and out is
 `animations.overview` ([animations.md](animations.md)).

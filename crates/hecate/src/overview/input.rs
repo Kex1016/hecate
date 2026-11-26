@@ -235,6 +235,7 @@ impl State {
             return self.overview_click(drag.start, BTN_LEFT);
         }
         if let Hit::Workspace(id) = self.overview_hit(pos)
+            && self.hecate.overview.contains(&drag.window)
             && drag.window.data().workspace != id
         {
             self.hecate.wm.move_window_to_workspace(&drag.window, id);

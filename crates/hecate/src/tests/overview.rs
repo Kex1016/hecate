@@ -292,6 +292,31 @@ mod drawing {
     }
 
     #[test]
+    fn closing_a_window_from_the_overview_leaves_no_full_size_ghost() {
+        let anim = "[animations.window_close]\nstyle = \"fade\"\nfrom = 0.5\nms = 100\ncurve = \"linear\"\nfade = false\n";
+        let Some((mut f, id)) = with_toml(&format!("{LOOK}{anim}[border.tint]\n{GOLD}")) else {
+            return;
+        };
+        let red = window(&mut f, id, (300, 200), RED, "red");
+        window(&mut f, id, (300, 200), BLUE, "blue");
+        let home = {
+            use crate::wm::WindowExt;
+            let w = f.windows().into_iter().find(|w| w.app_id() == "red").unwrap();
+            f.hecate().hecate.wm.window_rect(&w)
+        };
+        f.hecate().open_overview();
+        f.render("headless-1");
+        f.client(id).window(&red).xdg_toplevel.destroy();
+        f.double_roundtrip(id);
+        let frame = f.render("headless-1");
+        assert_ne!(
+            rgb(&frame, centre(home)),
+            [255, 0, 0],
+            "no red copy at its desktop place"
+        );
+    }
+
+    #[test]
     fn selected_slot_frame_is_gold() {
         let Some((mut f, _)) = two("") else { return };
         f.hecate().open_overview();
@@ -1177,5 +1202,144 @@ mod strip {
             [255, 255, 0],
             "the active thumb's frame is gold"
         );
+    }
+}
+
+// ---------------------------------------------------------------- final review fixes
+
+mod review {
+    use smithay::utils::Point;
+
+    use super::super::fixture::Fixture;
+    use super::{BLUE, RED, SUPER, W, entries, setup, tap};
+    use crate::config::keys::BTN_LEFT;
+    use crate::wm::WindowExt;
+
+    const TAB: u32 = 15 + 8;
+    const TWO: u32 = 3 + 8;
+
+    fn bound(toml: &str) -> (Fixture, super::ClientId) {
+        let mut f = Fixture::with_toml(toml);
+        f.add_output("headless-1", (1920, 1080));
+        let id = f.add_client();
+        (f, id)
+    }
+
+    fn active(f: &mut Fixture) -> u64 {
+        let o = f
+            .hecate()
+            .hecate
+            .wm
+            .output_by_name("headless-1")
+            .cloned()
+            .unwrap();
+        f.hecate().hecate.wm.active_workspace_id(&o)
+    }
+
+    fn pointer_focus(
+        f: &mut Fixture,
+    ) -> Option<smithay::reexports::wayland_server::protocol::wl_surface::WlSurface> {
+        f.hecate().hecate.seat.get_pointer().unwrap().current_focus()
+    }
+
+    #[test]
+    fn opening_drops_pointer_focus_and_closing_gives_it_back() {
+        let (mut f, id) = setup();
+        f.map_window(id, (300, 200), RED, Some("a"));
+        let w = f.windows()[0].clone();
+        let r = f.hecate().hecate.wm.window_rect(&w);
+        let mid = Point::from((
+            f64::from(r.loc.x + r.size.w / 2),
+            f64::from(r.loc.y + r.size.h / 2),
+        ));
+        f.hecate().warp_pointer(mid);
+        assert!(pointer_focus(&mut f).is_some(), "the window has the pointer");
+        f.hecate().open_overview();
+        assert_eq!(pointer_focus(&mut f), None, "open: no client has the pointer");
+        f.hecate().close_overview(None);
+        let surface = w.toplevel().unwrap().wl_surface().clone();
+        assert_eq!(
+            pointer_focus(&mut f),
+            Some(surface),
+            "closed: the window under it again"
+        );
+    }
+
+    #[test]
+    fn dropping_a_window_that_closed_mid_drag_changes_nothing() {
+        let (mut f, id) = setup();
+        let one = f.map_window(id, (300, 200), RED, Some("one"));
+        f.map_window(id, (300, 200), BLUE, Some("two"));
+        f.hecate().open_overview();
+        let e = f.hecate().hecate.overview.per_output["headless-1"]
+            .iter()
+            .find(|e| e.window.app_id() == "one")
+            .map(|e| (e.window.clone(), e.slot))
+            .unwrap();
+        let (w, slot) = e;
+        let start = Point::from((
+            f64::from(slot.content.loc.x + slot.content.size.w / 2),
+            f64::from(slot.content.loc.y + slot.content.size.h / 2),
+        ));
+        f.hecate().overview_button(start, BTN_LEFT, true);
+        f.hecate().overview_motion(start + Point::from((20., 0.)));
+        assert!(f.hecate().hecate.overview.drag.is_some(), "dragging");
+        f.client(id).window(&one).xdg_toplevel.destroy();
+        f.double_roundtrip(id);
+        let t = f.hecate().hecate.overview.strips["headless-1"][2].clone();
+        let target = Point::from((
+            f64::from(t.content.loc.x + t.content.size.w / 2),
+            f64::from(t.content.loc.y + t.content.size.h / 2),
+        ));
+        f.hecate().overview_motion(target);
+        f.hecate().overview_button(target, BTN_LEFT, false);
+        let ws3 = &f.hecate().hecate.wm.workspaces[2];
+        assert!(!ws3.windows.contains(&w), "no ghost of the closed window");
+        assert!(ws3.windows.is_empty());
+    }
+
+    #[test]
+    fn a_modifier_tap_does_nothing_while_open() {
+        let (mut f, id) = bound("[binds]\n\"Super\" = { tap = { workspace = 2 } }\n");
+        f.map_window(id, (300, 200), RED, Some("a"));
+        let ws1 = f.hecate().hecate.wm.workspaces[0].id;
+        f.hecate().open_overview();
+        tap(&mut f, id, &[SUPER]);
+        assert_eq!(active(&mut f), ws1, "the tap bind did not fire");
+        assert!(f.hecate().hecate.overview.open);
+    }
+
+    #[test]
+    fn a_rebound_toggle_closes_it_and_workspace_binds_still_work() {
+        let (mut f, id) = bound("[binds]\n\"Mod+Tab\" = \"toggle_overview\"\n");
+        f.map_window(id, (300, 200), RED, Some("a"));
+        tap(&mut f, id, &[SUPER, TAB]);
+        assert!(f.hecate().hecate.overview.open, "Mod+Tab opens");
+        tap(&mut f, id, &[SUPER, TAB]);
+        assert!(!f.hecate().hecate.overview.open, "and closes");
+        tap(&mut f, id, &[SUPER, W]);
+        assert!(f.hecate().hecate.overview.open);
+        tap(&mut f, id, &[SUPER, TWO]);
+        let ws2 = f.hecate().hecate.wm.workspaces[1].id;
+        assert_eq!(active(&mut f), ws2, "Mod+2 switched");
+        assert!(f.hecate().hecate.overview.open, "and the overview stayed");
+    }
+
+    #[test]
+    fn reading_order_follows_rows_not_frame_tops() {
+        let (mut f, id) = setup();
+        f.map_window(id, (300, 100), RED, Some("short"));
+        f.map_window(id, (300, 400), BLUE, Some("tall"));
+        for w in f.windows() {
+            let x = if w.app_id() == "short" { 100 } else { 1000 };
+            w.data().loc = (x, 300).into();
+        }
+        f.hecate().open_overview();
+        let e = &f.hecate().hecate.overview.per_output["headless-1"];
+        assert_eq!(e.len(), 2);
+        let centre_y = |i: usize| e[i].slot.frame.loc.y + e[i].slot.frame.size.h / 2;
+        assert!((centre_y(0) - centre_y(1)).abs() <= 1, "one row");
+        assert_eq!(e[0].window.app_id(), "short", "left first");
+        assert_eq!(entries(&mut f)[0].app_id(), "short");
     }
 }

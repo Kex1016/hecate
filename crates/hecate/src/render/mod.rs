@@ -446,7 +446,8 @@ impl Hecate {
             .get_keyboard()
             .and_then(|k| k.current_focus())
             .map(|s| crate::utils::root_surface(&s));
-        if !desktop_only {
+        // A window closed from the overview would pop out at full size where it lived.
+        if !desktop_only && !overview {
             self.push_closing(renderer, &mut out, output, None, now);
         }
         // A workspace switch slides the new workspace in over the old one's way out. With
