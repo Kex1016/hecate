@@ -731,3 +731,37 @@ fn splash_is_cut_when_animations_are_off() {
     }
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn push_frame_draws_only_the_frame() {
+    let Some((mut f, id)) = with_toml(FRAME) else {
+        return;
+    };
+    titled(&mut f, id, "kitty", "~");
+    let w = f.windows()[0].clone();
+    let geo = f.hecate().hecate.wm.window_rect(&w);
+    let style = crate::render::border::style_for(&f.hecate().hecate.config, &w, true);
+    let elems = f
+        .hecate()
+        .backend
+        .with_renderer(|r| {
+            let mut out = Vec::new();
+            crate::render::border::push_frame(r, &mut out, &w, geo, (0, 0).into(), 1.0.into(), 1.0, &style);
+            out
+        })
+        .unwrap();
+    assert!(
+        !elems
+            .iter()
+            .any(|e| matches!(e, WindowElement::Surface(_) | WindowElement::Clipped(_))),
+        "no surfaces"
+    );
+    assert!(
+        elems.iter().any(|e| matches!(e, WindowElement::Border(_))),
+        "the border"
+    );
+    assert!(
+        elems.iter().any(|e| matches!(e, WindowElement::Label(_))),
+        "the notch label"
+    );
+}

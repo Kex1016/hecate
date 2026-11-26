@@ -544,9 +544,26 @@ pub fn push_body(
         }
     }
 
+    push_frame(renderer, out, window, geo, output_loc, scale, alpha, style);
+}
+
+/// The frame around a window's content at `geo`: the notch label, the band and the lines.
+/// Nothing when the style draws no border.
+#[allow(clippy::too_many_arguments)]
+pub fn push_frame(
+    renderer: &mut GlesRenderer,
+    out: &mut Vec<WindowElement>,
+    window: &Window,
+    geo: Rectangle<i32, Logical>,
+    output_loc: Point<i32, Logical>,
+    scale: Scale<f64>,
+    alpha: f32,
+    style: &BorderStyle,
+) {
     if !style.draw_border {
         return;
     }
+    let local_geo = Rectangle::new(geo.loc - output_loc, geo.size);
     let band = style.band();
 
     // The label straddles the top line's inner edge, over the border.
