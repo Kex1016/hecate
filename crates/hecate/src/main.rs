@@ -16,6 +16,7 @@ mod handlers;
 mod input;
 mod ipc;
 mod overrides;
+mod overview;
 mod protocols;
 mod render;
 mod session;
