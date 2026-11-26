@@ -57,6 +57,8 @@ let
       window_move.style = "none";
       border.style = "none";
       workspace_switch.style = "none";
+      # The window overview (Mod+W) cuts to its grid and sharpens it.
+      overview = pixelate;
     };
     splash.handover = "cut";
     # The live blob background is the desktop until you pick wallpaper mode (the shell
@@ -219,7 +221,7 @@ in
           description = ''
             Give what the compositor draws the haiiro look: blur off, square windows in a
             5px double pine frame with "app: title" in a notch on its top edge, windows and
-            layers that pixelate in and out in four steps, and cuts for workspace switches,
+            layers and the window overview that pixelate in and out in four steps, and cuts for workspace switches,
             border colour changes and the login splash. These are defaults under
             `settings`, which overrides any of them. The shell's per-panel slide, fade and
             pop-in layer rules are left out with it.
