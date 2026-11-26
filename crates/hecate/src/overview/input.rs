@@ -5,9 +5,11 @@ use smithay::input::keyboard::Keysym;
 use smithay::utils::{Logical, Point, Rectangle};
 
 use super::layout;
-use crate::config::action::{Action, Direction};
+use super::strip::{DRAG_THRESHOLD, Drag};
+use crate::config::action::{Action, Direction, WorkspaceRef};
 use crate::config::keys::{BTN_LEFT, BTN_MIDDLE, Modifiers};
 use crate::state::State;
+use crate::wm::WindowExt;
 
 impl State {
     /// A key pressed while the overview is open. `text` is the character it types, if any.
@@ -32,6 +34,8 @@ impl State {
             Keysym::Right => return self.overview_step(Direction::Right),
             Keysym::Up => return self.overview_step(Direction::Up),
             Keysym::Down => return self.overview_step(Direction::Down),
+            Keysym::Page_Up => return self.overview_page(false, mods),
+            Keysym::Page_Down => return self.overview_page(true, mods),
             Keysym::BackSpace => {
                 self.hecate.overview.filter.pop();
             }
@@ -88,6 +92,9 @@ impl State {
     pub(crate) fn overview_hit(&self, pos: Point<f64, Logical>) -> Hit {
         let o = &self.hecate.overview;
         let inside = |r: Rectangle<i32, Logical>| r.to_f64().contains(pos);
+        if let Some(t) = o.strips.values().flatten().find(|t| inside(t.frame)) {
+            return Hit::Workspace(t.workspace);
+        }
         if let Some(sel) = &o.selected
             && let Some(e) = o.per_output.values().flatten().find(|e| e.window == *sel)
             && inside(layout::close_button(e.slot.frame))
@@ -114,6 +121,15 @@ impl State {
                 self.do_action(Action::Close, Some(w));
             }
             (BTN_LEFT, Hit::Empty) => self.close_overview(None),
+            (BTN_LEFT, Hit::Workspace(id)) => {
+                let output = self.hecate.wm.output_at(pos).cloned();
+                if let Some(output) = output
+                    && self.hecate.wm.active_workspace_id(&output) != id
+                {
+                    self.hecate.wm.focused_output = Some(output.clone());
+                    self.switch_workspace(&output, id);
+                }
+            }
             _ => {}
         }
     }
@@ -125,7 +141,7 @@ impl State {
         }
         let w = match self.overview_hit(pos) {
             Hit::Slot(w) | Hit::Close(w) => w,
-            Hit::Empty => return,
+            Hit::Workspace(_) | Hit::Empty => return,
         };
         if let Some(o) = self.hecate.wm.output_for_window(&w).cloned() {
             self.hecate.wm.focused_output = Some(o);
@@ -147,11 +163,28 @@ impl State {
             }
             self.hecate.suppressed_buttons.push(button);
             self.hecate.overview.pressed.push(button);
-            self.overview_click(pos, button);
+            // A left press on a slot waits: a click on release, or a drag if it moves.
+            if button == BTN_LEFT
+                && let Hit::Slot(window) = self.overview_hit(pos)
+            {
+                self.hecate.overview.drag = Some(Drag {
+                    window,
+                    start: pos,
+                    pos,
+                    active: false,
+                });
+            } else {
+                self.overview_click(pos, button);
+            }
             true
         } else if self.hecate.suppressed_buttons.contains(&button) && self.overview_took(button) {
             self.hecate.suppressed_buttons.retain(|b| *b != button);
             self.hecate.overview.pressed.retain(|b| *b != button);
+            if button == BTN_LEFT
+                && let Some(drag) = self.hecate.overview.drag.take()
+            {
+                self.overview_drop(drag, pos);
+            }
             true
         } else {
             false
@@ -184,9 +217,50 @@ impl State {
         if let Some(o) = self.hecate.wm.output_at(pos).cloned() {
             self.hecate.wm.focused_output = Some(o);
         }
-        self.overview_hover(pos);
+        if let Some(d) = self.hecate.overview.drag.as_mut() {
+            d.pos = pos;
+            let moved = d.pos - d.start;
+            d.active |= moved.x.hypot(moved.y) > DRAG_THRESHOLD;
+        } else {
+            self.overview_hover(pos);
+        }
         self.hecate.queue_redraw_all();
         true
+    }
+
+    /// The end of a left press that started on a slot: a click if it stayed put, else a
+    /// drop, which moves the window to the workspace it lands on.
+    fn overview_drop(&mut self, drag: Drag, pos: Point<f64, Logical>) {
+        if !drag.active {
+            return self.overview_click(drag.start, BTN_LEFT);
+        }
+        if let Hit::Workspace(id) = self.overview_hit(pos)
+            && drag.window.data().workspace != id
+        {
+            self.hecate.wm.move_window_to_workspace(&drag.window, id);
+            self.relayout_overview();
+        }
+        self.hecate.queue_redraw_all();
+    }
+
+    /// Page_Up / Page_Down: the previous or next workspace; with Shift the selected window
+    /// goes there instead and the overview stays.
+    fn overview_page(&mut self, next: bool, mods: Modifiers) {
+        let Some(output) = self.current_output() else {
+            return;
+        };
+        let r = WorkspaceRef::Named(if next { "next" } else { "prev" }.into());
+        let Some(id) = self.hecate.wm.resolve_workspace(&output, &r) else {
+            return;
+        };
+        if mods.contains(Modifiers::SHIFT) {
+            if let Some(w) = self.hecate.overview.selected.clone() {
+                self.hecate.wm.move_window_to_workspace(&w, id);
+                self.relayout_overview();
+            }
+        } else {
+            self.switch_workspace(&output, id);
+        }
     }
 }
 
@@ -195,5 +269,7 @@ impl State {
 pub enum Hit {
     Slot(Window),
     Close(Window),
+    /// A workspace's thumbnail in the strip.
+    Workspace(u64),
     Empty,
 }

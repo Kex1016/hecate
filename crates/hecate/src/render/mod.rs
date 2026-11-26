@@ -124,6 +124,8 @@ render_elements! {
     Surface = WaylandSurfaceRenderElement<GlesRenderer>,
     Border = border::BorderElement,
     Clipped = border::ClippedSurfaceElement,
+    /// A surface drawn a second time in one frame (the overview's strip), under its own id.
+    Again = crate::overview::render::Again,
     Texture = TextureRenderElement<GlesTexture>,
     Pixelated = pixelate::PixelatedTexture,
     Label = MemoryRenderBufferRenderElement<GlesRenderer>,

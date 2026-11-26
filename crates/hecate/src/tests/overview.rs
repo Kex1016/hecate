@@ -198,7 +198,8 @@ mod drawing {
     pub(super) const BG: [u8; 3] = [0x10, 0x20, 0x30];
     /// A 6 px cyan single border, square, and a yellow gold tint.
     pub(super) const LOOK: &str = "[general]\nbackground_color = \"#102030\"\n[border]\nwidth = 6\nradius = 0\n\
-                                   [border.color]\nactive = \"#00ffff\"\ninactive = \"#00ffff\"\n";
+                                   [border.color]\nactive = \"#00ffff\"\ninactive = \"#00ffff\"\n\
+                                   [overview]\nstrip = false\n";
     /// LOOK's gold, appended to each test's own tints.
     const GOLD: &str = "gold = \"#ffff00\"\n";
 
@@ -277,6 +278,13 @@ mod drawing {
         frame.assert_rgb(x, y, [255, 0, 0], "red in its slot");
         let (x, y) = centre(blue.content);
         frame.assert_rgb(x, y, [0, 0, 255], "blue in its slot");
+        // Scaled down, not cut: just past each slot's frame is the background.
+        for s in [red, blue] {
+            let below = s.frame.loc.y + s.frame.size.h + 2;
+            frame.assert_rgb(centre(s.frame).0, below, BG, "below the slot");
+            let right = s.frame.loc.x + s.frame.size.w + 2;
+            frame.assert_rgb(right, centre(s.frame).1, BG, "right of the slot");
+        }
         // Somewhere the red window used to be that no slot covers.
         let spot = (before.loc.x + 2, before.loc.y + 2);
         assert!(![red.frame, blue.frame].iter().any(|r| r.contains(spot)));
@@ -848,10 +856,13 @@ mod pointer {
             f.hecate().overview_button(centre(s1.content), BTN_LEFT, true),
             "the press is taken"
         );
-        assert!(!f.hecate().hecate.overview.open);
         assert!(
             f.hecate().overview_button(centre(s1.content), BTN_LEFT, false),
             "and its release"
+        );
+        assert!(
+            !f.hecate().hecate.overview.open,
+            "the click on release picked the window"
         );
         assert!(
             !f.hecate().overview_button(centre(s1.content), BTN_LEFT, true),
@@ -860,6 +871,311 @@ mod pointer {
         assert!(
             !f.hecate().overview_motion(centre(s1.frame)),
             "closed: motion goes on"
+        );
+    }
+}
+
+// ---------------------------------------------------------------- workspace strip
+
+mod strip {
+    use smithay::utils::{Logical, Point, Rectangle};
+
+    use super::super::fixture::Fixture;
+    use super::{BLUE, RED, entries, key, setup, tap};
+    use crate::config::action::{Action, WorkspaceRef};
+    use crate::config::keys::BTN_LEFT;
+    use crate::overview::strip::{Thumb, strip};
+    use crate::render::border::Extents;
+    use crate::wm::WindowExt;
+    use smithay::backend::input::KeyState;
+
+    const EXT: Extents = Extents {
+        top: 13,
+        right: 5,
+        bottom: 5,
+        left: 5,
+    };
+    const PAGE_UP: u32 = 104 + 8;
+    const PAGE_DOWN: u32 = 109 + 8;
+    const SHIFT: u32 = 42 + 8;
+
+    fn centre(r: Rectangle<i32, Logical>) -> Point<f64, Logical> {
+        (
+            r.loc.x as f64 + r.size.w as f64 / 2.,
+            r.loc.y as f64 + r.size.h as f64 / 2.,
+        )
+            .into()
+    }
+
+    fn thumbs(f: &mut Fixture) -> Vec<Thumb> {
+        f.hecate().hecate.overview.strips["headless-1"].clone()
+    }
+
+    fn active(f: &mut Fixture) -> u64 {
+        let o = f
+            .hecate()
+            .hecate
+            .wm
+            .output_by_name("headless-1")
+            .cloned()
+            .unwrap();
+        f.hecate().hecate.wm.active_workspace_id(&o)
+    }
+
+    fn ws(f: &mut Fixture, index: usize) -> u64 {
+        f.hecate().hecate.wm.workspaces[index - 1].id
+    }
+
+    /// One red window on workspace 1, two blue ones on workspace 2; back on 1, open.
+    fn spread() -> (Fixture, super::ClientId) {
+        let (mut f, id) = setup();
+        f.map_window(id, (300, 200), RED, Some("one"));
+        f.hecate()
+            .do_action(Action::Workspace(WorkspaceRef::Index(2)), None);
+        f.map_window(id, (300, 200), BLUE, Some("two-a"));
+        f.map_window(id, (300, 200), BLUE, Some("two-b"));
+        f.hecate()
+            .do_action(Action::Workspace(WorkspaceRef::Index(1)), None);
+        f.hecate().open_overview();
+        (f, id)
+    }
+
+    #[test]
+    fn strip_fits_and_keeps_the_output_aspect() {
+        let t = strip(
+            Rectangle::new((0, 0).into(), (1920, 1080).into()),
+            (1920, 1080).into(),
+            9,
+            24,
+            EXT,
+        );
+        assert_eq!(t.len(), 9);
+        for x in &t {
+            assert!(
+                (x.content.size.w as f64 / x.content.size.h as f64 - 16. / 9.).abs() < 0.05,
+                "{x:?}"
+            );
+            assert_eq!(x.frame, EXT.around(x.content));
+        }
+        for w in t.windows(2) {
+            assert!(w[0].frame.loc.x + w[0].frame.size.w < w[1].frame.loc.x);
+        }
+        assert!(
+            t.iter()
+                .all(|x| x.frame.loc.x >= 0 && x.frame.loc.x + x.frame.size.w <= 1920)
+        );
+        assert!(
+            t.iter()
+                .all(|x| x.frame.loc.y >= 0 && x.frame.loc.y + x.frame.size.h <= 130)
+        );
+    }
+
+    #[test]
+    fn a_few_thumbs_are_centred() {
+        let t = strip(
+            Rectangle::new((0, 0).into(), (1920, 1080).into()),
+            (1920, 1080).into(),
+            2,
+            24,
+            EXT,
+        );
+        let left = t[0].frame.loc.x;
+        let right = 1920 - (t[1].frame.loc.x + t[1].frame.size.w);
+        assert!((left - right).abs() <= 1, "{left} vs {right}");
+    }
+
+    #[test]
+    fn grid_moves_below_the_strip() {
+        let (mut f, _) = spread();
+        let bottom = thumbs(&mut f)
+            .iter()
+            .map(|t| t.frame.loc.y + t.frame.size.h)
+            .max()
+            .unwrap();
+        let slots: Vec<_> = f.hecate().hecate.overview.per_output["headless-1"]
+            .iter()
+            .map(|e| e.slot)
+            .collect();
+        assert!(slots.iter().all(|s| s.frame.loc.y > bottom));
+        assert_eq!(thumbs(&mut f).len(), 9);
+
+        let mut f = Fixture::with_toml("[overview]\nstrip = false\n");
+        f.add_output("headless-1", (1920, 1080));
+        let id = f.add_client();
+        f.map_window(id, (1900, 1060), RED, Some("big"));
+        f.hecate().open_overview();
+        assert!(
+            f.hecate()
+                .hecate
+                .overview
+                .strips
+                .get("headless-1")
+                .is_none_or(|t| t.is_empty())
+        );
+        let slot = f.hecate().hecate.overview.per_output["headless-1"][0].slot;
+        assert!(
+            slot.frame.loc.y < bottom,
+            "without the strip the grid starts higher"
+        );
+    }
+
+    #[test]
+    fn clicking_a_thumb_switches_and_stays_open() {
+        let (mut f, _) = spread();
+        let t = thumbs(&mut f)[1].clone();
+        assert_eq!(t.workspace, ws(&mut f, 2));
+        f.hecate().overview_button(centre(t.content), BTN_LEFT, true);
+        f.hecate().overview_button(centre(t.content), BTN_LEFT, false);
+        f.dispatch();
+        assert_eq!(active(&mut f), ws(&mut f, 2));
+        assert!(f.hecate().hecate.overview.open);
+        assert_eq!(entries(&mut f).len(), 2);
+    }
+
+    #[test]
+    fn page_down_switches_and_shift_page_up_moves_the_selection() {
+        let (mut f, id) = spread();
+        tap(&mut f, id, &[PAGE_DOWN]);
+        f.dispatch();
+        assert_eq!(active(&mut f), ws(&mut f, 2));
+        assert!(f.hecate().hecate.overview.open);
+        let selected = f.hecate().hecate.overview.selected.clone().unwrap();
+        tap(&mut f, id, &[SHIFT, PAGE_UP]);
+        f.dispatch();
+        assert_eq!(selected.data().workspace, ws(&mut f, 1), "moved to workspace 1");
+        assert_eq!(active(&mut f), ws(&mut f, 2), "the overview stays on 2");
+        assert_eq!(entries(&mut f).len(), 1);
+        tap(&mut f, id, &[PAGE_UP]);
+        f.dispatch();
+        assert_eq!(active(&mut f), ws(&mut f, 1));
+        let _ = key;
+        let _ = KeyState::Pressed;
+    }
+
+    #[test]
+    fn escape_after_switching_focuses_the_new_workspace() {
+        let (mut f, id) = spread();
+        tap(&mut f, id, &[PAGE_DOWN]);
+        tap(&mut f, id, &[super::ESC]);
+        assert!(!f.hecate().hecate.overview.open);
+        let focused = f.focused().expect("a window has focus");
+        assert_eq!(
+            focused.data().workspace,
+            ws(&mut f, 2),
+            "one on the workspace shown"
+        );
+    }
+
+    #[test]
+    fn dragging_a_window_onto_a_thumb_moves_it() {
+        let (mut f, _) = spread();
+        let before = f.focused();
+        let slot = f.hecate().hecate.overview.per_output["headless-1"][0].slot;
+        let w = entries(&mut f)[0].clone();
+        let t = thumbs(&mut f)[2].clone();
+        let start = centre(slot.content);
+        f.hecate().overview_button(start, BTN_LEFT, true);
+        f.hecate().overview_motion(start + Point::from((20., 0.)));
+        assert!(
+            f.hecate().hecate.overview.drag.as_ref().is_some_and(|d| d.active),
+            "dragging"
+        );
+        f.hecate().overview_motion(centre(t.content));
+        f.hecate().overview_button(centre(t.content), BTN_LEFT, false);
+        f.dispatch();
+        assert_eq!(w.data().workspace, ws(&mut f, 3), "on workspace 3");
+        assert!(f.hecate().hecate.overview.open, "still open");
+        assert_eq!(entries(&mut f).len(), 0, "the grid lost it");
+        assert_eq!(active(&mut f), ws(&mut f, 1));
+        assert_eq!(f.focused(), before, "focus unchanged");
+        assert!(f.hecate().hecate.overview.drag.is_none());
+    }
+
+    #[test]
+    fn a_short_press_is_still_a_click() {
+        let (mut f, _) = spread();
+        let slot = f.hecate().hecate.overview.per_output["headless-1"][0].slot;
+        let w = entries(&mut f)[0].clone();
+        let start = centre(slot.content);
+        f.hecate().overview_button(start, BTN_LEFT, true);
+        assert!(
+            f.hecate().hecate.overview.open,
+            "a press on a slot waits for the release"
+        );
+        f.hecate().overview_motion(start + Point::from((4., 0.)));
+        f.hecate()
+            .overview_button(start + Point::from((4., 0.)), BTN_LEFT, false);
+        assert!(!f.hecate().hecate.overview.open);
+        assert_eq!(f.focused(), Some(w));
+    }
+
+    #[test]
+    fn dropping_outside_a_thumb_changes_nothing() {
+        let (mut f, _) = spread();
+        let slot = f.hecate().hecate.overview.per_output["headless-1"][0].slot;
+        let w = entries(&mut f)[0].clone();
+        let start = centre(slot.content);
+        f.hecate().overview_button(start, BTN_LEFT, true);
+        f.hecate().overview_motion((5., 1070.).into());
+        f.hecate().overview_button((5., 1070.).into(), BTN_LEFT, false);
+        assert_eq!(w.data().workspace, ws(&mut f, 1));
+        assert!(f.hecate().hecate.overview.open, "no click fired");
+        assert_eq!(entries(&mut f).len(), 1);
+    }
+
+    #[test]
+    fn thumbs_show_their_windows() {
+        use super::drawing::{LOOK, rgb};
+        let look = LOOK.replace("strip = false", "strip = true");
+        let Some((mut f, id)) = super::super::animations::with_toml(&format!(
+            "{look}[border.tint]\ngold = \"#ffff00\"\n[workspaces]\ncount = 3\n"
+        )) else {
+            return;
+        };
+        super::drawing::window(&mut f, id, (300, 200), BLUE, "blue");
+        f.hecate()
+            .do_action(Action::Workspace(WorkspaceRef::Index(2)), None);
+        super::drawing::window(&mut f, id, (300, 200), RED, "red");
+        let red = f.windows()[1].clone();
+        let red_rect = f.hecate().hecate.wm.window_rect(&red);
+        f.hecate()
+            .do_action(Action::Workspace(WorkspaceRef::Index(1)), None);
+        f.hecate().open_overview();
+        let frame = f.render("headless-1");
+        let t = thumbs(&mut f);
+        assert_eq!(t.len(), 3);
+        // Near the window's bottom-right corner: the workspace number covers the top-left.
+        let (cx, cy) = (
+            red_rect.loc.x + red_rect.size.w - 40,
+            red_rect.loc.y + red_rect.size.h - 25,
+        );
+        let at = |t: &Thumb, x: i32, y: i32| {
+            (
+                t.content.loc.x + (x as f64 * t.scale).round() as i32,
+                t.content.loc.y + (y as f64 * t.scale).round() as i32,
+            )
+        };
+        assert_eq!(
+            rgb(&frame, at(&t[1], cx, cy)),
+            [255, 0, 0],
+            "ws 2's red window in its thumb"
+        );
+        assert_eq!(
+            rgb(&frame, at(&t[0], cx, cy)),
+            [0, 0, 255],
+            "ws 1's blue window in its thumb"
+        );
+        let below = (t[1].content.loc.x + 5, t[1].frame.loc.y + t[1].frame.size.h + 2);
+        assert_ne!(
+            rgb(&frame, below),
+            [255, 0, 0],
+            "the thumb's window stays inside it"
+        );
+        let top = (t[0].frame.loc.x + t[0].frame.size.w / 2, t[0].frame.loc.y);
+        assert_eq!(
+            rgb(&frame, top),
+            [255, 255, 0],
+            "the active thumb's frame is gold"
         );
     }
 }

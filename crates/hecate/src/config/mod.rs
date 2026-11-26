@@ -967,11 +967,18 @@ pub struct OverviewConfig {
     pub gap: i32,
     /// Opacity of windows the typed filter leaves out.
     pub dim: f32,
+    /// The workspace strip above the grid: click a workspace to switch, drop a window on
+    /// one to move it there.
+    pub strip: bool,
 }
 
 impl Default for OverviewConfig {
     fn default() -> Self {
-        OverviewConfig { gap: 24, dim: 0.35 }
+        OverviewConfig {
+            gap: 24,
+            dim: 0.35,
+            strip: true,
+        }
     }
 }
 

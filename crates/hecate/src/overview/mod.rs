@@ -4,6 +4,7 @@
 pub mod input;
 pub mod layout;
 pub mod render;
+pub mod strip;
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -43,6 +44,19 @@ pub struct Overview {
     pub(crate) usable: HashMap<String, Rectangle<i32, Logical>>,
     /// The filter prompt's buffer, kept while its text and look stay the same.
     pub(crate) prompt: std::cell::RefCell<Option<(PromptKey, MemoryRenderBuffer, i32)>>,
+    /// Each output's workspace strip (empty with `overview.strip = false`).
+    pub strips: HashMap<String, Vec<strip::Thumb>>,
+    /// A window being dragged towards the strip.
+    pub drag: Option<strip::Drag>,
+    /// Fills and lines of the strip, per workspace, kept for stable damage.
+    pub(crate) solids:
+        std::cell::RefCell<HashMap<(u64, u8), smithay::backend::renderer::element::solid::SolidColorBuffer>>,
+    /// Ids of the strip's second drawing of each surface, per workspace thumbnail.
+    pub(crate) ids: std::cell::RefCell<
+        HashMap<(u64, smithay::backend::renderer::element::Id), smithay::backend::renderer::element::Id>,
+    >,
+    /// Workspace number labels of the strip.
+    pub(crate) numbers: std::cell::RefCell<HashMap<(String, usize), MemoryRenderBuffer>>,
     /// Buttons pressed while open, whose releases the overview swallows too.
     pub(crate) pressed: Vec<u32>,
     /// The close button's buffer and what it was drawn from.
@@ -98,9 +112,57 @@ impl Overview {
         }
         if !self.open && self.anim.is_none() {
             self.per_output.clear();
+            self.strips.clear();
+            self.ids.borrow_mut().clear();
         }
     }
 }
+
+/// How an output's usable area is shared out: the strip on top, then the filter prompt's
+/// row, then the grid, all inside the gap.
+pub(crate) struct Rows {
+    /// The strip's row (zero height without the strip).
+    pub strip: Rectangle<i32, Logical>,
+    /// The top of the filter prompt.
+    pub prompt_y: i32,
+    pub grid: Rectangle<i32, Logical>,
+}
+
+impl Rows {
+    pub fn new(usable: Rectangle<i32, Logical>, gap: i32, strip: bool) -> Rows {
+        let gap = gap.max(0);
+        let inner = Rectangle::<i32, Logical>::new(
+            (usable.loc.x + gap, usable.loc.y + gap).into(),
+            ((usable.size.w - 2 * gap).max(1), (usable.size.h - 2 * gap).max(1)).into(),
+        );
+        let strip_h = if strip { strip::height(inner) } else { 0 };
+        let strip_row = Rectangle::new(inner.loc, (inner.size.w, strip_h).into());
+        let prompt_y = if strip {
+            inner.loc.y + strip_h + gap
+        } else {
+            inner.loc.y
+        };
+        let grid_y = prompt_y + label::NOTCH_HEIGHT + gap;
+        let bottom = inner.loc.y + inner.size.h;
+        let grid = Rectangle::new(
+            (inner.loc.x, grid_y).into(),
+            (inner.size.w, (bottom - grid_y).max(1)).into(),
+        );
+        Rows {
+            strip: Rectangle::new(strip_row.loc, (strip_row.size.w, inner.size.h).into()),
+            prompt_y,
+            grid,
+        }
+    }
+}
+
+/// The frame of a strip thumbnail.
+pub(crate) const THUMB_EXTENTS: border::Extents = border::Extents {
+    top: 2,
+    right: 2,
+    bottom: 2,
+    left: 2,
+};
 
 /// Case-insensitive substring match over a window's short app name, its app id and its
 /// title. An empty filter matches everything.
@@ -134,17 +196,10 @@ impl State {
             .unwrap_or_default()
     }
 
-    /// Where the grid goes on `output`: its usable area inside the gap, with a row kept
-    /// free at the top for the filter prompt.
+    /// Where the grid goes on `output`: below the strip and the filter prompt's row.
     pub(crate) fn overview_area(&self, output: &Output) -> Rectangle<i32, Logical> {
-        let gap = self.hecate.config.overview.gap.max(0);
-        let mut area = Wm::usable_area(output, &self.hecate.config);
-        let top = gap + label::NOTCH_HEIGHT + gap;
-        area.loc.x += gap;
-        area.loc.y += top;
-        area.size.w = (area.size.w - 2 * gap).max(1);
-        area.size.h = (area.size.h - top - gap).max(1);
-        area
+        let c = &self.hecate.config.overview;
+        Rows::new(Wm::usable_area(output, &self.hecate.config), c.gap, c.strip).grid
     }
 
     pub fn open_overview(&mut self) {
@@ -186,8 +241,16 @@ impl State {
         match focus {
             Some(w) => self.activate_window(&w),
             None => {
-                if let Some(w) = previous.filter(|w| self.hecate.wm.all_windows().any(|x| x == w)) {
-                    self.focus_window(&w);
+                // Back to where focus was, unless the overview moved it or switched away
+                // from its workspace: then the topmost window there.
+                let shown = |w: &Window| {
+                    let wm = &self.hecate.wm;
+                    wm.workspace_of(w)
+                        .is_some_and(|ws| wm.is_workspace_active(ws.id) && !w.data().minimized)
+                };
+                match previous.filter(|w| shown(w)) {
+                    Some(w) => self.focus_window(&w),
+                    None => self.focus_topmost(),
                 }
             }
         }
@@ -207,8 +270,10 @@ impl State {
         o.anim = anim;
         o.filter.clear();
         o.selected = None;
+        o.drag = None;
         if o.anim.is_none() {
             o.per_output.clear();
+            o.strips.clear();
         }
         self.ipc_broadcast_event(hecate_ipc::Event::OverviewChanged { open: false });
         self.hecate.queue_redraw_all();
@@ -280,10 +345,15 @@ impl State {
                 .collect();
             entries.sort_by_key(|e| (e.slot.frame.loc.y, e.slot.frame.loc.x));
             per_output.insert(output.name(), entries);
+            let thumbs = self.overview_thumbs(output);
+            self.hecate.overview.strips.insert(output.name(), thumbs);
             let usable = Wm::usable_area(output, &self.hecate.config);
             self.hecate.overview.usable.insert(output.name(), usable);
         }
         self.hecate.overview.per_output = per_output;
+        let names: Vec<String> = outputs.iter().map(|o| o.name()).collect();
+        self.hecate.overview.strips.retain(|n, _| names.contains(n));
+        self.hecate.overview.usable.retain(|n, _| names.contains(n));
 
         let o = &self.hecate.overview;
         if let Some(sel) = o.selected.clone()
@@ -304,6 +374,23 @@ impl State {
         self.hecate.queue_redraw_all();
     }
 
+    /// An output's strip: one thumbnail per workspace it shows. None without the strip.
+    fn overview_thumbs(&self, output: &Output) -> Vec<strip::Thumb> {
+        let c = &self.hecate.config.overview;
+        if !c.strip {
+            return Vec::new();
+        }
+        let wm = &self.hecate.wm;
+        let rows = Rows::new(Wm::usable_area(output, &self.hecate.config), c.gap, true);
+        let workspaces = wm.workspaces_for(output);
+        let size = Wm::output_geometry(output).size;
+        let mut thumbs = strip::strip(rows.strip, size, workspaces.len(), c.gap.max(0), THUMB_EXTENTS);
+        for (t, ws) in thumbs.iter_mut().zip(workspaces) {
+            t.workspace = ws.id;
+        }
+        thumbs
+    }
+
     /// Once per loop iteration: close for a lock, follow windows coming and going and
     /// workspace switches, and drop a finished transition.
     pub(crate) fn refresh_overview(&mut self) {
@@ -322,7 +409,19 @@ impl State {
                         .iter()
                         .map(|e| &e.window)
                         .collect();
-                    now.len() != shown.len() || now.iter().any(|w| !shown.contains(&w))
+                    let ids: Vec<u64> = if self.hecate.config.overview.strip {
+                        self.hecate.wm.workspaces_for(o).iter().map(|w| w.id).collect()
+                    } else {
+                        Vec::new()
+                    };
+                    let thumbs: Vec<u64> = self
+                        .hecate
+                        .overview
+                        .strips
+                        .get(&o.name())
+                        .map(|t| t.iter().map(|t| t.workspace).collect())
+                        .unwrap_or_default();
+                    now.len() != shown.len() || now.iter().any(|w| !shown.contains(&w)) || ids != thumbs
                 }) || self.hecate.overview.per_output.len() != outputs.len();
                 if stale {
                     self.relayout_overview();
