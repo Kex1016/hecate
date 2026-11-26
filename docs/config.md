@@ -132,6 +132,11 @@ enable = true
 window_open = { style = "popin", from = 0.8, ms = 300, curve = "emphasized_decel" }
 workspace_switch = { style = "slide", ms = 700, curve = "menu_decel" }
 
+[overview]                     # the window overview, Mod+W (toggle_overview)
+gap = 24                       # between windows, and around the grid, in logical pixels
+dim = 0.35                     # opacity of windows the typed filter leaves out
+strip = true                   # the workspace strip above the grid
+
 [keyboard]
 layout = "us"
 repeat_rate = 25
@@ -229,8 +234,9 @@ haiiro look over the defaults. Every value is yours to override under
   [ipc.md](ipc.md#border-tints)). `gold` `#f6c177` needs you, `love`
   `#eb6f92` is critical or failed, `foam` `#9ccfd8` is done.
 - **Motion**: windows and layers pixelate in and out in four steps
-  (`animations.window_open`, `layer_open` and their closes); window moves,
-  border colour changes and workspace switches are cuts (`style = "none"`).
+  (`animations.window_open`, `layer_open` and their closes), and so does the
+  window overview (`animations.overview`); window moves, border colour
+  changes and workspace switches are cuts (`style = "none"`).
 - **Splash**: `splash.handover = "cut"`, so the login screen hands over
   without a fade.
 
@@ -287,6 +293,38 @@ Keys are the widget catalogue's keys (`clock`, `vgaClock`, `sheet`, `sky`,
 appear in `forms`; choosing the style the desktop already uses removes the
 entry. The shell writes this file; changes to `background.widgets.form` apply
 live, and saved positions apply in either style.
+
+## Window overview
+
+`toggle_overview` (`Mod+W` in the base binds) lays every window of each
+output's active workspace out in a grid, live, drawn by the compositor
+itself. Minimized windows are left out, and so are popups. Every output
+shows its own grid; the bar and other top layers stay on top, even over a
+fullscreen window. Nothing opens while the session is locked, and locking
+closes it at once.
+
+- **Pick**: arrow keys move the selection (gold frame) within the focused
+  output, `Return` focuses it, `Esc` or `Mod+W` closes and gives the focus
+  back. Hovering a window selects it; a click focuses it.
+- **Close a window**: the love `x` on the selected window's top line, or a
+  middle click on any window.
+- **Filter**: typing filters by app name, app id and title (case does not
+  matter); the filter shows as `> text_` above the grid, and windows it
+  leaves out are dimmed to `overview.dim`. `BackSpace` deletes a
+  character, `Ctrl+U` clears it. Keys with `Ctrl`, `Alt` or `Mod` type
+  nothing.
+- **Workspace strip** (`overview.strip`): one live thumbnail per workspace
+  of the output, the active one in gold. Click one to switch to it (the
+  overview stays open), or use `Page_Up` / `Page_Down`. Drag a window onto
+  a thumbnail to move it there (the target turns foam);
+  `Shift+Page_Up` / `Shift+Page_Down` move the selected window to the
+  previous or next workspace.
+
+Binds that work on a lock screen (`allow_when_locked`, such as the shell's
+`Mod+L`) still work while the overview is open; every other key goes to it.
+Opening and closing are announced on the event stream as `OverviewChanged`
+([ipc.md](ipc.md#events)). How it moves in and out is
+`animations.overview` ([animations.md](animations.md)).
 
 ## Same thing from Nix (Home Manager)
 

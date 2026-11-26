@@ -126,6 +126,23 @@ overview is off on hecate for now), `Mod+Slash` (end4-pC dropped ii's cheat
 sheet; the keybind list in its settings reads `hecate msg -j binds`),
 `Mod+Ctrl+Shift+D` and `Mod+Ctrl+P`.
 
+## overview
+
+While the overview (`Mod+W`) is open it takes the keyboard; only binds with
+`allow_when_locked` (and VT switches) still fire. See
+[config.md](config.md#window-overview).
+
+| key                          | does                           |
+| ---------------------------- | ------------------------------ |
+| arrows                       | move the selection             |
+| `Return`                     | focus the selected window      |
+| `Esc` / `Mod+W`              | close, focus back where it was |
+| typing / `BackSpace` / `Ctrl+U` | filter by app and title / delete a character / clear |
+| `Page_Up` / `Page_Down`      | previous / next workspace (stays open) |
+| `Shift+Page_Up` / `Shift+Page_Down` | move the selected window to the previous / next workspace |
+| left click / middle click    | focus a window / close it      |
+| drag onto the strip          | move the window to that workspace |
+
 ## Conflicts
 
 Between base (labwc + niri), the shell profile and your niri personal binds.
