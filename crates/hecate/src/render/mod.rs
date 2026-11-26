@@ -427,7 +427,9 @@ impl Hecate {
             push_layer(&mut out, &mut markers, renderer, Layer::Overlay);
         }
 
-        let windows = if desktop_only {
+        // The overview draws the windows itself, in their slots, under the bar.
+        let overview = !desktop_only && self.overview.is_visible(now);
+        let windows = if desktop_only || overview {
             Vec::new()
         } else {
             self.wm.windows_on_output(output)
@@ -449,7 +451,14 @@ impl Hecate {
         // `pixelate` nothing moves: the old workspace is cut and the new one's windows
         // sharpen in place. (Style `none` starts no switch at all: a plain cut.)
         let width = output_geo.size.w as f64;
-        let switch = self.wm.switch_for(output).cloned().filter(|_| !desktop_only);
+        let switch = self
+            .wm
+            .switch_for(output)
+            .cloned()
+            .filter(|_| !desktop_only && !overview);
+        if overview {
+            self.push_overview(renderer, &mut out, output, now);
+        }
         let appear = switch
             .as_ref()
             .filter(|s| s.anim.style == AnimStyle::Pixelate)

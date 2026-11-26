@@ -35,6 +35,7 @@ pub(super) fn with_toml(toml: &str) -> Option<(Fixture, ClientId)> {
         ("layer_open", &mut a.layer_open),
         ("layer_close", &mut a.layer_close),
         ("workspace_switch", &mut a.workspace_switch),
+        ("overview", &mut a.overview),
     ] {
         if !set.contains_key(name) {
             anim.style = crate::config::AnimStyle::None;

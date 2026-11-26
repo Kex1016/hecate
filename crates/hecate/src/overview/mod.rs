@@ -2,6 +2,7 @@
 //! workspace laid out in a live grid, drawn by the compositor.
 
 pub mod layout;
+pub mod render;
 
 use std::collections::HashMap;
 use std::time::Duration;

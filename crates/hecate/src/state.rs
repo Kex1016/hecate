@@ -634,7 +634,11 @@ impl Hecate {
         let started = crate::utils::monotonic_time();
         let submitted = backend.render(self, output);
         // After rendering: drawing a frame can start animations (moves, border fades).
-        let running = self.wm.advance_animations(output) | self.splash_animating(output);
+        let overview_animating = {
+            let now = self.wm.clock.now();
+            self.overview.anim.as_ref().is_some_and(|a| !a.is_done(now))
+        };
+        let running = self.wm.advance_animations(output) | self.splash_animating(output) | overview_animating;
         if let Some(state) = self.output_state.get_mut(output) {
             state.animations_running = running;
         }
