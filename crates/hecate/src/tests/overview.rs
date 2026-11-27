@@ -1833,4 +1833,29 @@ mod plan_review {
         f.hecate().close_overview(Some(a.clone()));
         assert_eq!(top(&mut f), Some(a), "the picked window came to the front");
     }
+
+    #[test]
+    fn moving_the_cursor_while_open_gives_no_window_the_pointer() {
+        let (mut f, id) = super::setup();
+        f.map_window(id, (300, 200), RED, Some("a"));
+        let w = f.windows()[0].clone();
+        let r = f.hecate().hecate.wm.window_rect(&w);
+        let mid: smithay::utils::Point<f64, _> = (
+            f64::from(r.loc.x + r.size.w / 2),
+            f64::from(r.loc.y + r.size.h / 2),
+        )
+            .into();
+        let focus = |f: &mut Fixture| f.hecate().hecate.seat.get_pointer().unwrap().current_focus();
+        f.hecate().open_overview();
+        // What `move_cursor` and `focus_output` do over IPC.
+        f.hecate().warp_pointer(mid);
+        assert_eq!(focus(&mut f), None, "the hidden window does not get the pointer");
+        assert_eq!(f.hecate().hecate.pointer_location, mid, "the cursor did move");
+        f.hecate().close_overview(None);
+        assert_eq!(
+            focus(&mut f),
+            Some(w.toplevel().unwrap().wl_surface().clone()),
+            "closed: it has it"
+        );
+    }
 }

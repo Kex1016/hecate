@@ -630,11 +630,16 @@ impl State {
 
     pub fn warp_pointer(&mut self, pos: Point<f64, Logical>) {
         let pointer = self.hecate.seat.get_pointer().unwrap();
-        let under = self.contents_under(pos);
+        // The overview keeps the pointer off its hidden windows, wherever it is put.
+        let focus = if self.hecate.overview.open {
+            None
+        } else {
+            self.contents_under(pos).surface
+        };
         self.hecate.pointer_location = pos;
         pointer.motion(
             self,
-            under.surface,
+            focus,
             &MotionEvent {
                 location: pos,
                 serial: SERIAL_COUNTER.next_serial(),
