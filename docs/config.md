@@ -301,11 +301,17 @@ output's active workspace out in a grid, live, drawn by the compositor
 itself. Minimized windows are left out, and so are popups. Every output
 shows its own grid; the bar and other top layers stay on top, even over a
 fullscreen window. Nothing opens while the session is locked, and locking
-closes it at once.
+closes it at once. A layer surface that takes the keyboard to itself (a
+polkit prompt, the launcher) does the same: the overview closes for it and
+does not open over it, so nothing typed there lands in the filter.
 
 - **Pick**: arrow keys move the selection (gold frame) within the focused
   output, `Return` focuses it, `Esc` or `Mod+W` closes and gives the focus
-  back. Hovering a window selects it; a click focuses it.
+  back. Hovering a window selects it; a click focuses it. A picked window
+  comes to the front (also with `focus.raise_on_focus = false`) and ends
+  `toggle_show_desktop`. Every window has a frame here, maximized,
+  fullscreen and border-hidden ones too; with `border.width = 0` the
+  selected one gets a thin gold line instead.
 - **Close a window**: the love `x` on the selected window's top line, or a
   middle click on any window.
 - **Filter**: typing filters by app name, app id and title (case does not
@@ -323,7 +329,8 @@ closes it at once.
 Binds that work on a lock screen (`allow_when_locked`, such as the shell's
 `Mod+L`), binds to `toggle_overview` (whichever key you give it) and
 `workspace` binds (`Mod+1`…) still work while the overview is open; every
-other key goes to it. Touch and pen taps pick a window like a click.
+other key goes to it. Touch and pen taps pick a window like a click; a
+finger that was down before it opened stays with its window.
 Opening and closing are announced on the event stream as `OverviewChanged`
 ([ipc.md](ipc.md#events)). How it moves in and out is
 `animations.overview` ([animations.md](animations.md)).

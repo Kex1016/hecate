@@ -130,7 +130,9 @@ sheet; the keybind list in its settings reads `hecate msg -j binds`),
 
 While the overview (`Mod+W`) is open it takes the keyboard; only binds with
 `allow_when_locked`, binds to `toggle_overview` or `workspace`, and VT
-switches still fire. Touch and pen taps pick a window like a click. See
+switches still fire. A layer surface with the keyboard to itself (a polkit
+prompt, the launcher) closes it. Touch and pen taps pick a window like a
+click. See
 [config.md](config.md#window-overview).
 
 | key                          | does                           |
