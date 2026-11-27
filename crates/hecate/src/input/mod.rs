@@ -125,7 +125,9 @@ impl State {
         let pending_tap = self.hecate.pending_mod_tap.take();
 
         let picking = self.has_pending_pick();
-        let overview = self.hecate.overview.open;
+        // Not while a layer surface has the keyboard to itself: what is typed into a polkit
+        // prompt is that prompt's alone, even before the overview has closed for it.
+        let overview = self.hecate.overview.open && !self.keyboard_on_exclusive_layer();
         let keyboard = self.hecate.seat.get_keyboard().unwrap();
         let mut key_report: Option<hecate_ipc::KeyEvent> = None;
         let (result, mods_changed) = keyboard.input_intercept(self, keycode, state, |_, mods, handle| {

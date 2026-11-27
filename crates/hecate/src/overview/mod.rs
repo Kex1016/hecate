@@ -208,7 +208,9 @@ impl State {
     }
 
     pub fn open_overview(&mut self) {
-        if self.hecate.overview.open || self.hecate.wm.is_locked() {
+        // A layer surface with the keyboard to itself (a polkit prompt, the launcher) keeps
+        // it: nothing typed there may end up in the filter.
+        if self.hecate.overview.open || self.hecate.wm.is_locked() || self.keyboard_on_exclusive_layer() {
             return;
         }
         let outputs: Vec<Output> = self.hecate.wm.outputs().cloned().collect();
@@ -279,6 +281,17 @@ impl State {
     fn close_overview_now(&mut self) {
         if self.hecate.overview.open {
             self.finish_close(None);
+            self.hecate.overview.previous_focus = None;
+            self.warp_pointer(self.hecate.pointer_location);
+        }
+    }
+
+    /// Close and leave focus alone: an exclusive-keyboard layer surface has it.
+    fn close_overview_for_layer(&mut self) {
+        if self.hecate.overview.open {
+            let config = &self.hecate.config.animations;
+            let anim = Animation::start(&self.hecate.wm.clock, config, &config.overview);
+            self.finish_close(anim);
             self.hecate.overview.previous_focus = None;
             self.warp_pointer(self.hecate.pointer_location);
         }
@@ -416,13 +429,16 @@ impl State {
         thumbs
     }
 
-    /// Once per loop iteration: close for a lock, follow windows coming and going and
-    /// workspace switches, and drop a finished transition.
+    /// Once per loop iteration: close for a lock or an exclusive-keyboard layer surface,
+    /// follow windows coming and going and workspace switches, and drop a finished
+    /// transition.
     pub(crate) fn refresh_overview(&mut self) {
         let now = self.hecate.wm.clock.now();
         if self.hecate.overview.open {
             if self.hecate.wm.is_locked() {
                 self.close_overview_now();
+            } else if self.keyboard_on_exclusive_layer() {
+                self.close_overview_for_layer();
             } else {
                 let outputs: Vec<Output> = self.hecate.wm.outputs().cloned().collect();
                 let stale = outputs.iter().any(|o| {

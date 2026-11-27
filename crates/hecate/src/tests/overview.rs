@@ -157,6 +157,91 @@ fn locking_closes_the_overview() {
     assert!(!f.hecate().hecate.overview.open, "nothing opens while locked");
 }
 
+/// An Overlay layer surface with the keyboard to itself, as the shell's polkit prompt is.
+fn exclusive_layer(f: &mut Fixture, id: ClientId) -> wayland_client::protocol::wl_surface::WlSurface {
+    use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_shell_v1::Layer;
+    use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_surface_v1::KeyboardInteractivity;
+    let layer = f.client(id).create_layer(None, Layer::Overlay, "polkit");
+    let surface = layer.surface.clone();
+    layer.set_configure_props(super::client::LayerConfigureProps {
+        size: Some((600, 400)),
+        kb_interactivity: Some(KeyboardInteractivity::Exclusive),
+        ..Default::default()
+    });
+    layer.commit();
+    f.double_roundtrip(id);
+    let layer = f.client(id).layer(&surface);
+    layer.attach_color(BLUE);
+    layer.set_size(600, 400);
+    layer.ack_last_and_commit();
+    f.double_roundtrip(id);
+    surface
+}
+
+fn keys_received(
+    f: &mut Fixture,
+    id: ClientId,
+    surface: &wayland_client::protocol::wl_surface::WlSurface,
+) -> usize {
+    use super::client::KeyboardEvent;
+    f.client(id)
+        .state
+        .recent_keyboard_events(surface)
+        .filter(|e| matches!(e, KeyboardEvent::Key { .. }))
+        .count()
+}
+
+#[test]
+fn an_exclusive_keyboard_layer_closes_the_overview_and_keeps_its_keys() {
+    let (mut f, id) = setup();
+    f.map_window(id, (300, 200), RED, Some("a"));
+    f.hecate().open_overview();
+    assert!(f.hecate().hecate.overview.open);
+    let layer = exclusive_layer(&mut f, id);
+    assert!(
+        !f.hecate().hecate.overview.open,
+        "the overview makes way for the prompt"
+    );
+    assert_eq!(f.focused(), None, "the keyboard is the layer's");
+    tap(&mut f, id, &[KEY_F]);
+    assert_eq!(
+        f.hecate().hecate.overview.filter,
+        "",
+        "nothing typed into the filter"
+    );
+    assert_eq!(
+        keys_received(&mut f, id, &layer),
+        2,
+        "the press and release went to the layer"
+    );
+    f.hecate().toggle_overview();
+    assert!(!f.hecate().hecate.overview.open, "nothing opens over it");
+    tap(&mut f, id, &[SUPER, W]);
+    assert!(!f.hecate().hecate.overview.open, "not from the bind either");
+}
+
+#[test]
+fn a_key_for_an_exclusive_layer_never_reaches_the_filter() {
+    let (mut f, id) = setup();
+    f.map_window(id, (300, 200), RED, Some("a"));
+    let layer = exclusive_layer(&mut f, id);
+    let _ = keys_received(&mut f, id, &layer);
+    // As if the key came in the same loop iteration as the layer's first buffer: the
+    // layer has the keyboard and the overview has not closed for it yet.
+    f.hecate().hecate.overview.open = true;
+    f.hecate()
+        .handle_key(KEY_F.into(), KeyState::Pressed, InputTime::now());
+    assert_eq!(f.hecate().hecate.overview.filter, "");
+    f.hecate()
+        .handle_key(KEY_F.into(), KeyState::Released, InputTime::now());
+    f.double_roundtrip(id);
+    assert_eq!(keys_received(&mut f, id, &layer), 2, "the layer got the key");
+    assert!(
+        !f.hecate().hecate.overview.open,
+        "and the overview is gone by now"
+    );
+}
+
 #[test]
 fn switching_workspace_while_open_shows_its_windows() {
     let (mut f, id) = setup();
