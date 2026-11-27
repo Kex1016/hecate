@@ -258,7 +258,12 @@ impl State {
         self.finish_close(anim);
         let previous = self.hecate.overview.previous_focus.take();
         match focus {
-            Some(w) => self.activate_window(&w),
+            Some(w) => {
+                // A picked window comes to the front even where focusing alone would not
+                // raise it.
+                self.activate_window(&w);
+                self.hecate.wm.raise(&w);
+            }
             None => {
                 // Back to where focus was, unless the overview moved it or switched away
                 // from its workspace: then the topmost window there.

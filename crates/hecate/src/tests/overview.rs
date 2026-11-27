@@ -737,6 +737,62 @@ mod drawing {
             "and nothing around the other",
         );
     }
+
+    const SLIDE: &str = "[animations.overview]\nstyle = \"slide\"\nms = 400\ncurve = \"linear\"\n";
+
+    #[test]
+    fn a_picked_window_slides_home_on_top() {
+        // Both windows map at one place, blue on top; red comes first in reading order.
+        for picked in ["blue", "red"] {
+            let Some((mut f, _)) = two(SLIDE) else { return };
+            let colour = if picked == "blue" {
+                [0, 0, 255]
+            } else {
+                [255, 0, 0]
+            };
+            let w = f.windows()[usize::from(picked == "blue")].clone();
+            let home = centre(f.hecate().hecate.wm.window_rect(&w));
+            f.render("headless-1")
+                .assert_rgb(home.0, home.1, [0, 0, 255], "blue is on top");
+            f.hecate().open_overview();
+            f.advance_clock(400);
+            f.dispatch();
+            f.hecate().close_overview(Some(w));
+            f.advance_clock(396);
+            f.render("headless-1").assert_rgb(
+                home.0,
+                home.1,
+                colour,
+                &format!("{picked} was picked and arrives on top"),
+            );
+            f.advance_clock(4);
+            f.dispatch();
+            f.render("headless-1")
+                .assert_rgb(home.0, home.1, colour, "where it stays");
+        }
+    }
+
+    #[test]
+    fn opening_starts_from_the_desktops_stacking_order() {
+        let Some((mut f, _)) = two(&format!("{SLIDE}[focus]\nraise_on_focus = false\n")) else {
+            return;
+        };
+        let red_w = f.windows()[0].clone();
+        let home = centre(f.hecate().hecate.wm.window_rect(&red_w));
+        // Focused, so the overview opens with it selected, but still under blue.
+        f.hecate().focus_window(&red_w);
+        f.render("headless-1")
+            .assert_rgb(home.0, home.1, [0, 0, 255], "blue is on top");
+        f.hecate().open_overview();
+        assert_eq!(f.hecate().hecate.overview.selected, Some(red_w));
+        f.advance_clock(4);
+        f.render("headless-1").assert_rgb(
+            home.0,
+            home.1,
+            [0, 0, 255],
+            "the slide starts with blue still on top",
+        );
+    }
 }
 
 // ---------------------------------------------------------------- keyboard
@@ -1536,5 +1592,26 @@ mod review {
         assert!((centre_y(0) - centre_y(1)).abs() <= 1, "one row");
         assert_eq!(e[0].window.app_id(), "short", "left first");
         assert_eq!(entries(&mut f)[0].app_id(), "short");
+    }
+}
+
+// ---------------------------------------------------------------- plan review fixes
+
+mod plan_review {
+    use super::{Fixture, RED};
+
+    #[test]
+    fn picking_raises_even_without_raise_on_focus() {
+        let mut f = Fixture::with_toml("[focus]\nraise_on_focus = false\n");
+        f.add_output("headless-1", (1920, 1080));
+        let id = f.add_client();
+        f.map_window(id, (300, 200), RED, Some("a"));
+        f.map_window(id, (300, 200), super::BLUE, Some("b"));
+        let a = f.windows()[0].clone();
+        let top = |f: &mut Fixture| f.hecate().hecate.wm.workspaces[0].windows.last().cloned();
+        assert_ne!(top(&mut f), Some(a.clone()), "b is on top");
+        f.hecate().open_overview();
+        f.hecate().close_overview(Some(a.clone()));
+        assert_eq!(top(&mut f), Some(a), "the picked window came to the front");
     }
 }

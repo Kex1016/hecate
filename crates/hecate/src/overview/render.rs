@@ -184,13 +184,22 @@ impl Hecate {
             );
         }
 
-        // The selected window goes on top of the rest.
+        // Topmost first, in the workspace's stacking order: a transition starts from the
+        // desktop as it was and ends in the desktop as it will be (a picked window is
+        // raised). Once settled the selected slot goes on top, as hit-testing has it.
+        let stack: &[Window] = self
+            .wm
+            .active_workspace(output)
+            .map_or(&[], |ws| ws.windows.as_slice());
         let mut entries: Vec<_> = o
             .entries(output)
             .iter()
             .filter(|e| dragged.is_none_or(|d| d.window != e.window))
             .collect();
-        entries.sort_by_key(|e| Some(&e.window) != o.selected.as_ref());
+        entries.sort_by_key(|e| std::cmp::Reverse(stack.iter().position(|w| *w == e.window)));
+        if anim.is_none() {
+            entries.sort_by_key(|e| Some(&e.window) != o.selected.as_ref());
+        }
         for entry in entries {
             let window = &entry.window;
             let slot = entry.slot;
