@@ -93,6 +93,11 @@ fn lerp(a: f64, b: f64, t: f64) -> f64 {
     a + (b - a) * t
 }
 
+/// The window's `opacity` rule, as the desktop draws it.
+fn opacity(window: &Window) -> f32 {
+    window.data().rules.opacity.unwrap_or(1.0).clamp(0., 1.)
+}
+
 /// Ids for a second drawing of surfaces: per strip thumbnail, per surface element.
 type AgainIds = std::cell::RefCell<std::collections::HashMap<(u64, Id), Id>>;
 
@@ -176,7 +181,16 @@ impl Hecate {
             let shift = d.pos - d.start;
             let loc = (e.slot.content.loc.to_f64() + shift).to_i32_round();
             let content = Rectangle::new(loc, e.slot.content.size);
-            push_surfaces(renderer, out, &e.window, content, output_loc, scale, 0.8, None);
+            push_surfaces(
+                renderer,
+                out,
+                &e.window,
+                content,
+                output_loc,
+                scale,
+                0.8 * opacity(&e.window),
+                None,
+            );
         }
 
         // Topmost first, in the workspace's stacking order: a transition starts from the
@@ -226,11 +240,12 @@ impl Hecate {
                 frame_style.color = self.config.border.tint.gold;
             }
             let draw_frame = selected || !framed.selected_only;
-            let alpha = if o.matches(window) {
+            let dim = if o.matches(window) {
                 1.0
             } else {
                 self.config.overview.dim.clamp(0., 1.)
             };
+            let alpha = dim * opacity(window);
 
             let mut elems = Vec::new();
             let pixelated = if cell > 1 {
@@ -447,7 +462,7 @@ impl Hecate {
                         content,
                         output_geo.loc,
                         scale,
-                        alpha,
+                        alpha * opacity(window),
                         Some((&o.ids, t.workspace)),
                     );
                 }

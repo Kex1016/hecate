@@ -820,6 +820,42 @@ mod drawing {
             frame.assert_rgb(cx, bottom, [0, 255, 255], "then the frame");
         }
     }
+
+    #[test]
+    fn opacity_rules_hold_in_the_grid_and_the_strip() {
+        let look = LOOK
+            .replace("strip = false", "strip = true")
+            .replace("radius = 0\n", "radius = 0\nbackground = \"#000000\"\n");
+        let rule = "[[window_rules]]\nmatch = { app_id = \"red\" }\nopacity = 0.5\n";
+        let Some((mut f, id)) = with_toml(&format!(
+            "{look}[border.tint]\n{GOLD}[workspaces]\ncount = 3\n{rule}"
+        )) else {
+            return;
+        };
+        window(&mut f, id, (300, 200), RED, "red");
+        let red_w = f.windows()[0].clone();
+        let rect = f.hecate().hecate.wm.window_rect(&red_w);
+        f.render("headless-1").assert_rgb(
+            centre(rect).0,
+            centre(rect).1,
+            [136, 16, 24],
+            "half red on the desktop",
+        );
+        f.hecate().open_overview();
+        let frame = f.render("headless-1");
+        let (_, slot, _) = entry(&mut f, "red");
+        let (x, y) = centre(slot.content);
+        frame.assert_rgb(x, y, [136, 16, 24], "and in its slot");
+        // In its workspace's thumbnail, over the thumbnail's own background. Near the
+        // window's bottom-right corner: the workspace number covers the top-left.
+        let t = f.hecate().hecate.overview.strips["headless-1"][0].clone();
+        let at = |v: i32, origin: i32| origin + (f64::from(v) * t.scale).round() as i32;
+        let spot = (
+            at(rect.loc.x + rect.size.w - 40, t.content.loc.x),
+            at(rect.loc.y + rect.size.h - 25, t.content.loc.y),
+        );
+        frame.assert_rgb(spot.0, spot.1, [128, 0, 0], "and in the strip");
+    }
 }
 
 // ---------------------------------------------------------------- keyboard
