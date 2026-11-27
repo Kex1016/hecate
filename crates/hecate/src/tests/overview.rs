@@ -738,6 +738,73 @@ mod drawing {
         );
     }
 
+    /// Review Focus 3: the prompt, the close button and the frame drawn at a fractional
+    /// scale (their buffers are made at zoom 2 there).
+    #[test]
+    fn fractional_scale_draws_prompt_close_button_and_selection() {
+        let toml = format!(
+            "{LOOK}[outputs.headless-1]\nscale = 1.25\n[border.label]\ncolor = \"#ff00ff\"\n\
+             [border.tint]\n{GOLD}love = \"#ff0080\"\n"
+        );
+        let Some((mut f, id)) = with_toml(&toml) else {
+            return;
+        };
+        window(&mut f, id, (300, 200), RED, "red");
+        window(&mut f, id, (300, 200), BLUE, "blue");
+        f.hecate().open_overview();
+        for (sym, c) in [
+            (smithay::input::keyboard::Keysym::r, 'r'),
+            (smithay::input::keyboard::Keysym::e, 'e'),
+        ] {
+            f.hecate()
+                .overview_key(sym, crate::config::keys::Modifiers::empty(), Some(c));
+        }
+        let (red_w, red, _) = entry(&mut f, "red");
+        let (_, blue, _) = entry(&mut f, "blue");
+        assert_eq!(
+            f.hecate().hecate.overview.selected,
+            Some(red_w),
+            "the match is selected"
+        );
+        let frame = f.render("headless-1");
+        assert_eq!((frame.w, frame.h), (400, 300), "physical pixels");
+        // Logical to physical.
+        let px = |v: i32| (f64::from(v) * 1.25).round() as i32;
+        let count = |r: Rectangle<i32, Logical>, colour: [u8; 3]| {
+            (px(r.loc.y)..px(r.loc.y + r.size.h))
+                .flat_map(|y| (px(r.loc.x)..px(r.loc.x + r.size.w)).map(move |x| (x, y)))
+                .filter(|&p| rgb(&frame, p) == colour)
+                .count()
+        };
+        let gap = f.hecate().hecate.config.overview.gap;
+        let prompt_row = Rectangle::new((0, gap).into(), (320, crate::render::label::NOTCH_HEIGHT).into());
+        assert!(
+            count(prompt_row, [255, 0, 255]) > 20,
+            "the prompt's text in the label colour"
+        );
+        let button = crate::overview::layout::close_button(red.frame);
+        assert!(
+            count(button, [255, 0, 128]) > 100,
+            "a love close button on the selected slot"
+        );
+        frame.assert_rgb(
+            px(centre(red.frame).0),
+            px(red.frame.loc.y + 3),
+            [255, 255, 0],
+            "selected: gold",
+        );
+        let (x, y) = centre(red.content);
+        frame.assert_rgb(px(x), px(y), [255, 0, 0], "the match as it is");
+        let (x, y) = centre(blue.content);
+        frame.assert_rgb(px(x), px(y), [10, 21, 120], "the other dimmed");
+        frame.assert_rgb(
+            px(centre(red.frame).0),
+            px(red.frame.loc.y + red.frame.size.h) + 2,
+            BG,
+            "scaled into the slot, not cut",
+        );
+    }
+
     const SLIDE: &str = "[animations.overview]\nstyle = \"slide\"\nms = 400\ncurve = \"linear\"\n";
 
     #[test]
