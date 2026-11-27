@@ -856,6 +856,47 @@ mod drawing {
         );
         frame.assert_rgb(spot.0, spot.1, [128, 0, 0], "and in the strip");
     }
+
+    #[test]
+    fn outputs_keep_their_own_prompt_and_strip_buffers() {
+        let look = LOOK.replace("strip = false", "strip = true");
+        let toml =
+            format!("{look}[outputs.headless-2]\nscale = 2\nposition = [400, 0]\n[border.tint]\n{GOLD}");
+        let Some((mut f, id)) = with_toml(&toml) else {
+            return;
+        };
+        f.add_output("headless-2", (400, 300));
+        window(&mut f, id, (300, 200), RED, "red");
+        f.hecate().open_overview();
+        f.hecate().overview_key(
+            smithay::input::keyboard::Keysym::r,
+            crate::config::keys::Modifiers::empty(),
+            Some('r'),
+        );
+        f.render("headless-1");
+        let keys = |f: &mut Fixture| {
+            let o = &f.hecate().hecate.overview;
+            let prompt = o.prompt.borrow();
+            let zoom = |name: &str| prompt[name].as_ref().map(|(k, _, _)| (k.zoom, k.max_width));
+            let solids: Vec<String> = {
+                let mut names: Vec<String> = o.solids.borrow().keys().cloned().collect();
+                names.sort();
+                names
+            };
+            (zoom("headless-1"), zoom("headless-2"), solids)
+        };
+        let first = keys(&mut f);
+        assert_eq!(
+            first.0.map(|k| k.0),
+            Some(1),
+            "the first output's prompt at zoom 1"
+        );
+        assert_eq!(first.1.map(|k| k.0), Some(2), "the second one's at zoom 2");
+        assert_ne!(first.0, first.1, "each drawn for its own output");
+        assert_eq!(first.2, ["headless-1", "headless-2"], "strip buffers per output");
+        f.render("headless-1");
+        assert_eq!(keys(&mut f), first, "and kept from frame to frame");
+    }
 }
 
 // ---------------------------------------------------------------- keyboard

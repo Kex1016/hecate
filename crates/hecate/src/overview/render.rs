@@ -310,6 +310,7 @@ impl Hecate {
                 self.push_close_button(
                     renderer,
                     out,
+                    output,
                     frame_style.extents().around(content),
                     output_loc,
                     scale,
@@ -344,7 +345,10 @@ impl Hecate {
             .and_then(|d| thumbs.iter().find(|t| t.frame.to_f64().contains(d.pos)))
             .map(|t| t.workspace);
         let colors = &self.config.border;
+        // Per output: with shared workspaces one workspace is in every output's strip, and
+        // a buffer two outputs resize in turn is damaged in full every frame.
         let mut solids = o.solids.borrow_mut();
+        let solids = solids.entry(output.name()).or_default();
         let mut solid = |out: &mut Vec<HecateElement>,
                          key: (u64, u8),
                          rect: Rectangle<i32, Logical>,
@@ -476,6 +480,7 @@ impl Hecate {
         &self,
         renderer: &mut GlesRenderer,
         out: &mut Vec<HecateElement>,
+        output: &Output,
         frame: Rectangle<i32, Logical>,
         output_loc: Point<i32, Logical>,
         scale: Scale<f64>,
@@ -488,7 +493,8 @@ impl Hecate {
             bg: self.config.border.tint.love,
             zoom: scale.x.ceil().max(1.) as usize,
         };
-        let mut cache = self.overview.close.borrow_mut();
+        let mut caches = self.overview.close.borrow_mut();
+        let cache = caches.entry(output.name()).or_default();
         if cache.as_ref().is_none_or(|(k, _)| *k != key) {
             *cache = label::layout("x", 64).map(|line| {
                 // The notch line is padded; keep the 16×16 around the glyph.
@@ -553,7 +559,10 @@ impl Hecate {
             bg: self.config.border.background,
             zoom: scale.x.ceil().max(1.) as usize,
         };
-        let mut cache = o.prompt.borrow_mut();
+        // One buffer per output: they differ in width and scale, and a shared one would be
+        // drawn again (under a new id, so damaged in full) for each output every frame.
+        let mut caches = o.prompt.borrow_mut();
+        let cache = caches.entry(output.name()).or_default();
         if cache.as_ref().is_none_or(|(k, _, _)| *k != key) {
             let inner = key.max_width.saturating_sub(2 * label::NOTCH_PAD_X);
             *cache = label::layout(&key.text, inner).map(|line| {

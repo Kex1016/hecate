@@ -43,8 +43,8 @@ pub struct Overview {
     /// Each output's usable area at the last layout (drawing can't look it up: the layer
     /// map is locked then).
     pub(crate) usable: HashMap<String, Rectangle<i32, Logical>>,
-    /// The filter prompt's buffer, kept while its text and look stay the same.
-    pub(crate) prompt: std::cell::RefCell<Option<(PromptKey, MemoryRenderBuffer, i32)>>,
+    /// Each output's filter prompt buffer, kept while its text and look stay the same.
+    pub(crate) prompt: PerOutput<Option<(PromptKey, MemoryRenderBuffer, i32)>>,
     /// Each output's workspace strip (empty with `overview.strip = false`).
     pub strips: HashMap<String, Vec<strip::Thumb>>,
     /// A window being dragged towards the strip.
@@ -54,9 +54,9 @@ pub struct Overview {
     /// Touch points that went down while open. The overview keeps them to their release,
     /// also after it closed; ones that were down before stay with their client.
     pub(crate) touches: Vec<smithay::backend::input::TouchSlot>,
-    /// Fills and lines of the strip, per workspace, kept for stable damage.
+    /// Fills and lines of each output's strip, per workspace, kept for stable damage.
     pub(crate) solids:
-        std::cell::RefCell<HashMap<(u64, u8), smithay::backend::renderer::element::solid::SolidColorBuffer>>,
+        PerOutput<HashMap<(u64, u8), smithay::backend::renderer::element::solid::SolidColorBuffer>>,
     /// Ids of the strip's second drawing of each surface, per workspace thumbnail.
     pub(crate) ids: std::cell::RefCell<
         HashMap<(u64, smithay::backend::renderer::element::Id), smithay::backend::renderer::element::Id>,
@@ -65,9 +65,13 @@ pub struct Overview {
     pub(crate) numbers: std::cell::RefCell<HashMap<(String, usize), MemoryRenderBuffer>>,
     /// Buttons pressed while open, whose releases the overview swallows too.
     pub(crate) pressed: Vec<u32>,
-    /// The close button's buffer and what it was drawn from.
-    pub(crate) close: std::cell::RefCell<Option<(PromptKey, MemoryRenderBuffer)>>,
+    /// Each output's close button buffer and what it was drawn from.
+    pub(crate) close: PerOutput<Option<(PromptKey, MemoryRenderBuffer)>>,
 }
+
+/// Something drawing keeps for each output, by output name: outputs differ in size and
+/// scale, and a buffer two of them shared would be made again for each every frame.
+pub(crate) type PerOutput<T> = std::cell::RefCell<HashMap<String, T>>;
 
 /// A touch point that went down on the overview.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -418,6 +422,21 @@ impl State {
         let names: Vec<String> = outputs.iter().map(|o| o.name()).collect();
         self.hecate.overview.strips.retain(|n, _| names.contains(n));
         self.hecate.overview.usable.retain(|n, _| names.contains(n));
+        self.hecate
+            .overview
+            .prompt
+            .borrow_mut()
+            .retain(|n, _| names.contains(n));
+        self.hecate
+            .overview
+            .close
+            .borrow_mut()
+            .retain(|n, _| names.contains(n));
+        self.hecate
+            .overview
+            .solids
+            .borrow_mut()
+            .retain(|n, _| names.contains(n));
 
         let o = &self.hecate.overview;
         if let Some(sel) = o.selected.clone()
