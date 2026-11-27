@@ -192,6 +192,43 @@ impl Animation {
         })
     }
 
+    /// Start an animation part of the way in: at the earliest point of its timing where an
+    /// opening (`closing = false`) or closing element is `presence` there, or further along.
+    /// A transition turned round midway carries on from what was showing.
+    pub fn start_from(
+        clock: &Clock,
+        config: &Animations,
+        anim: &Anim,
+        presence: f64,
+        closing: bool,
+    ) -> Option<Animation> {
+        let mut a = Self::start(clock, config, anim)?;
+        let reached = |x: f64| {
+            if closing {
+                a.ease.reversed(x) <= presence + 1e-9
+            } else {
+                a.ease.value(x) >= presence - 1e-9
+            }
+        };
+        let (mut lo, mut hi) = (0., 1.);
+        if reached(0.) {
+            hi = 0.;
+        }
+        for _ in 0..32 {
+            if hi == 0. {
+                break;
+            }
+            let mid = (lo + hi) / 2.;
+            if reached(mid) {
+                hi = mid;
+            } else {
+                lo = mid;
+            }
+        }
+        a.start = a.start.saturating_sub(a.duration.mul_f64(hi));
+        Some(a)
+    }
+
     /// Linear progress in [0, 1].
     pub fn linear(&self, now: Duration) -> f64 {
         let t = now.saturating_sub(self.start).as_secs_f64();
@@ -273,6 +310,55 @@ mod tests {
         let c = Curve([0.42, 1.67, 0.21, 0.90]);
         let max = (0..=100).map(|i| c.ease(i as f64 / 100.)).fold(0., f64::max);
         assert!(max > 1.0, "expressive spatial curve overshoots");
+    }
+
+    #[test]
+    fn start_from_carries_on_from_what_was_showing() {
+        let mut clock = Clock::default();
+        clock.set_manual(Duration::from_secs(10));
+        let cfg = Animations::default();
+        let mut anim = Anim {
+            style: AnimStyle::Slide,
+            from: 0.5,
+            ms: 400,
+            curve: "linear".into(),
+            fade: false,
+            cell: 16,
+        };
+        let now = clock.now();
+        let a = Animation::start_from(&clock, &cfg, &anim, 0.25, true).unwrap();
+        assert!(
+            (a.presence(now, true) - 0.25).abs() < 1e-6,
+            "closing from a quarter"
+        );
+        assert!(!a.is_done(now + Duration::from_millis(99)));
+        assert!(
+            a.is_done(now + Duration::from_millis(101)),
+            "takes a quarter of the time"
+        );
+        let a = Animation::start_from(&clock, &cfg, &anim, 0.25, false).unwrap();
+        assert!(
+            (a.presence(now, false) - 0.25).abs() < 1e-6,
+            "opening from a quarter"
+        );
+        let a = Animation::start_from(&clock, &cfg, &anim, 1., true).unwrap();
+        assert_eq!(a.presence(now, true), 1., "from fully shown: the whole way");
+        assert!(!a.is_done(now + Duration::from_millis(399)));
+
+        // A stepped timing holds a few values only: it carries on from the nearest one
+        // that does not go back.
+        anim.curve = "stepped".into();
+        let opening = Animation::start(&clock, &cfg, &anim).unwrap();
+        for ms in [0, 60, 130, 250, 390] {
+            let shown = opening.presence(now + Duration::from_millis(ms), false);
+            let a = Animation::start_from(&clock, &cfg, &anim, shown, true).unwrap();
+            let p = a.presence(now, true);
+            assert!(p <= shown + 1e-9, "at {ms} ms: {p} does not jump above {shown}");
+            assert!(
+                shown - p <= 0.26,
+                "at {ms} ms: {p} is the step at or under {shown}"
+            );
+        }
     }
 
     #[test]

@@ -1600,6 +1600,23 @@ mod review {
 mod plan_review {
     use super::{Fixture, RED};
 
+    const SLIDE: &str = "[animations.overview]\nstyle = \"slide\"\nms = 400\ncurve = \"linear\"\n";
+
+    /// A fixture whose animations run on a clock the test steps.
+    fn animated(toml: &str) -> (Fixture, super::ClientId) {
+        let mut f = Fixture::with_toml(toml);
+        f.add_output("headless-1", (1920, 1080));
+        let id = f.add_client();
+        f.map_window(id, (300, 200), RED, Some("a"));
+        f.manual_clock();
+        (f, id)
+    }
+
+    fn progress(f: &mut Fixture) -> f64 {
+        let h = &f.hecate().hecate;
+        h.overview.progress(h.wm.clock.now())
+    }
+
     #[test]
     fn picking_a_window_leaves_show_desktop() {
         let (mut f, id) = super::setup();
@@ -1618,6 +1635,54 @@ mod plan_review {
             vec![a],
             "the picked window is shown"
         );
+    }
+
+    #[test]
+    fn turning_round_midway_carries_on_from_where_it_was() {
+        let (mut f, _) = animated(SLIDE);
+        f.hecate().open_overview();
+        f.advance_clock(100);
+        assert!((progress(&mut f) - 0.25).abs() < 1e-6);
+        f.hecate().close_overview(None);
+        assert!(
+            (progress(&mut f) - 0.25).abs() < 1e-6,
+            "closing starts from a quarter shown: {}",
+            progress(&mut f)
+        );
+        f.advance_clock(50);
+        assert!((progress(&mut f) - 0.125).abs() < 1e-6);
+        f.hecate().open_overview();
+        assert!(
+            (progress(&mut f) - 0.125).abs() < 1e-6,
+            "and opening again from there: {}",
+            progress(&mut f)
+        );
+        f.advance_clock(350);
+        f.dispatch();
+        let o = &f.hecate().hecate.overview;
+        assert!(
+            o.open && o.anim.is_none(),
+            "the rest of the way takes the rest of the time"
+        );
+    }
+
+    #[test]
+    fn styles_the_overview_cannot_draw_are_a_cut() {
+        for style in ["fade", "popin"] {
+            let (mut f, _) = animated(&format!("[animations.overview]\nstyle = \"{style}\"\nms = 400\n"));
+            f.hecate().open_overview();
+            let o = &f.hecate().hecate.overview;
+            assert!(o.open && o.anim.is_none(), "{style}: open at once");
+            f.hecate().close_overview(None);
+            let o = &f.hecate().hecate.overview;
+            assert!(
+                o.anim.is_none() && o.per_output.is_empty(),
+                "{style}: nothing of the grid stays over the desktop"
+            );
+        }
+        let (mut f, _) = animated(SLIDE);
+        f.hecate().open_overview();
+        assert!(f.hecate().hecate.overview.anim.is_some(), "slide does run");
     }
 
     #[test]

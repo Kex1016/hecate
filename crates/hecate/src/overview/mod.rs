@@ -15,6 +15,7 @@ use smithay::output::Output;
 use smithay::utils::{Logical, Rectangle};
 
 use crate::anim::Animation;
+use crate::config::AnimStyle;
 use crate::render::border;
 use crate::render::label;
 use crate::state::State;
@@ -216,6 +217,19 @@ impl State {
         Rows::new(Wm::usable_area(output, &self.hecate.config), c.gap, c.strip).grid
     }
 
+    /// The transition towards open (`closing = false`) or closed, carrying on from how far
+    /// the overview is shown now: turned round midway it goes back from where it was.
+    /// Styles the overview has no drawing for (`fade`, `popin`) are a cut, like `none`.
+    fn overview_transition(&self, closing: bool) -> Option<Animation> {
+        let config = &self.hecate.config.animations;
+        if !matches!(config.overview.style, AnimStyle::Slide | AnimStyle::Pixelate) {
+            return None;
+        }
+        let clock = &self.hecate.wm.clock;
+        let shown = self.hecate.overview.progress(clock.now());
+        Animation::start_from(clock, config, &config.overview, shown, closing)
+    }
+
     pub fn open_overview(&mut self) {
         // A layer surface with the keyboard to itself (a polkit prompt, the launcher) keeps
         // it: nothing typed there may end up in the filter.
@@ -227,8 +241,7 @@ impl State {
             return;
         }
         let focused = self.focused_window();
-        let config = &self.hecate.config.animations;
-        let anim = Animation::start(&self.hecate.wm.clock, config, &config.overview);
+        let anim = self.overview_transition(false);
         let o = &mut self.hecate.overview;
         o.open = true;
         o.anim = anim;
@@ -262,8 +275,7 @@ impl State {
         if !self.hecate.overview.open {
             return;
         }
-        let config = &self.hecate.config.animations;
-        let anim = Animation::start(&self.hecate.wm.clock, config, &config.overview);
+        let anim = self.overview_transition(true);
         self.finish_close(anim);
         let previous = self.hecate.overview.previous_focus.take();
         match focus {
@@ -304,8 +316,7 @@ impl State {
     /// Close and leave focus alone: an exclusive-keyboard layer surface has it.
     fn close_overview_for_layer(&mut self) {
         if self.hecate.overview.open {
-            let config = &self.hecate.config.animations;
-            let anim = Animation::start(&self.hecate.wm.clock, config, &config.overview);
+            let anim = self.overview_transition(true);
             self.finish_close(anim);
             self.hecate.overview.previous_focus = None;
             self.warp_pointer(self.hecate.pointer_location);
