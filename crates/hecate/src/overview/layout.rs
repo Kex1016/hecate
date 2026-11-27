@@ -103,9 +103,11 @@ pub fn grid(area: Rectangle<i32, Logical>, items: &[Item], gap: i32) -> Vec<Slot
         );
 
         let scale = fit(item, cell);
+        // Rounded, as the scaled surfaces are drawn; `fit` keeps the result inside the
+        // cell, which is whole pixels.
         let size = (
-            ((f64::from(item.rect.size.w) * scale).floor() as i32).max(1),
-            ((f64::from(item.rect.size.h) * scale).floor() as i32).max(1),
+            ((f64::from(item.rect.size.w) * scale).round() as i32).max(1),
+            ((f64::from(item.rect.size.h) * scale).round() as i32).max(1),
         );
         let ext = item.extents;
         let frame_size = (size.0 + ext.left + ext.right, size.1 + ext.top + ext.bottom);

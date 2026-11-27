@@ -96,9 +96,8 @@ fn lerp(a: f64, b: f64, t: f64) -> f64 {
 /// Ids for a second drawing of surfaces: per strip thumbnail, per surface element.
 type AgainIds = std::cell::RefCell<std::collections::HashMap<(u64, Id), Id>>;
 
-/// A window's surfaces with their content's top-left at `content.loc` (relative to
-/// `origin`), drawn at `zoom` times their size. Popups are left out. With `again`, the
-/// elements get ids of their own for that thumbnail (the grid draws them too).
+/// A window's surfaces filling `content` (relative to `origin`). Popups are left out. With
+/// `again`, the elements get ids of their own for that thumbnail (the grid draws them too).
 #[allow(clippy::too_many_arguments)]
 fn push_surfaces(
     renderer: &mut GlesRenderer,
@@ -107,12 +106,18 @@ fn push_surfaces(
     content: Rectangle<i32, Logical>,
     origin: Point<i32, Logical>,
     scale: Scale<f64>,
-    zoom: f64,
     alpha: f32,
     again: Option<(&AgainIds, u64)>,
 ) {
     // Drawn at full size with the content's top-left at its place, then scaled about it:
-    // a surface element's size follows the output scale alone.
+    // a surface element's size follows the output scale alone. The zoom comes from the
+    // pixels `content` covers, so the window ends where its frame begins.
+    let full: smithay::utils::Size<i32, Physical> = window.geometry().size.to_physical_precise_round(scale);
+    let shown: smithay::utils::Size<i32, Physical> = content.size.to_physical_precise_round(scale);
+    let zoom = Scale::from((
+        f64::from(shown.w.max(1)) / f64::from(full.w.max(1)),
+        f64::from(shown.h.max(1)) / f64::from(full.h.max(1)),
+    ));
     let anchor = content.loc - origin;
     let elems: Vec<WaylandSurfaceRenderElement<GlesRenderer>> = render_elements_from_surface_tree(
         renderer,
@@ -171,17 +176,7 @@ impl Hecate {
             let shift = d.pos - d.start;
             let loc = (e.slot.content.loc.to_f64() + shift).to_i32_round();
             let content = Rectangle::new(loc, e.slot.content.size);
-            push_surfaces(
-                renderer,
-                out,
-                &e.window,
-                content,
-                output_loc,
-                scale,
-                e.slot.scale,
-                0.8,
-                None,
-            );
+            push_surfaces(renderer, out, &e.window, content, output_loc, scale, 0.8, None);
         }
 
         // Topmost first, in the workspace's stacking order: a transition starts from the
@@ -204,24 +199,23 @@ impl Hecate {
             let window = &entry.window;
             let slot = entry.slot;
             let size = window.geometry().size;
-            let (content, zoom) = match style {
+            let content = match style {
                 Some(AnimStyle::Slide) => {
                     let zoom = lerp(1., slot.scale, p);
                     let loc = Point::<f64, Logical>::from((
                         lerp(entry.from.loc.x as f64, slot.content.loc.x as f64, p),
                         lerp(entry.from.loc.y as f64, slot.content.loc.y as f64, p),
                     ));
-                    let rect = Rectangle::new(
+                    Rectangle::new(
                         loc.to_i32_round(),
                         (
                             ((size.w as f64 * zoom).round() as i32).max(1),
                             ((size.h as f64 * zoom).round() as i32).max(1),
                         )
                             .into(),
-                    );
-                    (rect, zoom)
+                    )
                 }
-                _ => (slot.content, slot.scale),
+                _ => slot.content,
             };
             // Every slot has a frame, also where the desktop draws none (maximized,
             // fullscreen): its colour is what shows the selection.
@@ -251,9 +245,7 @@ impl Hecate {
                     alpha,
                     |renderer, size| {
                         let mut body = Vec::new();
-                        push_surfaces(
-                            renderer, &mut body, window, content, frame.loc, scale, zoom, 1.0, None,
-                        );
+                        push_surfaces(renderer, &mut body, window, content, frame.loc, scale, 1.0, None);
                         let mut lines = Vec::new();
                         if draw_frame {
                             border::push_frame(
@@ -281,7 +273,7 @@ impl Hecate {
                 Some(e) => elems.push(HecateElement::Window(WindowElement::Pixelated(e))),
                 None => {
                     push_surfaces(
-                        renderer, &mut elems, window, content, output_loc, scale, zoom, alpha, None,
+                        renderer, &mut elems, window, content, output_loc, scale, alpha, None,
                     );
                     let mut lines = Vec::new();
                     if draw_frame {
@@ -455,7 +447,6 @@ impl Hecate {
                         content,
                         output_geo.loc,
                         scale,
-                        t.scale,
                         alpha,
                         Some((&o.ids, t.workspace)),
                     );

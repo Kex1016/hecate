@@ -793,6 +793,33 @@ mod drawing {
             "the slide starts with blue still on top",
         );
     }
+
+    #[test]
+    fn scaled_content_ends_where_the_frame_begins() {
+        let Some((mut f, id)) = with_toml(&format!("{LOOK}[border.tint]\n{GOLD}")) else {
+            return;
+        };
+        for (i, size) in [(301, 203), (333, 177), (251, 199), (377, 155)]
+            .into_iter()
+            .enumerate()
+        {
+            window(&mut f, id, size, RED, &format!("w{i}"));
+        }
+        f.hecate().open_overview();
+        f.hecate().hecate.overview.selected = None;
+        let frame = f.render("headless-1");
+        for i in 0..4 {
+            let (_, slot, _) = entry(&mut f, &format!("w{i}"));
+            assert!(slot.scale < 1., "scaled down");
+            let c = slot.content;
+            let (cx, cy) = centre(c);
+            let (right, bottom) = (c.loc.x + c.size.w, c.loc.y + c.size.h);
+            frame.assert_rgb(right - 1, cy, [255, 0, 0], "the content's last column");
+            frame.assert_rgb(right, cy, [0, 255, 255], "then the frame");
+            frame.assert_rgb(cx, bottom - 1, [255, 0, 0], "the content's last row");
+            frame.assert_rgb(cx, bottom, [0, 255, 255], "then the frame");
+        }
+    }
 }
 
 // ---------------------------------------------------------------- keyboard
