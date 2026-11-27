@@ -500,7 +500,7 @@ mod drawing {
     fn fullscreen_window_gets_a_slot_and_the_bar_shows() {
         use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_shell_v1::Layer;
         use smithay::reexports::wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_surface_v1::Anchor;
-        let Some((mut f, id)) = with_toml(LOOK) else {
+        let Some((mut f, id)) = with_toml(&format!("{LOOK}[border.tint]\n{GOLD}")) else {
             return;
         };
         let layer = f.client(id).create_layer(None, Layer::Top, "bar");
@@ -541,6 +541,116 @@ mod drawing {
         );
         let (x, y) = centre(slot.content);
         frame.assert_rgb(x, y, [255, 0, 0], "the fullscreen window in its slot");
+        // A slot like any other: a frame around it, gold while it is selected.
+        assert_eq!(f.hecate().hecate.overview.selected, Some(w.clone()));
+        assert_ne!(slot.frame, slot.content, "the slot has a frame");
+        frame.assert_rgb(
+            centre(slot.frame).0,
+            slot.frame.loc.y + 1,
+            [255, 255, 0],
+            "selected: gold",
+        );
+        f.hecate().hecate.overview.selected = None;
+        f.render("headless-1").assert_rgb(
+            centre(slot.frame).0,
+            slot.frame.loc.y + 1,
+            [0, 255, 255],
+            "not selected: the inactive colour",
+        );
+    }
+
+    #[test]
+    fn maximized_window_has_a_frame_and_shows_the_selection() {
+        use crate::wm::WindowExt;
+        let Some((mut f, id)) = with_toml(&format!("{LOOK}[border.tint]\n{GOLD}")) else {
+            return;
+        };
+        let surface = window(&mut f, id, (300, 200), RED, "red");
+        f.client(id).window(&surface).set_maximized();
+        f.client(id).window(&surface).commit();
+        f.double_roundtrip(id);
+        f.ack_and_resize(id, &surface, RED);
+        window(&mut f, id, (100, 80), BLUE, "blue");
+        let red_w = f.windows()[0].clone();
+        assert!(red_w.data().maximized != crate::wm::Maximized::No, "maximized");
+        let config = f.hecate().hecate.config.clone();
+        assert_eq!(
+            crate::render::border::extents_for(&config, &red_w),
+            crate::render::border::Extents::default(),
+            "no border on the desktop"
+        );
+
+        f.hecate().open_overview();
+        let (_, red, _) = entry(&mut f, "red");
+        let (blue_w, _, _) = entry(&mut f, "blue");
+        assert_ne!(red.frame, red.content, "its slot has a frame");
+        let top = (centre(red.frame).0, red.frame.loc.y + 1);
+        f.hecate().hecate.overview.selected = Some(red_w);
+        let frame = f.render("headless-1");
+        frame.assert_rgb(top.0, top.1, [255, 255, 0], "selected: gold");
+        frame.assert_rgb(
+            red.content.loc.x - 1,
+            centre(red.content).1,
+            [255, 255, 0],
+            "on every side",
+        );
+        f.hecate().hecate.overview.selected = Some(blue_w);
+        f.render("headless-1")
+            .assert_rgb(top.0, top.1, [0, 255, 255], "not selected: the inactive colour");
+    }
+
+    #[test]
+    fn border_hidden_window_gets_its_frame_back() {
+        let Some((mut f, _)) = two("") else { return };
+        let red_w = f.windows()[0].clone();
+        f.hecate()
+            .do_action(crate::config::action::Action::ToggleBorder, Some(red_w.clone()));
+        assert!(crate::wm::WindowExt::data(&red_w).border_hidden);
+        f.hecate().open_overview();
+        let (_, red, _) = entry(&mut f, "red");
+        assert_ne!(red.frame, red.content);
+        f.hecate().hecate.overview.selected = Some(red_w);
+        f.render("headless-1").assert_rgb(
+            centre(red.frame).0,
+            red.frame.loc.y + 1,
+            [255, 255, 0],
+            "selected: gold",
+        );
+    }
+
+    #[test]
+    fn a_selected_window_without_border_width_gets_a_thin_gold_line() {
+        let look = LOOK.replace("width = 6", "width = 0");
+        let Some((mut f, id)) = with_toml(&format!("{look}[border.tint]\n{GOLD}")) else {
+            return;
+        };
+        window(&mut f, id, (300, 200), RED, "red");
+        window(&mut f, id, (300, 200), BLUE, "blue");
+        f.hecate().open_overview();
+        let (red_w, red, _) = entry(&mut f, "red");
+        let (_, blue, _) = entry(&mut f, "blue");
+        let line = crate::render::border::Extents {
+            top: 2,
+            right: 2,
+            bottom: 2,
+            left: 2,
+        };
+        assert_eq!(red.frame, line.around(red.content), "room for the line");
+        f.hecate().hecate.overview.selected = Some(red_w);
+        let frame = f.render("headless-1");
+        for (x, y) in [
+            (centre(red.frame).0, red.frame.loc.y),
+            (red.frame.loc.x + 1, centre(red.frame).1),
+            (centre(red.frame).0, red.frame.loc.y + red.frame.size.h - 1),
+        ] {
+            frame.assert_rgb(x, y, [255, 255, 0], "a gold line around the selected slot");
+        }
+        frame.assert_rgb(
+            centre(blue.frame).0,
+            blue.frame.loc.y,
+            BG,
+            "and nothing around the other",
+        );
     }
 }
 

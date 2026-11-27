@@ -214,10 +214,15 @@ impl Hecate {
                 }
                 _ => (slot.content, slot.scale),
             };
-            let mut frame_style: BorderStyle = border::style_for(&self.config, window, false);
-            if o.selected.as_ref() == Some(window) {
+            // Every slot has a frame, also where the desktop draws none (maximized,
+            // fullscreen): its colour is what shows the selection.
+            let selected = o.selected.as_ref() == Some(window);
+            let framed = border::style_for_overview(&self.config, window);
+            let mut frame_style: BorderStyle = framed.style;
+            if selected {
                 frame_style.color = self.config.border.tint.gold;
             }
+            let draw_frame = selected || !framed.selected_only;
             let alpha = if o.matches(window) {
                 1.0
             } else {
@@ -241,16 +246,18 @@ impl Hecate {
                             renderer, &mut body, window, content, frame.loc, scale, zoom, 1.0, None,
                         );
                         let mut lines = Vec::new();
-                        border::push_frame(
-                            renderer,
-                            &mut lines,
-                            window,
-                            content,
-                            frame.loc,
-                            scale,
-                            1.0,
-                            &frame_style,
-                        );
+                        if draw_frame {
+                            border::push_frame(
+                                renderer,
+                                &mut lines,
+                                window,
+                                content,
+                                frame.loc,
+                                scale,
+                                1.0,
+                                &frame_style,
+                            );
+                        }
                         body.extend(lines.into_iter().map(HecateElement::Window));
                         snapshot::render_to_texture(renderer, size, scale, &body)
                     },
@@ -268,20 +275,22 @@ impl Hecate {
                         renderer, &mut elems, window, content, output_loc, scale, zoom, alpha, None,
                     );
                     let mut lines = Vec::new();
-                    border::push_frame(
-                        renderer,
-                        &mut lines,
-                        window,
-                        content,
-                        output_loc,
-                        scale,
-                        alpha,
-                        &frame_style,
-                    );
+                    if draw_frame {
+                        border::push_frame(
+                            renderer,
+                            &mut lines,
+                            window,
+                            content,
+                            output_loc,
+                            scale,
+                            alpha,
+                            &frame_style,
+                        );
+                    }
                     elems.extend(lines.into_iter().map(HecateElement::Window));
                 }
             }
-            if o.selected.as_ref() == Some(window) && cell == 1 {
+            if selected && cell == 1 {
                 self.push_close_button(
                     renderer,
                     out,

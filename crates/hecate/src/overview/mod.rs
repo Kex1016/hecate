@@ -353,7 +353,7 @@ impl State {
                 .zip(&from)
                 .map(|(w, rect)| Item {
                     rect: *rect,
-                    extents: border::extents_for(&self.hecate.config, w),
+                    extents: border::style_for_overview(&self.hecate.config, w).style.extents(),
                 })
                 .collect();
             let slots = layout::grid(self.overview_area(output), &items, gap);
