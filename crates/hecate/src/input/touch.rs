@@ -45,11 +45,21 @@ impl State {
         };
         // The overview takes touches: a tap is a left click on release.
         if self.hecate.overview.open {
-            if self.hecate.overview.touch.is_none() {
-                self.hecate.overview.touch = Some((slot, pos));
+            let o = &mut self.hecate.overview;
+            if !o.touches.contains(&slot) {
+                o.touches.push(slot);
+            }
+            if o.touch.is_none_or(|t| t.slot == slot) {
+                o.touch = Some(crate::overview::Tap {
+                    slot,
+                    start: pos,
+                    moved: false,
+                });
             }
             return;
         }
+        // A slot the overview never saw lifted (its device went away) is a new touch now.
+        self.hecate.overview.touches.retain(|s| *s != slot);
         let under = self.contents_under(pos);
         if !touch.is_grabbed() && !self.hecate.wm.is_locked() {
             if let Some(w) = &under.window {
@@ -76,7 +86,15 @@ impl State {
         let Some(touch) = self.hecate.seat.get_touch() else {
             return;
         };
-        if self.hecate.overview.open {
+        // The overview's own touch points; one that was down before it opened stays with
+        // its client, which still has to see it lifted.
+        if self.hecate.overview.touches.contains(&slot) {
+            if let Some(tap) = self.hecate.overview.touch.as_mut()
+                && tap.slot == slot
+            {
+                let moved = pos - tap.start;
+                tap.moved |= moved.x.hypot(moved.y) > crate::overview::strip::DRAG_THRESHOLD;
+            }
             return;
         }
         let under = self.contents_under(pos);
@@ -95,16 +113,14 @@ impl State {
         let Some(touch) = self.hecate.seat.get_touch() else {
             return;
         };
-        if let Some((s, pos)) = self.hecate.overview.touch
-            && s == slot
-        {
-            self.hecate.overview.touch = None;
-            if self.hecate.overview.open {
-                self.overview_click(pos, crate::config::keys::BTN_LEFT);
+        if let Some(i) = self.hecate.overview.touches.iter().position(|s| *s == slot) {
+            self.hecate.overview.touches.remove(i);
+            if let Some(tap) = self.hecate.overview.touch.filter(|t| t.slot == slot) {
+                self.hecate.overview.touch = None;
+                if self.hecate.overview.open && !tap.moved {
+                    self.overview_click(tap.start, crate::config::keys::BTN_LEFT);
+                }
             }
-            return;
-        }
-        if self.hecate.overview.open {
             return;
         }
         touch.up(
@@ -124,6 +140,8 @@ impl State {
     }
 
     pub fn touch_cancel(&mut self) {
+        self.hecate.overview.touches.clear();
+        self.hecate.overview.touch = None;
         if let Some(touch) = self.hecate.seat.get_touch() {
             touch.cancel(self);
         }

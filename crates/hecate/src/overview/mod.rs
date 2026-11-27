@@ -48,11 +48,11 @@ pub struct Overview {
     pub strips: HashMap<String, Vec<strip::Thumb>>,
     /// A window being dragged towards the strip.
     pub drag: Option<strip::Drag>,
-    /// A touch point the overview took, and where it went down: a tap there on release.
-    pub touch: Option<(
-        smithay::backend::input::TouchSlot,
-        smithay::utils::Point<f64, Logical>,
-    )>,
+    /// The touch point that may become a tap: a left click where it went down, on release.
+    pub touch: Option<Tap>,
+    /// Touch points that went down while open. The overview keeps them to their release,
+    /// also after it closed; ones that were down before stay with their client.
+    pub(crate) touches: Vec<smithay::backend::input::TouchSlot>,
     /// Fills and lines of the strip, per workspace, kept for stable damage.
     pub(crate) solids:
         std::cell::RefCell<HashMap<(u64, u8), smithay::backend::renderer::element::solid::SolidColorBuffer>>,
@@ -66,6 +66,15 @@ pub struct Overview {
     pub(crate) pressed: Vec<u32>,
     /// The close button's buffer and what it was drawn from.
     pub(crate) close: std::cell::RefCell<Option<(PromptKey, MemoryRenderBuffer)>>,
+}
+
+/// A touch point that went down on the overview.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Tap {
+    pub slot: smithay::backend::input::TouchSlot,
+    pub start: smithay::utils::Point<f64, Logical>,
+    /// It went too far from `start` to be a tap.
+    pub moved: bool,
 }
 
 /// What the filter prompt was drawn from.
