@@ -259,8 +259,9 @@ impl State {
         let previous = self.hecate.overview.previous_focus.take();
         match focus {
             Some(w) => {
-                // A picked window comes to the front even where focusing alone would not
-                // raise it.
+                // A picked window is shown, whatever hid the desktop, and comes to the
+                // front even where focusing alone would not raise it.
+                self.hecate.wm.show_desktop = false;
                 self.activate_window(&w);
                 self.hecate.wm.raise(&w);
             }

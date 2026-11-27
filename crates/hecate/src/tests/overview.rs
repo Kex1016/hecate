@@ -1601,6 +1601,26 @@ mod plan_review {
     use super::{Fixture, RED};
 
     #[test]
+    fn picking_a_window_leaves_show_desktop() {
+        let (mut f, id) = super::setup();
+        f.map_window(id, (300, 200), RED, Some("a"));
+        let a = f.windows()[0].clone();
+        let output = f.hecate().hecate.wm.outputs().next().cloned().unwrap();
+        f.hecate()
+            .do_action(crate::config::action::Action::ToggleShowDesktop, None);
+        assert!(f.hecate().hecate.wm.windows_on_output(&output).is_empty());
+        f.hecate().open_overview();
+        assert!(f.hecate().hecate.overview.open, "its windows are still listed");
+        f.hecate().close_overview(Some(a.clone()));
+        assert_eq!(f.focused(), Some(a.clone()));
+        assert_eq!(
+            f.hecate().hecate.wm.windows_on_output(&output),
+            vec![a],
+            "the picked window is shown"
+        );
+    }
+
+    #[test]
     fn picking_raises_even_without_raise_on_focus() {
         let mut f = Fixture::with_toml("[focus]\nraise_on_focus = false\n");
         f.add_output("headless-1", (1920, 1080));
