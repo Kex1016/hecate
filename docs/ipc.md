@@ -110,6 +110,10 @@ After `"event_stream"`, the server first sends full state
 `workspace_activated`, `workspace_urgency_changed`, `output_focus_changed`,
 `keyboard_layout_switched`, `config_reloaded`.
 
+`OverviewChanged` says the window overview (`toggle_overview`) opened or
+closed: `{"OverviewChanged": {"open": true}}`. It has no initial state; the
+overview is closed when a stream starts unless one of these says otherwise.
+
 ## CLI
 
 `hecate msg ...` wraps all of the above. Full command list, window

@@ -402,6 +402,14 @@ mod tests {
     }
 
     #[test]
+    fn overview_section_parses() {
+        let c = from_toml_str("[overview]\ngap = 8\n[animations.overview]\nstyle = \"pixelate\"").unwrap();
+        assert_eq!(c.overview.gap, 8);
+        assert_eq!(c.animations.overview.style, crate::config::AnimStyle::Pixelate);
+        assert!(from_toml_str("[overview]\nbogus = 1").is_err());
+    }
+
+    #[test]
     fn workspace_limits() {
         assert!(from_toml_str("[workspaces]\ncount = 33").is_err());
         assert!(from_toml_str("[workspaces]\ncount = 0").is_err());

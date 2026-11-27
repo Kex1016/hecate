@@ -341,3 +341,104 @@ fn modifiers_of_a_swallowed_modifier_key_reach_the_client() {
         "Alt was depressed before Left: {events:?}"
     );
 }
+
+#[test]
+fn touch_in_the_overview_picks_a_window_and_never_reaches_a_client() {
+    let (mut f, id) = setup("");
+    f.map_window(id, (400, 300), RED, Some("a"));
+    f.map_window(id, (400, 300), RED, Some("b"));
+    f.hecate().open_overview();
+    let (w, cell) = {
+        let e = &f.hecate().hecate.overview.per_output["headless-1"][0];
+        (e.window.clone(), e.slot)
+    };
+    let pos = (
+        f64::from(cell.content.loc.x + cell.content.size.w / 2),
+        f64::from(cell.content.loc.y + cell.content.size.h / 2),
+    );
+    {
+        let s = f.hecate();
+        s.touch_down(slot(0), pos.into(), time());
+        s.touch_frame();
+        s.touch_up(slot(0), time());
+        s.touch_frame();
+    }
+    f.double_roundtrip(id);
+    let events = touch_events(&mut f, id);
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, TouchEvent::Down { .. } | TouchEvent::Up { .. })),
+        "no touch reached a client: {events:?}"
+    );
+    assert!(!f.hecate().hecate.overview.open, "the tap picked a window");
+    assert_eq!(f.focused(), Some(w));
+}
+
+#[test]
+fn a_finger_down_before_the_overview_opens_still_gets_its_up() {
+    let (mut f, id) = setup("");
+    f.map_window(id, (400, 300), RED, Some("a"));
+    let w = f.windows()[0].clone();
+    w.data().loc = (100, 100).into();
+    {
+        let s = f.hecate();
+        s.touch_down(slot(0), (150., 120.).into(), time());
+        s.touch_frame();
+    }
+    f.double_roundtrip(id);
+    assert!(
+        touch_events(&mut f, id)
+            .iter()
+            .any(|e| matches!(e, TouchEvent::Down { id: 0, .. })),
+        "the window has the finger"
+    );
+    f.hecate().open_overview();
+    {
+        let s = f.hecate();
+        s.touch_up(slot(0), time());
+        s.touch_frame();
+    }
+    f.double_roundtrip(id);
+    let events = touch_events(&mut f, id);
+    assert!(
+        events.contains(&TouchEvent::Up { id: 0 }),
+        "its client sees it lifted: {events:?}"
+    );
+    assert!(
+        f.hecate().hecate.overview.open,
+        "and that was no tap on the overview"
+    );
+}
+
+#[test]
+fn a_touch_that_moves_away_is_not_a_tap() {
+    let (mut f, id) = setup("");
+    f.map_window(id, (400, 300), RED, Some("a"));
+    f.hecate().open_overview();
+    let cell = f.hecate().hecate.overview.per_output["headless-1"][0].slot;
+    let pos = (
+        f64::from(cell.content.loc.x + cell.content.size.w / 2),
+        f64::from(cell.content.loc.y + cell.content.size.h / 2),
+    );
+    {
+        let s = f.hecate();
+        s.touch_down(slot(0), pos.into(), time());
+        s.touch_motion(slot(0), (pos.0 + 120., pos.1).into(), time());
+        s.touch_frame();
+        s.touch_up(slot(0), time());
+        s.touch_frame();
+    }
+    f.double_roundtrip(id);
+    assert!(f.hecate().hecate.overview.open, "a swipe picks nothing");
+    assert!(touch_events(&mut f, id).is_empty(), "and no client hears of it");
+    // A finger that stays put still does.
+    {
+        let s = f.hecate();
+        s.touch_down(slot(0), pos.into(), time());
+        s.touch_motion(slot(0), (pos.0 + 3., pos.1).into(), time());
+        s.touch_up(slot(0), time());
+        s.touch_frame();
+    }
+    assert!(!f.hecate().hecate.overview.open, "a tap picks the window");
+}

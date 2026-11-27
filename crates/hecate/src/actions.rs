@@ -286,6 +286,7 @@ impl State {
                 self.focus_topmost();
                 self.hecate.queue_redraw_all();
             }
+            Action::ToggleOverview => self.toggle_overview(),
             Action::ToggleShowDesktop => {
                 self.hecate.wm.show_desktop = !self.hecate.wm.show_desktop;
                 self.focus_topmost();

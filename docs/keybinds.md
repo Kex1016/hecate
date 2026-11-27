@@ -21,6 +21,7 @@ nearest stacking equivalent or dropped.
 | bind                         | action                         | origin |
 | ---------------------------- | ------------------------------ | ------ |
 | `Mod+Q`                      | `close`                        | niri, end-4 |
+| `Mod+W`                      | `toggle_overview`              | GNOME, macOS Exposé |
 | `Alt+F4`                     | `close`                        | labwc |
 | `Mod+Left/Down/Up/Right`     | `focus_direction <dir>` (stops at the output edge) | niri `focus-column-left` ... |
 | `Mod+J/K/L/M`                | `focus_direction <dir>`        | niri. **Dropped in the shell profile**, see conflicts |
@@ -117,13 +118,33 @@ so `hecate msg binds` shows each bind's layer.
 | `Mod+Shift+N` / `B` / `P` / `M` | media next / previous / play-pause / mute |
 | `Mod+Alt+M`                  | mic mute                                |
 
-end-4's app launchers (`Mod+T`, `Mod+E`, `Mod+W`, `Mod+X`, `Mod+I`, ...)
+end-4's app launchers (`Mod+T`, `Mod+E`, `Mod+X`, `Mod+I`, ...)
 are left out of the shell profile; apps are personal.
 
 Not bound because end4-pC has no such shortcut: `Mod+Tab` (the workspace
 overview is off on hecate for now), `Mod+Slash` (end4-pC dropped ii's cheat
 sheet; the keybind list in its settings reads `hecate msg -j binds`),
 `Mod+Ctrl+Shift+D` and `Mod+Ctrl+P`.
+
+## overview
+
+While the overview (`Mod+W`) is open it takes the keyboard; only binds with
+`allow_when_locked`, binds to `toggle_overview` or `workspace`, and VT
+switches still fire. A layer surface with the keyboard to itself (a polkit
+prompt, the launcher) closes it. Touch and pen taps pick a window like a
+click. See
+[config.md](config.md#window-overview).
+
+| key                          | does                           |
+| ---------------------------- | ------------------------------ |
+| arrows                       | move the selection             |
+| `Return`                     | focus the selected window      |
+| `Esc` / `Mod+W`              | close, focus back where it was |
+| typing / `BackSpace` / `Ctrl+U` | filter by app and title / delete a character / clear |
+| `Page_Up` / `Page_Down`      | previous / next workspace (stays open) |
+| `Shift+Page_Up` / `Shift+Page_Down` | move the selected window to the previous / next workspace |
+| left click / middle click    | focus a window / close it      |
+| drag onto the strip          | move the window to that workspace |
 
 ## Conflicts
 

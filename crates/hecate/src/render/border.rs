@@ -447,6 +447,63 @@ fn style_for_inner(config: &Config, window: &Window, focused: bool, identify: bo
     }
 }
 
+/// Width of the line the overview draws around a selected window that has no border.
+pub const OVERVIEW_OUTLINE: f32 = 2.;
+
+/// The frame of a window's slot in the overview.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OverviewStyle {
+    pub style: BorderStyle,
+    /// Drawn around the selected slot only (a window whose border has no width).
+    pub selected_only: bool,
+}
+
+/// The frame the overview draws around `window`. Every window gets one there, since the
+/// frame's colour is what shows the selection: a maximized, fullscreen or border-hidden
+/// window gets the configured frame back, square, and one whose border has no width gets a
+/// thin line while it is selected.
+pub fn style_for_overview(config: &Config, window: &Window) -> OverviewStyle {
+    let style = style_for(config, window, false);
+    if style.draw_border {
+        return OverviewStyle {
+            style,
+            selected_only: false,
+        };
+    }
+    let o = window.data().rules.border.clone().unwrap_or_default();
+    let width = o.width.unwrap_or(config.border.width).max(0.);
+    let hidden = BorderStyle {
+        radius: Corners::default(),
+        clip: false,
+        draw_border: true,
+        ..style
+    };
+    if width > 0. {
+        let label = o
+            .label
+            .unwrap_or(config.border.label.enable)
+            .then_some((config.border.label.color, config.border.label.offset));
+        OverviewStyle {
+            style: BorderStyle {
+                width,
+                label,
+                ..hidden
+            },
+            selected_only: false,
+        }
+    } else {
+        OverviewStyle {
+            style: BorderStyle {
+                width: OVERVIEW_OUTLINE,
+                line: BorderLine::Solid,
+                label: None,
+                ..hidden
+            },
+            selected_only: true,
+        }
+    }
+}
+
 /// Per-window persistent border element (so its damage tracking stays stable), and the
 /// uniform values it was last given: they are only sent again when one changes, since
 /// every update damages the whole border.
@@ -544,9 +601,26 @@ pub fn push_body(
         }
     }
 
+    push_frame(renderer, out, window, geo, output_loc, scale, alpha, style);
+}
+
+/// The frame around a window's content at `geo`: the notch label, the band and the lines.
+/// Nothing when the style draws no border.
+#[allow(clippy::too_many_arguments)]
+pub fn push_frame(
+    renderer: &mut GlesRenderer,
+    out: &mut Vec<WindowElement>,
+    window: &Window,
+    geo: Rectangle<i32, Logical>,
+    output_loc: Point<i32, Logical>,
+    scale: Scale<f64>,
+    alpha: f32,
+    style: &BorderStyle,
+) {
     if !style.draw_border {
         return;
     }
+    let local_geo = Rectangle::new(geo.loc - output_loc, geo.size);
     let band = style.band();
 
     // The label straddles the top line's inner edge, over the border.

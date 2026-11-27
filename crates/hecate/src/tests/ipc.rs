@@ -231,6 +231,23 @@ fn real_socket_roundtrip_and_event_stream() {
         }
     }
     assert!(saw_signal, "Signal event");
+
+    // Opening and closing the overview are announced.
+    f.hecate()
+        .do_action(crate::config::action::Action::ToggleOverview, None);
+    f.hecate()
+        .do_action(crate::config::action::Action::ToggleOverview, None);
+    let mut seen = Vec::new();
+    for _ in 0..30 {
+        let e = read_line(&mut f, &mut sock);
+        if let Some(o) = e.get("OverviewChanged") {
+            seen.push(o["open"].as_bool().unwrap());
+            if seen.len() == 2 {
+                break;
+            }
+        }
+    }
+    assert_eq!(seen, vec![true, false], "OverviewChanged events");
     let _ = Payload::Unit(hecate_ipc::Ack {});
     std::fs::remove_dir_all(&dir).ok();
 }

@@ -146,7 +146,7 @@ impl State {
     }
 
     /// Does a mapped layer surface with exclusive keyboard interactivity have the keyboard?
-    fn keyboard_on_exclusive_layer(&self) -> bool {
+    pub(crate) fn keyboard_on_exclusive_layer(&self) -> bool {
         let Some(focus) = self.hecate.seat.get_keyboard().and_then(|k| k.current_focus()) else {
             return false;
         };

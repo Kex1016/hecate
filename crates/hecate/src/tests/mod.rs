@@ -21,6 +21,7 @@ mod layers;
 mod lock;
 mod output_management;
 mod output_power;
+mod overview;
 mod render;
 mod screencopy;
 mod splash;

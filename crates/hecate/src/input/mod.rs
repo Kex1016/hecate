@@ -39,6 +39,8 @@ enum KeyResult {
     /// Ctrl+Alt+Fn: switch virtual terminal.
     Vt(i32),
     CancelPick,
+    /// A press while the overview is open: its key, modifiers and typed character.
+    Overview(smithay::input::keyboard::Keysym, Modifiers, Option<char>),
 }
 
 impl State {
@@ -123,6 +125,9 @@ impl State {
         let pending_tap = self.hecate.pending_mod_tap.take();
 
         let picking = self.has_pending_pick();
+        // Not while a layer surface has the keyboard to itself: what is typed into a polkit
+        // prompt is that prompt's alone, even before the overview has closed for it.
+        let overview = self.hecate.overview.open && !self.keyboard_on_exclusive_layer();
         let keyboard = self.hecate.seat.get_keyboard().unwrap();
         let mut key_report: Option<hecate_ipc::KeyEvent> = None;
         let (result, mods_changed) = keyboard.input_intercept(self, keycode, state, |_, mods, handle| {
@@ -174,6 +179,7 @@ impl State {
                     if let Some(b) = tap
                         && (keybinds_enabled && (!inhibited || b.value.flags.allow_when_inhibited))
                         && (!locked || b.value.flags.allow_when_locked)
+                        && (!overview || b.value.flags.allow_when_locked)
                     {
                         return FilterResult::Intercept(KeyResult::Bind(b.value.clone(), false));
                     }
@@ -219,10 +225,30 @@ impl State {
                 if locked && !f.allow_when_locked {
                     continue;
                 }
+                // The overview takes every key but the ones that work on a lock screen, the
+                // overview's own toggle and workspace switches (it stays open over them).
+                let passes = matches!(
+                    b.value.action,
+                    Some(
+                        crate::config::action::Action::ToggleOverview
+                            | crate::config::action::Action::Workspace(_)
+                    )
+                );
+                if overview && !f.allow_when_locked && !passes {
+                    continue;
+                }
                 if (!keybinds_enabled || inhibited) && !f.allow_when_inhibited {
                     continue;
                 }
                 return FilterResult::Intercept(KeyResult::Bind(b.value.clone(), true));
+            }
+            if overview {
+                let modified = handle.modified_sym();
+                return FilterResult::Intercept(KeyResult::Overview(
+                    modified,
+                    modifiers,
+                    modified.key_char(),
+                ));
             }
             FilterResult::Forward
         });
@@ -297,6 +323,11 @@ impl State {
             }
             Some(KeyResult::Swallow) => {
                 self.hecate.suppressed_keys.retain(|k| *k != raw_code);
+            }
+            Some(KeyResult::Overview(sym, mods, text)) => {
+                // Its release is swallowed too.
+                self.hecate.suppressed_keys.push(raw_code);
+                self.overview_key(sym, mods, text);
             }
             Some(KeyResult::CancelPick) => {
                 self.hecate.suppressed_keys.push(raw_code);
@@ -445,6 +476,13 @@ impl State {
         let pos = pointer.current_location();
         let serial = SERIAL_COUNTER.next_serial();
 
+        // The overview takes the pointer: no constraints, no client focus.
+        if self.hecate.overview.open {
+            let new_pos = self.clamp_to_outputs(pos, pos + event.delta());
+            self.overview_motion(new_pos);
+            return;
+        }
+
         // Pointer constraints on the focused surface.
         let focus = self.contents_under(pos).surface;
         let mut locked = false;
@@ -522,6 +560,9 @@ impl State {
         };
         let geo = Wm::output_geometry(&output);
         let pos = event.position_transformed(geo.size) + geo.loc.to_f64();
+        if self.overview_motion(pos) {
+            return;
+        }
         let serial = SERIAL_COUNTER.next_serial();
         let under = self.contents_under(pos);
         self.focus_follows_mouse(&under);
@@ -589,11 +630,16 @@ impl State {
 
     pub fn warp_pointer(&mut self, pos: Point<f64, Logical>) {
         let pointer = self.hecate.seat.get_pointer().unwrap();
-        let under = self.contents_under(pos);
+        // The overview keeps the pointer off its hidden windows, wherever it is put.
+        let focus = if self.hecate.overview.open {
+            None
+        } else {
+            self.contents_under(pos).surface
+        };
         self.hecate.pointer_location = pos;
         pointer.motion(
             self,
-            under.surface,
+            focus,
             &MotionEvent {
                 location: pos,
                 serial: SERIAL_COUNTER.next_serial(),
@@ -613,6 +659,10 @@ impl State {
         if state == ButtonState::Pressed && self.has_pending_pick() {
             self.hecate.suppressed_buttons.push(button);
             self.finish_picks(button != crate::config::keys::BTN_LEFT);
+            return;
+        }
+
+        if self.overview_button(pointer.current_location(), button, state == ButtonState::Pressed) {
             return;
         }
 

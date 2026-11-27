@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- A window overview, `toggle_overview` on `Mod+W`: every window of the workspace in a live
+  grid, drawn by the compositor. Arrows, `Return`, a click or typing to filter pick one; an
+  `x` or a middle click closes one; a workspace strip on top switches workspaces and takes
+  windows dropped on it. `[overview]` (`gap`, `dim`, `strip`), `animations.overview`
+  (pixelate in the haiiro look) and an `OverviewChanged` event. See
+  `docs/config.md#window-overview`.
+
 - The desktop widgets can be locked to one monitor (Settings → desktop → desktop widgets,
   `background.widgets`); an unplugged choice falls back to the first monitor.
 - Desktop widgets have a free style, straight on the background with no window, and it is the

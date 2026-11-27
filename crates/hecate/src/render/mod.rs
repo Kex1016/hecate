@@ -124,6 +124,8 @@ render_elements! {
     Surface = WaylandSurfaceRenderElement<GlesRenderer>,
     Border = border::BorderElement,
     Clipped = border::ClippedSurfaceElement,
+    /// A surface drawn a second time in one frame (the overview's strip), under its own id.
+    Again = crate::overview::render::Again,
     Texture = TextureRenderElement<GlesTexture>,
     Pixelated = pixelate::PixelatedTexture,
     Label = MemoryRenderBufferRenderElement<GlesRenderer>,
@@ -427,7 +429,9 @@ impl Hecate {
             push_layer(&mut out, &mut markers, renderer, Layer::Overlay);
         }
 
-        let windows = if desktop_only {
+        // The overview draws the windows itself, in their slots, under the bar.
+        let overview = !desktop_only && self.overview.is_visible(now);
+        let windows = if desktop_only || overview {
             Vec::new()
         } else {
             self.wm.windows_on_output(output)
@@ -442,14 +446,22 @@ impl Hecate {
             .get_keyboard()
             .and_then(|k| k.current_focus())
             .map(|s| crate::utils::root_surface(&s));
-        if !desktop_only {
+        // A window closed from the overview would pop out at full size where it lived.
+        if !desktop_only && !overview {
             self.push_closing(renderer, &mut out, output, None, now);
         }
         // A workspace switch slides the new workspace in over the old one's way out. With
         // `pixelate` nothing moves: the old workspace is cut and the new one's windows
         // sharpen in place. (Style `none` starts no switch at all: a plain cut.)
         let width = output_geo.size.w as f64;
-        let switch = self.wm.switch_for(output).cloned().filter(|_| !desktop_only);
+        let switch = self
+            .wm
+            .switch_for(output)
+            .cloned()
+            .filter(|_| !desktop_only && !overview);
+        if overview {
+            self.push_overview(renderer, &mut out, output, now);
+        }
         let appear = switch
             .as_ref()
             .filter(|s| s.anim.style == AnimStyle::Pixelate)

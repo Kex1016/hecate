@@ -20,6 +20,7 @@ animation`), plus end4-pC's Game Mode toggle.
 | layer close | `layersOut` popin 94% + `fadeLayersOut` (stall curve) | `layer_close = { style = "popin", from = 0.94, ms = 240 }` | snapshot like window close |
 | layer per-rule styles | `slide`, `slide left`, `slide right`, `slide bottom`, `popin 120%`, `no_anim` | layer rule `animation = "slide" \| "slide_left" \| "slide_right" \| "slide_top" \| "slide_bottom" \| { popin = 1.2 } \| "none"` | `slide` without a direction picks the nearest anchored edge, like Hyprland |
 | workspace switch | `workspaces` slide, menu_decel, speed 7 | `workspace_switch = { style = "slide", ms = 700 }` | horizontal slide of the workspace layer per output (`per_output` scope) or on all outputs (`global`). Also `"fade"` and `"none"` |
+| window overview | (none: hecate's own, `toggle_overview`) | `overview = { style = "slide", ms = 300, curve = "emphasized_decel" }` | `"slide"` moves and shrinks every window from where it is into its grid slot, and back on close. `"pixelate"` cuts to the grid and sharpens it in blocks (closing blocks it out, then cuts back); the haiiro look uses it. `"none"` is a cut, and so is any other style (`"fade"`, `"popin"`). Toggled again midway, it turns round from where it is. The workspace strip fades in with it |
 
 Not animated: `specialWorkspace*` (hecate has no scratchpad workspace) and
 `zoomFactor` (no zoom in v1).
@@ -63,7 +64,7 @@ ms = 300
 curve = "emphasized_decel"
 fade = true
 
-# ... window_close, window_move, border, layer_open, layer_close, workspace_switch
+# ... window_close, window_move, border, layer_open, layer_close, workspace_switch, overview
 
 [[layer_rules]]
 match = { namespace = "quickshell:bar" }
