@@ -40,7 +40,7 @@ pub fn height(area: Rectangle<i32, Logical>) -> i32 {
 }
 
 /// Lays `count` thumbnails out along the top of `area`, each with the output's aspect
-/// ratio, centred, shrunk to fit when there are many. `workspace` and `index` are left
+/// ratio, centred, shrunk to fit when there are many (the gap with them). `workspace` and `index` are left
 /// for the caller to fill in.
 pub fn strip(
     area: Rectangle<i32, Logical>,
@@ -58,19 +58,31 @@ pub fn strip(
     let mut content_h = (row - ey).max(1);
     let mut content_w = ((content_h as f64 * aspect).round() as i32).max(1);
     let n = count as i32;
+    let mut gap = gap.max(0);
     if n * (content_w + ex) + (n - 1) * gap > area.size.w {
-        let frame_w = (area.size.w - (n - 1) * gap) / n;
+        let mut frame_w = (area.size.w - (n - 1) * gap) / n;
+        // Many workspaces on a narrow output: the gap shrinks with the thumbnails, to a
+        // quarter of one, or it would take the row and leave them a pixel each.
+        if gap > frame_w / 4 {
+            frame_w = (4 * area.size.w / (5 * n - 1)).max(1);
+            gap = frame_w / 4;
+        }
         content_w = (frame_w - ex).max(1);
         content_h = ((content_w as f64 / aspect).floor() as i32).max(1);
     }
     let (frame_w, frame_h) = (content_w + ex, content_h + ey);
-    let total = n * frame_w + (n - 1) * gap;
-    let x0 = area.loc.x + (area.size.w - total) / 2;
+    // More than fit even so: they overlap, and the row still ends inside the area.
+    let mut step = frame_w + gap;
+    if n > 1 && (n - 1) * step + frame_w > area.size.w {
+        step = ((area.size.w - frame_w) / (n - 1)).max(0);
+    }
+    let total = (n - 1) * step + frame_w;
+    let x0 = area.loc.x + ((area.size.w - total) / 2).max(0);
     let y = area.loc.y + (row - frame_h) / 2;
     (0..n)
         .map(|i| {
             let content = Rectangle::new(
-                (x0 + i * (frame_w + gap) + extents.left, y + extents.top).into(),
+                (x0 + i * step + extents.left, y + extents.top).into(),
                 (content_w, content_h).into(),
             );
             Thumb {

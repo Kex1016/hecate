@@ -1324,6 +1324,36 @@ mod strip {
     }
 
     #[test]
+    fn many_workspaces_on_a_narrow_output_stay_inside_the_area() {
+        let line = Extents {
+            top: 2,
+            right: 2,
+            bottom: 2,
+            left: 2,
+        };
+        let area = Rectangle::new((10, 0).into(), (900, 600).into());
+        let inside = |t: &[Thumb]| {
+            t.iter()
+                .all(|x| x.frame.loc.x >= 10 && x.frame.loc.x + x.frame.size.w <= 910)
+        };
+        // 32 workspaces: the gap gives way before the thumbnails shrink to nothing.
+        let t = strip(area, (900, 600).into(), 32, 24, line);
+        assert_eq!(t.len(), 32);
+        assert!(inside(&t), "{:?} … {:?}", t[0].frame, t[31].frame);
+        assert!(t.iter().all(|x| x.content.size.w >= 8), "{:?}", t[0].content);
+        for w in t.windows(2) {
+            assert!(
+                w[0].frame.loc.x + w[0].frame.size.w <= w[1].frame.loc.x,
+                "no overlap"
+            );
+        }
+        // More than can sit side by side at all: still inside.
+        let t = strip(area, (900, 600).into(), 400, 24, line);
+        assert_eq!(t.len(), 400);
+        assert!(inside(&t), "{:?} … {:?}", t[0].frame, t[399].frame);
+    }
+
+    #[test]
     fn grid_moves_below_the_strip() {
         let (mut f, _) = spread();
         let bottom = thumbs(&mut f)
